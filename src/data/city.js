@@ -237,7 +237,7 @@ const COMMON_MELEE_PRICES = {
   'claw-hammer': 10,
   'pipe-wrench': 10,
   'karambit-classic': 11,
-  'dagger': 11,
+  'dagger': 15,
   'baseball-bat': 14,
 }
 
