@@ -1,0 +1,920 @@
+<script setup>
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { BACKGROUND_IMAGE, DEFAULT_CHARACTER_NAME, STAT_DEFS, STAT_MAX } from '../game/config'
+import { FINALES, fieldMapById } from '../data'
+import {
+  currentPhase,
+  currentPlaytime,
+  game,
+  leaveMap,
+  leaveToMenu,
+  notify,
+  renameCharacter,
+  saveToSlot,
+  tickPlaytime,
+} from '../game/store'
+import { flushGlobalStats } from '../game/save'
+import { formatDuration } from '../game/format'
+import ModalShell from './ModalShell.vue'
+import ExplorePanel from './ExplorePanel.vue'
+import CityPanel from './CityPanel.vue'
+import DawnPanel from './DawnPanel.vue'
+import FieldPanel from './FieldPanel.vue'
+import CompanionPanel from './CompanionPanel.vue'
+import InventoryPanel from './InventoryPanel.vue'
+import SavePanel from './SavePanel.vue'
+import SleepPanel from './SleepPanel.vue'
+import DevConsole from './DevConsole.vue'
+
+const panel = ref('')
+const showLeave = ref(false)
+const showRename = ref(false)
+const showDevConsole = ref(false)
+const renameDraft = ref('')
+const bgStyle = computed(() => ({
+  backgroundImage: `url("${encodeURI(BACKGROUND_IMAGE)}")`,
+}))
+const finaleText = computed(() => FINALES[game.finale] ?? null)
+
+const slotLabel = computed(() =>
+  game.slotIndex === null ? '—' : String(game.slotIndex + 1).padStart(2, '0'),
+)
+
+let timer = 0
+
+onMounted(() => {
+  timer = window.setInterval(tickPlaytime, 1000)
+})
+
+onBeforeUnmount(() => {
+  window.clearInterval(timer)
+  flushGlobalStats()
+})
+
+function saveAndLeave() {
+  if (game.slotIndex !== null) saveToSlot(game.slotIndex)
+  showLeave.value = false
+  leaveToMenu()
+}
+
+function leaveDirectly() {
+  showLeave.value = false
+  leaveToMenu()
+}
+
+function closeCity() {
+  leaveMap()
+  panel.value = ''
+}
+
+function openRegion() {
+  if (game.location === 'dawn-post') {
+    panel.value = 'dawn'
+  } else if (game.location === 'ruined-city') {
+    panel.value = 'city'
+  } else if (fieldMapById(game.location)) {
+    panel.value = 'field'
+  } else {
+    panel.value = 'city'
+  }
+}
+
+function backHome() {
+  leaveToMenu()
+}
+
+function closeFinale() {
+  game.finale = ''
+}
+
+function openRename() {
+  renameDraft.value = game.character
+  showRename.value = true
+}
+
+function submitRename() {
+  if (renameDraft.value.trim() === '/yocim_dev_mode') {
+    showRename.value = false
+    showDevConsole.value = true
+    notify('名字保存失败：档案系统拒绝写入。')
+    return
+  }
+  const line = renameCharacter(renameDraft.value)
+  if (!line) return
+  notify(line)
+  showRename.value = false
+}
+
+function finishAndLeave() {
+  if (game.slotIndex !== null) saveToSlot(game.slotIndex)
+  leaveToMenu()
+}
+
+function percentOf(key) {
+  return Math.max(0, Math.min(100, (game.stats[key] / STAT_MAX) * 100))
+}
+</script>
+
+<template>
+  <main class="game">
+    <div class="game__bg" :style="bgStyle" />
+    <div class="game__veil" />
+    <div class="film-grain" />
+
+    <div class="frame">
+      <header class="hud panel">
+        <div class="hud__top">
+          <div class="identity">
+            <span class="eyebrow">幸存者档案</span>
+            <div class="identity__row">
+              <h1 class="identity__name">{{ game.character }}</h1>
+              <button type="button" class="identity__rename" @click="openRename">改名</button>
+              <span class="identity__tag">存档 {{ slotLabel }}</span>
+              <span class="identity__tag">末日币 {{ game.coins }}</span>
+              <span class="identity__tag">曙光币 {{ game.dawnCoins }}</span>
+              <span v-if="game.identity" class="identity__tag">身份 · {{ game.identity }}</span>
+              <span v-if="game.dawnIdentity" class="identity__tag">曙光 · {{ game.dawnIdentity }}</span>
+            </div>
+            <p class="identity__meta">
+              第 {{ game.day }} 天 · {{ currentPhase }} · 本次游玩
+              {{ formatDuration(currentPlaytime, { withSeconds: false }) }}
+            </p>
+          </div>
+
+          <div class="hud__right">
+            <span class="hud__signal"><i />安全屋 · 暂时安全</span>
+            <button type="button" class="btn hud__leave" @click="showLeave = true">
+              返回主菜单
+            </button>
+          </div>
+        </div>
+
+        <div class="gauges">
+          <div v-for="stat in STAT_DEFS" :key="stat.key" class="gauge">
+            <div class="gauge__head">
+              <span class="gauge__label">{{ stat.label }}</span>
+              <span class="gauge__value">
+                {{ game.stats[stat.key] }}<em>/{{ STAT_MAX }}</em>
+              </span>
+            </div>
+            <div class="gauge__track">
+              <div
+                class="gauge__fill"
+                :style="{ width: percentOf(stat.key) + '%', background: stat.color }"
+              />
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <section class="scene">
+        <div class="scene__bg" :style="bgStyle" />
+        <div class="scene__shade" />
+
+        <div class="scene__content">
+          <div class="scene__head">
+            <p class="eyebrow">当前位置</p>
+            <h2 class="scene__title">安全屋 · 三楼公寓</h2>
+            <p class="scene__desc">
+              窗外仍旧是那片废墟。收音机里只剩电流声，但门还锁着——今天你还活着。
+            </p>
+          </div>
+
+          <div class="scene__body">
+            <div class="log">
+              <h3 class="log__title">生存记录</h3>
+              <ul class="log__list">
+                <li><span>01</span>你在公寓的沙发上醒来，天色灰白，空气里有铁锈味。</li>
+                <li><span>02</span>街道上有人影缓慢移动，它们没有影子。</li>
+                <li><span>03</span>选择「外出探索」，看看这座城市还剩什么。</li>
+              </ul>
+            </div>
+
+            <div class="scene__note">
+              <span class="eyebrow">框架说明</span>
+              <p>
+                属性面板、回合计数、背包、存档与地图入口均已接入。区域事件与战斗将在下一阶段开发。
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <footer class="actions">
+        <button type="button" class="action" @click="panel = 'explore'">
+          <span class="action__no">01</span>
+          <span class="action__main">
+            <span class="action__label">外出探索</span>
+            <span class="action__desc">离开安全屋，进入废墟</span>
+          </span>
+          <span class="action__arrow">→</span>
+        </button>
+
+        <button type="button" class="action" @click="panel = 'sleep'">
+          <span class="action__no">02</span>
+          <span class="action__main">
+            <span class="action__label">睡觉</span>
+            <span class="action__desc">小憩 1 回合，或睡足 4 回合</span>
+          </span>
+          <span class="action__arrow">→</span>
+        </button>
+
+        <button type="button" class="action" @click="panel = 'inventory'">
+          <span class="action__no">03</span>
+          <span class="action__main">
+            <span class="action__label">打开背包</span>
+            <span class="action__desc">查看随身携带的物资</span>
+          </span>
+          <span class="action__arrow">→</span>
+        </button>
+
+        <button type="button" class="action" @click="panel = 'save'">
+          <span class="action__no">04</span>
+          <span class="action__main">
+            <span class="action__label">查看存档</span>
+            <span class="action__desc">保存或读取当前进度</span>
+          </span>
+          <span class="action__arrow">→</span>
+        </button>
+
+        <button type="button" class="action" @click="panel = 'companion'">
+          <span class="action__no">05</span>
+          <span class="action__main">
+            <span class="action__label">伙伴收获</span>
+            <span class="action__desc">嫣然与露露今天带回了什么</span>
+          </span>
+          <span class="action__arrow">→</span>
+        </button>
+      </footer>
+    </div>
+
+    <ExplorePanel
+      v-if="panel === 'explore'"
+      @close="panel = ''"
+      @enter="openRegion"
+    />
+    <CityPanel v-else-if="panel === 'city'" @close="closeCity" />
+    <DawnPanel v-else-if="panel === 'dawn'" @close="closeCity" />
+    <FieldPanel v-else-if="panel === 'field'" @close="closeCity" />
+    <CompanionPanel v-else-if="panel === 'companion'" @close="panel = ''" />
+    <SleepPanel v-else-if="panel === 'sleep'" @close="panel = ''" />
+    <InventoryPanel v-else-if="panel === 'inventory'" @close="panel = ''" />
+    <SavePanel v-else-if="panel === 'save'" @close="panel = ''" />
+
+    <div v-if="game.dead" class="death">
+      <div class="death__card">
+        <p class="eyebrow">生存终止</p>
+        <h2 class="death__title">{{ game.ending || '你死了' }}</h2>
+        <p class="death__reason">{{ game.deathReason }}</p>
+        <button type="button" class="btn btn--primary" @click="backHome">回到主菜单</button>
+      </div>
+    </div>
+
+    <div v-if="game.finale && !game.dead" class="finale">
+      <div class="finale__card">
+        <p class="eyebrow">结局</p>
+        <h2 class="finale__title">{{ finaleText?.title ?? game.finale }}</h2>
+        <p class="finale__text">{{ finaleText?.text }}</p>
+        <div class="finale__actions">
+          <button v-if="!finaleText?.terminal" type="button" class="btn" @click="closeFinale">
+            继续游戏
+          </button>
+          <button type="button" class="btn btn--primary" @click="finishAndLeave">
+            保存并返回主界面
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <ModalShell
+      v-if="showRename"
+      title="修改名字"
+      sub="档案上的名字随时可以改，保存进度后写入存档"
+      @close="showRename = false"
+    >
+      <label class="rename" for="rename-input">
+        <span class="rename__label">幸存者名字</span>
+        <input
+          id="rename-input"
+          v-model="renameDraft"
+          type="text"
+          maxlength="16"
+          :placeholder="DEFAULT_CHARACTER_NAME"
+          @keyup.enter="submitRename"
+        />
+        <span class="rename__hint">最多 16 个字符，留空则不会修改</span>
+      </label>
+      <template #footer>
+        <div class="leave__actions">
+          <span class="leave__hint">当前名字：{{ game.character }}</span>
+          <div class="leave__buttons">
+            <button type="button" class="btn" @click="showRename = false">取消</button>
+            <button type="button" class="btn btn--primary" @click="submitRename">
+              保存名字
+            </button>
+          </div>
+        </div>
+      </template>
+    </ModalShell>
+
+    <ModalShell
+      v-if="showLeave"
+      title="返回主菜单"
+      sub="未保存的进度将会丢失"
+      @close="showLeave = false"
+    >
+      <p class="leave__text">
+        你正在游玩存档 {{ slotLabel }}。可以选择保存后离开，或者直接返回——下一次进入时将回到主菜单。
+      </p>
+      <template #footer>
+        <div class="leave__actions">
+          <span class="leave__hint">进度只在你点击保存时写入</span>
+          <div class="leave__buttons">
+            <button type="button" class="btn" @click="showLeave = false">继续游戏</button>
+            <button type="button" class="btn" @click="leaveDirectly">直接返回</button>
+            <button type="button" class="btn btn--primary" @click="saveAndLeave">
+              保存并返回
+            </button>
+          </div>
+        </div>
+      </template>
+    </ModalShell>
+
+    <DevConsole v-if="showDevConsole" @close="showDevConsole = false" />
+  </main>
+</template>
+
+<style scoped>
+.game {
+  position: relative;
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: #08090a;
+}
+
+.game__bg {
+  position: fixed;
+  inset: 0;
+  background-size: cover;
+  background-position: center 35%;
+  filter: grayscale(0.55) brightness(0.42) blur(1px);
+  transform: scale(1.04);
+}
+
+.game__veil {
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 20%, rgba(10, 12, 13, 0.35), rgba(6, 7, 8, 0.94) 78%),
+    linear-gradient(180deg, rgba(6, 7, 8, 0.86), rgba(6, 7, 8, 0.55) 45%, rgba(6, 7, 8, 0.94));
+}
+
+.frame {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 100%;
+  padding: 16px clamp(14px, 3.4vw, 44px) 18px;
+}
+
+/* ===== 角色 UI ===== */
+
+.hud {
+  padding: 16px 22px 18px;
+}
+
+.hud__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.identity__row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 3px;
+}
+
+.identity__name {
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--text);
+}
+
+.identity__rename {
+  padding: 0;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--text-mute);
+  background: none;
+  border: none;
+  border-bottom: 1px dashed var(--line-strong);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.identity__rename:hover {
+  color: var(--rust-soft);
+}
+
+.rename {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  color: var(--text-mute);
+}
+
+.rename__label {
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+}
+
+.rename input {
+  width: 180px;
+  height: 32px;
+  padding: 0 9px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--line-strong);
+  outline: none;
+}
+
+.rename input:focus {
+  border-color: rgba(193, 74, 50, 0.6);
+}
+
+.rename__hint {
+  font-size: 10px;
+  color: var(--text-mute);
+}
+
+.identity__tag {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  color: var(--text-mute);
+  border: 1px solid var(--line);
+  padding: 2px 7px;
+}
+
+.identity__meta {
+  margin: 6px 0 0;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  color: var(--text-mute);
+}
+
+.hud__right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: none;
+}
+
+.hud__signal {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+}
+
+.hud__signal i {
+  width: 5px;
+  height: 5px;
+  background: var(--sick);
+  animation: pulse 2.4s ease-in-out infinite;
+}
+
+.hud__leave {
+  height: 30px;
+  padding: 0 12px;
+  font-size: 11px;
+}
+
+.gauges {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 18px;
+  padding-top: 16px;
+}
+
+.gauge__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.gauge__label {
+  font-size: 11.5px;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+}
+
+.gauge__value {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--text);
+}
+
+.gauge__value em {
+  font-style: normal;
+  font-size: 9.5px;
+  color: var(--text-mute);
+}
+
+.gauge__track {
+  height: 3px;
+  background: rgba(214, 208, 191, 0.12);
+  overflow: hidden;
+}
+
+.gauge__fill {
+  height: 100%;
+  transition: width 0.45s ease;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.12);
+}
+
+/* ===== 场景 ===== */
+
+.scene {
+  position: relative;
+  flex: 1;
+  min-height: 340px;
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.scene__bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center 30%;
+  filter: grayscale(0.8) brightness(0.46) contrast(1.05);
+  transform: scale(1.02);
+}
+
+.scene__shade {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(7, 8, 9, 0.9) 0%, rgba(7, 8, 9, 0.58) 48%, rgba(7, 8, 9, 0.22) 100%),
+    linear-gradient(180deg, rgba(7, 8, 9, 0.3), rgba(7, 8, 9, 0.66));
+}
+
+.scene__content {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 24px;
+  padding: clamp(20px, 3vw, 34px);
+}
+
+.scene__title {
+  margin: 8px 0 0;
+  font-family: var(--font-title);
+  font-size: clamp(24px, 2.6vw, 32px);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: #e6ded0;
+}
+
+.scene__desc {
+  max-width: 460px;
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  line-height: 1.9;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+
+.scene__body {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+
+.log {
+  min-width: 240px;
+}
+
+.log__title {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.24em;
+  color: var(--text-mute);
+}
+
+.log__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.log__list li {
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+  line-height: 1.7;
+  letter-spacing: 0.03em;
+  color: var(--text-dim);
+}
+
+.log__list span {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--rust);
+  padding-top: 4px;
+}
+
+.scene__note {
+  max-width: 300px;
+  padding: 14px 16px;
+  border-left: 1px solid var(--line-strong);
+  background: rgba(9, 11, 12, 0.55);
+}
+
+.scene__note p {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.8;
+  letter-spacing: 0.04em;
+  color: var(--text-mute);
+}
+
+/* ===== 行动按钮 ===== */
+
+.actions {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.action {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(20, 23, 24, 0.75), rgba(12, 14, 15, 0.75));
+  backdrop-filter: blur(8px);
+  transition:
+    border-color 0.25s,
+    background 0.25s,
+    transform 0.25s;
+}
+
+.action:hover {
+  border-color: rgba(193, 74, 50, 0.55);
+  background: linear-gradient(180deg, rgba(40, 28, 25, 0.8), rgba(14, 15, 16, 0.8));
+  transform: translateY(-2px);
+}
+
+.action:active {
+  transform: translateY(0);
+}
+
+.action__no {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-mute);
+}
+
+.action__main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.action__label {
+  font-family: var(--font-title);
+  font-size: 17px;
+  letter-spacing: 0.14em;
+  color: var(--text);
+}
+
+.action__desc {
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  color: var(--text-mute);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.action__arrow {
+  font-size: 14px;
+  color: var(--text-mute);
+  transition: 0.25s;
+}
+
+.action:hover .action__arrow {
+  color: var(--rust-soft);
+  transform: translateX(3px);
+}
+
+/* 离开提示 */
+
+.leave__text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.9;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+
+.leave__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.leave__hint {
+  font-size: 11px;
+  color: var(--text-mute);
+  letter-spacing: 0.05em;
+}
+
+.leave__buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+/* 死亡 */
+
+.death {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(4, 5, 6, 0.9);
+  backdrop-filter: blur(8px);
+}
+
+.death__card {
+  width: min(520px, 100%);
+  padding: 34px 36px;
+  border: 1px solid rgba(193, 74, 50, 0.5);
+  background: linear-gradient(180deg, rgba(22, 14, 13, 0.98), rgba(10, 8, 8, 0.98));
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7);
+}
+
+.death__title {
+  margin: 10px 0 0;
+  font-family: var(--font-title);
+  font-size: 34px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  color: var(--rust-soft);
+}
+
+.death__reason {
+  margin: 14px 0 24px;
+  font-size: 12.5px;
+  line-height: 1.9;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  white-space: pre-line;
+}
+
+/* 非死亡结局 */
+
+.finale {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(4, 5, 6, 0.92);
+  backdrop-filter: blur(8px);
+}
+
+.finale__card {
+  width: min(600px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding: 36px 38px 30px;
+  border: 1px solid rgba(214, 208, 191, 0.32);
+  background: linear-gradient(180deg, rgba(20, 19, 17, 0.98), rgba(10, 9, 8, 0.98));
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7);
+}
+
+.finale__title {
+  margin: 10px 0 0;
+  font-family: var(--font-title);
+  font-size: 34px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  color: var(--bone);
+}
+
+.finale__text {
+  margin: 16px 0 26px;
+  font-size: 12.5px;
+  line-height: 2;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  white-space: pre-line;
+}
+
+.finale__actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@media (max-width: 1080px) {
+  .gauges {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px 18px;
+  }
+
+  .actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 800px) {
+  .hud__signal {
+    display: none;
+  }
+
+  .actions {
+    grid-template-columns: 1fr;
+  }
+
+  .scene__note {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .gauges {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .hud {
+    padding: 14px 14px 16px;
+  }
+
+  .identity__name {
+    font-size: 18px;
+  }
+
+  .hud__leave {
+    font-size: 10px;
+    padding: 0 9px;
+  }
+}
+</style>

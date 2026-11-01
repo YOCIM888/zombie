@@ -1,0 +1,2565 @@
+import { computed, reactive } from 'vue'
+import { ACHIEVEMENTS, DEFAULT_CHARACTER_NAME, DEFAULT_STATS, MAPS, STAT_DEFS, STAT_ENDINGS } from './config'
+import { preloadAssets } from './assets'
+import { startMusic } from './music'
+import {
+  BACKPACK_MAX_SIZE,
+  BACKPACK_SIZE,
+  CLEANLINESS_MAX,
+  CLEANLINESS_PER_SHOT,
+  COMPANIONS,
+  DAWN_JOIN_KILLS,
+  DAWN_MARKET,
+  DAWN_PROMOTIONS,
+  DAWN_RECYCLE_PRICES,
+  DAWN_SERVICE,
+  DEV_SHOP,
+  DOCTOR,
+  ENTRY_COST,
+  GARAGE,
+  GARDEN,
+  GIANT_PUPPET,
+  ITEMS,
+  KNIGHT_COST,
+  LABOR_TIERS,
+  LOAN_TERM_DAYS,
+  LULU,
+  MA_SAN,
+  MERMAID,
+  ORCHARD,
+  PALACE_COOLDOWN,
+  PALACE_COUNCILS,
+  PALACE_SALARY,
+  PHASES,
+  REPAIR_PERCENT_PER_COIN,
+  REST_OPTIONS,
+  ROCKET,
+  ROTTEN_SEED,
+  SHOP_GOODS,
+  STRANGE_BARBECUE,
+  TREATMENT_TIERS,
+  TURN_COST,
+  YANRAN,
+  addItem,
+  canStoreItems,
+  countItem,
+  createEmptyBackpack,
+  createInitialBackpack,
+  dawnItemId,
+  dawnRank,
+  fieldMapById,
+  getItem,
+  identityItemId,
+  identityRank,
+  isCannedItem,
+  isFruitItem,
+  isSpiritItem,
+  loanInterest,
+  loanTierByRank,
+  loanTierFor,
+  pickCityLoot,
+  pickCompanionLoot,
+  pickDawnFruit,
+  pickDawnMeal,
+  pickFieldLoot,
+  pickGardenLoot,
+  pickRandomMedicine,
+  pickZombie,
+  questById,
+  questLine,
+  removeItem,
+  repairCoinCost,
+} from '../data'
+import { addPlaytime, flushGlobalStats, getSlot, unlockAchievement, writeSlot } from './save'
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const CHARACTER_NAME_MAX = 16
+
+/** 名字去掉首尾空白并限制长度；空名字回落到默认名 */
+export function normalizeCharacterName(value, fallback = '') {
+  const text = String(value ?? '').trim().slice(0, CHARACTER_NAME_MAX)
+  return text || fallback
+}
+
+const STAT_LABELS = Object.fromEntries(STAT_DEFS.map((stat) => [stat.key, stat.label]))
+const clampStat = (value) => Math.max(0, Math.min(100, Math.round(value)))
+
+export const game = reactive({
+  screen: 'menu',
+  loading: false,
+  progress: 0,
+  slotIndex: null,
+  character: DEFAULT_CHARACTER_NAME,
+  stats: { ...DEFAULT_STATS },
+  inventory: createEmptyBackpack(),
+  equipment: { melee: null, ranged: null },
+  coins: 0,
+  dawnCoins: 0,
+  identity: null,
+  maxIdentity: null,
+  dawnIdentity: null,
+  maxDawnIdentity: null,
+  zombieKills: 0,
+  loan: null,
+  day: 1,
+  phase: 0,
+  location: null,
+  cooldowns: {},
+  dead: false,
+  deathReason: '',
+  ending: '',
+  quests: {},
+  flags: {},
+  finale: '',
+  playtimeBase: 0,
+  sessionSeconds: 0,
+  toast: '',
+})
+
+/** 开发者控制台状态：只在当前页面会话内生效，不写入存档 */
+export const devState = reactive({
+  oneHitKill: false,
+  lockStats: false,
+})
+
+export const currentPlaytime = computed(() => game.playtimeBase + game.sessionSeconds)
+export const currentPhase = computed(() => PHASES[game.phase] ?? PHASES[0])
+
+let toastTimer = 0
+
+export function notify(text, duration = 2400) {
+  game.toast = text
+  window.clearTimeout(toastTimer)
+  toastTimer = window.setTimeout(() => {
+    game.toast = ''
+  }, duration)
+}
+
+const ACHIEVEMENT_NAMES = Object.fromEntries(ACHIEVEMENTS.map((item) => [item.id, item.name]))
+
+/** 可自动判定的成就条件：读取当前存档状态即可 */
+const ACHIEVEMENT_CHECKS = {
+  'first-night': () => game.day >= 2,
+  'scavenger': () => (Number(game.flags.scavengeCount) || 0) >= 10,
+  'survivor-7': () => game.day >= 7,
+  'survivor-30': () => game.day >= 30,
+  'first-blood': () => game.zombieKills >= 1,
+  hunter: () => game.zombieKills >= 10,
+  butcher: () => game.zombieKills >= 50,
+  'dawn-sworn': () => Boolean(game.dawnIdentity),
+  'dawn-officer': () => dawnRank(game.dawnIdentity) >= 1,
+  savings: () => game.coins >= 50,
+  'dawn-savings': () => game.dawnCoins >= 100,
+  mermaid: () => (Number(game.flags.mermaidStage) || 0) >= MERMAID.stages.length,
+  yanran: () => Boolean(game.flags.yanranRescued),
+  lulu: () => Boolean(game.flags.luluRescued),
+  barbecue: () => Boolean(game.flags.ateStrangeMeat),
+  doctor: () => Boolean(game.flags.doctorTradeDone),
+  garage: () => Boolean(game.flags.garageDeparted),
+  rocket: () =>
+    [ROCKET.finaleAll, ROCKET.finaleSolo, ROCKET.finaleSend].includes(game.finale),
+  'loan-paid': () => Boolean(game.flags.loanRepaid),
+}
+
+let achievementGuard = false
+
+/** 检查并解锁所有满足条件的成就；解锁时提示一次 */
+export function checkAchievements() {
+  if (achievementGuard || game.dead || game.screen !== 'game') return
+  achievementGuard = true
+  try {
+    for (const [id, test] of Object.entries(ACHIEVEMENT_CHECKS)) {
+      if (!test()) continue
+      if (!unlockAchievement(id)) continue
+      if (typeof window !== 'undefined') {
+        notify(`成就解锁 · ${ACHIEVEMENT_NAMES[id] ?? id}`)
+      }
+    }
+  } finally {
+    achievementGuard = false
+  }
+}
+
+function cloneInventory(source) {
+  if (!Array.isArray(source)) return createEmptyBackpack()
+  const size = Math.max(source.length, BACKPACK_SIZE)
+  const inventory = createEmptyBackpack(size)
+  for (let index = 0; index < source.length; index += 1) {
+    const entry = source[index]
+    inventory[index] = entry ? { ...entry } : null
+  }
+  return inventory
+}
+
+function cloneEquipment(source) {
+  return {
+    melee: source?.melee ? { ...source.melee } : null,
+    ranged: source?.ranged
+      ? {
+          ...source.ranged,
+          cleanliness: Number.isFinite(source.ranged.cleanliness)
+            ? source.ranged.cleanliness
+            : CLEANLINESS_MAX,
+        }
+      : null,
+  }
+}
+
+function cloneLoan(source) {
+  if (!source) return null
+  const loan = { ...source }
+  // 旧存档没有这些字段：按平民贷款处理
+  if (!Number.isFinite(loan.rank)) loan.rank = 0
+  // 旧版到期日多算了一天，统一改为「第 10 天为最后还款日」
+  if (!Number.isFinite(loan.termDays)) {
+    loan.termDays = LOAN_TERM_DAYS
+    if (Number.isFinite(loan.dueDay)) loan.dueDay -= 1
+  }
+  if (!Number.isFinite(loan.interest)) {
+    loan.interest = Math.max(1, (Number(loan.due) || 0) - (Number(loan.principal) || 0))
+  }
+  if (!Number.isFinite(loan.graceDays)) loan.graceDays = loanTierByRank(loan.rank).graceDays
+  if (typeof loan.graceUsed !== 'boolean') loan.graceUsed = false
+  if (typeof loan.confiscated !== 'boolean') loan.confiscated = false
+  if (typeof loan.defaulted !== 'boolean') loan.defaulted = false
+  return loan
+}
+
+function cloneQuests(source) {
+  const result = {}
+  if (!source || typeof source !== 'object') return result
+  for (const [id, state] of Object.entries(source)) {
+    if (state && typeof state === 'object') result[id] = { ...state }
+  }
+  return result
+}
+
+/** 旧版本把 M1911 误写成 m911，读档时统一迁移 */
+function migrateLegacyItemIds() {
+  for (const entry of game.inventory) {
+    if (entry?.id === 'm911') entry.id = 'm1911'
+  }
+  for (const slot of ['melee', 'ranged']) {
+    if (game.equipment[slot]?.id === 'm911') game.equipment[slot].id = 'm1911'
+  }
+}
+
+function makeSavePayload() {
+  return {
+    version: 6,
+    name: game.character,
+    stats: { ...game.stats },
+    inventory: game.inventory.map((entry) => (entry ? { ...entry } : null)),
+    equipment: cloneEquipment(game.equipment),
+    coins: game.coins,
+    dawnCoins: game.dawnCoins,
+    identity: game.identity,
+    maxIdentity: game.maxIdentity,
+    dawnIdentity: game.dawnIdentity,
+    maxDawnIdentity: game.maxDawnIdentity,
+    zombieKills: game.zombieKills,
+    loan: cloneLoan(game.loan),
+    day: game.day,
+    phase: game.phase,
+    cooldowns: { ...game.cooldowns },
+    quests: cloneQuests(game.quests),
+    flags: { ...game.flags },
+    playtime: currentPlaytime.value,
+    savedAt: Date.now(),
+  }
+}
+
+function applySlot(slot) {
+  game.character = slot.name || DEFAULT_CHARACTER_NAME
+  game.stats = { ...DEFAULT_STATS, ...slot.stats }
+  game.inventory =
+    Array.isArray(slot.inventory) && slot.inventory.length
+      ? cloneInventory(slot.inventory)
+      : createInitialBackpack()
+  game.equipment = cloneEquipment(slot.equipment)
+  game.coins = Number(slot.coins) || 0
+  game.dawnCoins = Number(slot.dawnCoins) || 0
+  game.maxIdentity = slot.maxIdentity ?? slot.identity ?? null
+  game.maxDawnIdentity = slot.maxDawnIdentity ?? slot.dawnIdentity ?? null
+  game.zombieKills = Number(slot.zombieKills) || 0
+  game.loan = cloneLoan(slot.loan)
+  game.day = slot.day || 1
+  game.phase = Number.isFinite(slot.phase) ? slot.phase % PHASES.length : 0
+  game.cooldowns = slot.cooldowns ? { ...slot.cooldowns } : {}
+  game.quests = cloneQuests(slot.quests)
+  game.flags = slot.flags && typeof slot.flags === 'object' ? { ...slot.flags } : {}
+  game.location = null
+  game.dead = false
+  game.deathReason = ''
+  game.ending = ''
+  game.finale = ''
+  game.playtimeBase = slot.playtime || 0
+  game.sessionSeconds = 0
+
+  migrateLegacyItemIds()
+
+  // 旧存档只有身份字段、没有徽章物品：读档时补一枚对应的徽章
+  const hasBadge = game.inventory.some((entry) => entry && getItem(entry.id)?.category === 'identity')
+  if (!hasBadge) {
+    if (slot.identity) addItem(game.inventory, identityItemId(slot.identity), 1)
+    if (slot.dawnIdentity) addItem(game.inventory, dawnItemId(slot.dawnIdentity), 1)
+  }
+  syncIdentities()
+  checkStatDeaths()
+  checkLoanDue()
+}
+
+/**
+ * 进入游戏：先播放音乐，再预加载全部静态资源，加载完才切换到游戏画面
+ */
+export async function enterGame(slotIndex, { isNew = false, name = '' } = {}) {
+  if (game.loading) return
+
+  startMusic()
+  game.loading = true
+  game.progress = 0
+
+  try {
+    await Promise.all([
+      preloadAssets((ratio) => {
+        game.progress = ratio
+      }),
+      delay(1200),
+    ])
+  } finally {
+    game.progress = 1
+  }
+
+  if (isNew) {
+    game.character = normalizeCharacterName(name, DEFAULT_CHARACTER_NAME)
+    game.stats = { ...DEFAULT_STATS }
+    game.inventory = createInitialBackpack()
+    game.equipment = { melee: null, ranged: null }
+    game.coins = 0
+    game.dawnCoins = 0
+    game.identity = null
+    game.maxIdentity = null
+    game.dawnIdentity = null
+    game.maxDawnIdentity = null
+    game.zombieKills = 0
+    game.loan = null
+    game.day = 1
+    game.phase = 0
+    game.location = null
+    game.cooldowns = {}
+    game.dead = false
+    game.deathReason = ''
+    game.ending = ''
+    game.quests = {}
+    game.flags = {}
+    game.finale = ''
+    game.playtimeBase = 0
+    game.sessionSeconds = 0
+  } else {
+    applySlot(getSlot(slotIndex))
+  }
+
+  game.slotIndex = slotIndex
+  game.screen = 'game'
+  game.loading = false
+  checkAchievements()
+
+  if (isNew) {
+    writeSlot(slotIndex, makeSavePayload())
+    window.setTimeout(() => {
+      if (unlockAchievement('awake')) notify('成就解锁 · 第零天')
+    }, 1400)
+  }
+}
+
+/** 修改幸存者名字：随时可用，存档时写入 */
+export function renameCharacter(value) {
+  if (game.dead) return ''
+  const name = normalizeCharacterName(value)
+  if (!name) return '名字不能为空。'
+  if (name === game.character) return '档案上的名字没有变化。'
+  game.character = name
+  return `幸存者档案已更新：${name}。`
+}
+
+export function saveToSlot(index) {
+  if (index === null || index === undefined) return
+  writeSlot(index, makeSavePayload())
+  flushGlobalStats()
+  notify(`进度已保存至存档 ${String(index + 1).padStart(2, '0')}`)
+}
+
+export function loadFromSlot(index) {
+  const slot = getSlot(index)
+  if (!slot) {
+    notify('该存档位为空')
+    return
+  }
+  applySlot(slot)
+  game.slotIndex = index
+  notify(`已读取存档 ${String(index + 1).padStart(2, '0')}`)
+}
+
+export function leaveToMenu() {
+  flushGlobalStats()
+  game.screen = 'menu'
+  game.slotIndex = null
+  game.location = null
+  game.dead = false
+  game.deathReason = ''
+  game.ending = ''
+  game.finale = ''
+  game.sessionSeconds = 0
+  game.playtimeBase = 0
+}
+
+/** 游戏内每秒调用一次 */
+export function tickPlaytime() {
+  if (game.screen !== 'game') return
+  game.sessionSeconds += 1
+  addPlaytime(1)
+  checkAchievements()
+}
+
+/* ===== 时间与状态 ===== */
+
+function adjustStats(changes) {
+  for (const [key, delta] of Object.entries(changes)) {
+    let value = delta
+    if (devState.lockStats) {
+      // 生命/饱食/口渴/理智/体力不再下降；感染不再上升
+      value = key === 'infection' ? Math.min(0, delta) : Math.max(0, delta)
+    }
+    game.stats[key] = clampStat((game.stats[key] ?? 0) + value)
+  }
+  checkStatDeaths()
+}
+
+/** 战斗等外部模块使用：统一走属性结算与结局判定 */
+export function applyStatChanges(changes) {
+  adjustStats(changes)
+}
+
+/** 属性触发结局：饱食/口渴/理智/体力归零、感染满 100、生命归零 */
+function checkStatDeaths() {
+  if (game.dead) return
+  for (const rule of STAT_ENDINGS) {
+    const value = game.stats[rule.key] ?? 0
+    const triggered = rule.at >= 100 ? value >= rule.at : value <= rule.at
+    if (!triggered) continue
+    die(rule.reason, rule.ending)
+    return
+  }
+}
+
+/** 收走背包里全部食物 / 饮品 / 药品，返回被收走的件数 */
+function confiscateGoods() {
+  const categories = new Set(['food', 'drink', 'medicine'])
+  let seized = 0
+  for (let index = 0; index < game.inventory.length; index += 1) {
+    const entry = game.inventory[index]
+    if (!entry) continue
+    const def = getItem(entry.id)
+    if (!categories.has(def?.category)) continue
+    seized += entry.qty ?? 1
+    game.inventory[index] = null
+  }
+  return seized
+}
+
+function checkLoanDue() {
+  if (!game.loan || game.dead) return
+  if (game.loan.defaulted) return
+  if (game.day <= game.loan.dueDay) return
+
+  const tier = loanTierByRank(game.loan.rank)
+  if (tier.deathOnDefault) {
+    die(
+      `借贷逾期：${game.loan.due} 末日币未还。第 ${game.loan.dueDay + 1} 天，放贷的人把你拖进了后巷。`,
+      '高利贷',
+    )
+    return
+  }
+
+  game.loan.defaulted = true
+  if (tier.confiscate && !game.loan.confiscated) {
+    const seized = confiscateGoods()
+    game.loan.confiscated = true
+    notify(
+      `借贷逾期：放贷人收走了你背包里的全部食物、饮品与药品（共 ${seized} 件）。欠款 ${game.loan.due} 末日币仍未结清，未还清前不能再借。`,
+      3600,
+    )
+    return
+  }
+
+  notify(
+    `借贷逾期：欠款 ${game.loan.due} 末日币尚未结清。未还清前，银行不会再借给你。`,
+    3200,
+  )
+}
+
+function die(reason, ending = '') {
+  if (game.dead) return
+  game.dead = true
+  game.deathReason = reason
+  game.ending = ending
+}
+
+/** 身份以背包里的身份牌为准：两个阵营各取等级最高的一枚 */
+function syncIdentities() {
+  let bestCity = null
+  let bestDawn = null
+  for (const entry of game.inventory) {
+    if (!entry) continue
+    const def = getItem(entry.id)
+    if (def?.category !== 'identity') continue
+    if (def.faction === 'dawn') {
+      if (dawnRank(def.identityLevel) > dawnRank(bestDawn)) bestDawn = def.identityLevel
+    } else if (identityRank(def.identityLevel) > identityRank(bestCity)) {
+      bestCity = def.identityLevel
+    }
+  }
+
+  game.identity = bestCity
+  game.dawnIdentity = bestDawn
+  if (bestCity && identityRank(bestCity) > identityRank(game.maxIdentity)) game.maxIdentity = bestCity
+  if (bestDawn && dawnRank(bestDawn) > dawnRank(game.maxDawnIdentity)) {
+    game.maxDawnIdentity = bestDawn
+  }
+}
+
+/** 授予身份：清掉背包里同阵营的旧身份牌，放入新的徽章 */
+function grantFactionIdentity(faction, name) {
+  const itemId = faction === 'dawn' ? dawnItemId(name) : identityItemId(name)
+  if (!itemId) return false
+
+  for (let index = 0; index < game.inventory.length; index += 1) {
+    const entry = game.inventory[index]
+    if (!entry) continue
+    const def = getItem(entry.id)
+    if (def?.category !== 'identity') continue
+    const badgeFaction = def.faction === 'dawn' ? 'dawn' : 'city'
+    if (badgeFaction === faction) game.inventory[index] = null
+  }
+
+  const leftover = addItem(game.inventory, itemId, 1)
+  syncIdentities()
+  if (leftover > 0) return false
+  return true
+}
+
+function grantIdentity(name) {
+  return grantFactionIdentity('city', name)
+}
+
+function grantDawnIdentity(name) {
+  return grantFactionIdentity('dawn', name)
+}
+
+/* ===== 王宫冷却 ===== */
+
+/** 距离下次可用还有几天，0 表示现在就能用 */
+export function cooldownLeft(key, days) {
+  const last = game.cooldowns?.[key]
+  if (last === undefined) return 0
+  return Math.max(0, days - (game.day - last))
+}
+
+function useCooldown(key, days) {
+  if (cooldownLeft(key, days) > 0) return false
+  game.cooldowns[key] = game.day
+  return true
+}
+
+/**
+ * 推进回合：每回合扣 5 点口渴 / 饱食 / 体力；每 8 回合进入新的一天
+ * decay = false 时（睡觉/小憩跳过的回合）不结算普通衰减
+ */
+export function advanceTurns(count, { decay = true } = {}) {
+  for (let i = 0; i < count && !game.dead; i += 1) {
+    if (decay) adjustStats(TURN_COST)
+    game.phase += 1
+    if (game.phase >= PHASES.length) {
+      game.phase = 0
+      game.day += 1
+    }
+    checkLoanDue()
+  }
+  checkAchievements()
+}
+
+export function sleepRest(kind) {
+  const option = REST_OPTIONS[kind]
+  if (!option || game.dead) return
+  if (game.location) {
+    notify('只有在安全屋才能睡觉')
+    return
+  }
+
+  advanceTurns(option.turns, { decay: false })
+  if (game.dead) return
+
+  adjustStats(option.effects)
+  const summary = Object.entries(option.effects)
+    .map(([key, value]) => `${STAT_LABELS[key] ?? key} ${value > 0 ? '+' : ''}${value}`)
+    .join('，')
+  notify(`${option.name} · 跳过 ${option.turns} 回合 · ${summary}`, 3200)
+}
+
+/* ===== 地图 ===== */
+
+export function enterMap(mapId) {
+  if (game.dead) return false
+  const map = MAPS.find((item) => item.id === mapId)
+  if (!map) return false
+  if (!map.open) {
+    notify(`「${map.name}」尚未开放`)
+    return false
+  }
+  if (mapId === 'dawn-post' && game.identity) {
+    notify(`你带着「${game.identity}」的都城徽章，曙光哨兵不会放你进去`, 3200)
+    return false
+  }
+  if (mapId === 'ruined-city' && game.dawnIdentity) {
+    notify(`你带着「${game.dawnIdentity}」的曙光徽章，都城守卫不会放你进去`, 3200)
+    return false
+  }
+  if (game.location === mapId) return true
+  if (game.location) {
+    notify('请先离开当前区域')
+    return false
+  }
+
+  adjustStats(ENTRY_COST)
+  game.location = mapId
+  if (mapId === 'dawn-post') {
+    const unlocked = unlockAchievement('dawn-seen')
+    notify(
+      unlocked
+        ? `进入「${map.name}」 · 成就解锁 · 望见曙光`
+        : `进入「${map.name}」 · 口渴 / 饱食 / 体力 -5`,
+      3200,
+    )
+  } else {
+    notify(`进入「${map.name}」 · 口渴 / 饱食 / 体力 -5`)
+  }
+  return true
+}
+
+export function leaveMap() {
+  game.location = null
+}
+
+/* ===== 末日都城 ===== */
+
+function gainItem(itemId, qty = 1) {
+  const def = getItem(itemId)
+  const leftover = addItem(game.inventory, itemId, qty)
+  if (leftover > 0) return `背包已满，${def?.name ?? '物品'}留在了地上`
+  return `获得 ${def?.name ?? itemId} ×${qty}`
+}
+
+export function exploreCity() {
+  if (game.dead || game.location !== 'ruined-city') return ''
+
+  advanceTurns(1)
+  if (game.dead) return ''
+
+  const itemId = pickCityLoot()
+  if (!itemId) return '你搜遍了这条街，什么也没有找到。'
+
+  const def = getItem(itemId)
+  const lead = def?.category === 'drink' ? '你在倒塌的便利店下找到一瓶饮品' : '你在废墟里翻出一份食物'
+  return `${lead}：${gainItem(itemId)}`
+}
+
+const FIELD_LOOT_LEADS = {
+  food: '你在弃置的灶台边找到一份食物',
+  drink: '你在倒下的冷柜旁找到一瓶饮品',
+  fruit: '你从还没枯死的枝头摘下',
+  medicine: '你在落满灰的药柜里翻出',
+  melee: '你在遗落的装备袋里抽出一把近战武器',
+  ranged: '你在枪柜的夹层里找到一把远程武器',
+}
+
+/**
+ * 野外探索：消耗 1 回合，按地图遭遇率触发丧尸，否则按掉落表搜到物资
+ * 返回 { mapId, line, zombie?, loot? }，由野外面板决定是否进入战斗
+ */
+export function exploreField(mapId) {
+  if (game.dead || game.location !== mapId) return null
+  const map = fieldMapById(mapId)
+  if (!map) return null
+
+  advanceTurns(1)
+  if (game.dead) return null
+
+  if (Math.random() < map.encounterRate) {
+    const zombie = pickZombie(map.zombiePool)
+    return {
+      mapId,
+      zombie,
+      line: `你在「${map.name}」深处撞见了${zombie.name}。`,
+    }
+  }
+
+  const loot = pickFieldLoot(mapId)
+  if (!loot) return { mapId, line: '你翻遍了这一带，什么也没有找到。' }
+
+  const def = getItem(loot.itemId)
+  const lead = FIELD_LOOT_LEADS[def?.category] ?? '你在废墟里找到'
+  if (addItem(game.inventory, loot.itemId, 1) > 0) {
+    return { mapId, line: `背包已满，${def?.name ?? '物资'}留在了地上`, loot }
+  }
+
+  game.flags.scavengeCount = (Number(game.flags.scavengeCount) || 0) + 1
+  checkAchievements()
+  return { mapId, line: `${lead}：获得 ${def?.name ?? loot.itemId} ×1`, loot }
+}
+
+/* ===== 废弃村庄 · 露营山区 专属互动 ===== */
+
+/** 背包内任意水果总数 */
+function fruitTotal() {
+  return game.inventory.reduce((sum, entry) => {
+    if (!entry) return sum
+    return isFruitItem(entry.id) ? sum + (entry.qty ?? 1) : sum
+  }, 0)
+}
+
+export function countFruits() {
+  return fruitTotal()
+}
+
+/** 按背包顺序消耗任意水果；返回实际消耗的数量 */
+function consumeFruits(qty) {
+  let remaining = qty
+  for (let index = 0; index < game.inventory.length && remaining > 0; index += 1) {
+    const entry = game.inventory[index]
+    if (!entry || !isFruitItem(entry.id)) continue
+    const have = entry.qty ?? 1
+    const take = Math.min(have, remaining)
+    remaining -= take
+    if (have - take <= 0) game.inventory[index] = null
+    else entry.qty = have - take
+  }
+  return qty - remaining
+}
+
+/** 背包内阿三认的烈酒总数 */
+function spiritTotal() {
+  return game.inventory.reduce((sum, entry) => {
+    if (!entry) return sum
+    return isSpiritItem(entry.id) ? sum + (entry.qty ?? 1) : sum
+  }, 0)
+}
+
+export function countSpirits() {
+  return spiritTotal()
+}
+
+function consumeSpirits(qty) {
+  let remaining = qty
+  for (let index = 0; index < game.inventory.length && remaining > 0; index += 1) {
+    const entry = game.inventory[index]
+    if (!entry || !isSpiritItem(entry.id)) continue
+    const have = entry.qty ?? 1
+    const take = Math.min(have, remaining)
+    remaining -= take
+    if (have - take <= 0) game.inventory[index] = null
+    else entry.qty = have - take
+  }
+  return qty - remaining
+}
+
+/** 废弃村庄：果园采摘，随机 1 种水果 ×9，冷却 5 天 */
+export function pickOrchard() {
+  if (game.dead) return ''
+  if (game.location !== ORCHARD.mapId) return '果园只在废弃村庄。'
+
+  const left = cooldownLeft(ORCHARD.cooldownKey, ORCHARD.cooldownDays)
+  if (left > 0) return `这片果园刚摘过，还要等 ${left} 天。`
+
+  advanceTurns(ORCHARD.turns)
+  if (game.dead) return ''
+
+  const itemId = pickDawnFruit()
+  if (!itemId) return '枝头上已经空了。'
+  const def = getItem(itemId)
+  const leftover = addItem(game.inventory, itemId, ORCHARD.quantity)
+  const added = ORCHARD.quantity - leftover
+  if (added <= 0) return '背包已满，你连一个果子都装不下。'
+
+  game.cooldowns[ORCHARD.cooldownKey] = game.day
+  return leftover > 0
+    ? `你摘到 ${def?.name ?? '水果'} ×${added}，剩下的 ${leftover} 个装不下了。`
+    : `你在果树上摘到 ${def?.name ?? '水果'} ×${ORCHARD.quantity}。`
+}
+
+/** 废弃村庄：从果箱底下翻出腐烂种子 */
+export function takeRottenSeed() {
+  if (game.dead) return ''
+  if (game.location !== ORCHARD.mapId) return '腐烂种子埋在废弃村庄的果箱底下。'
+  if (game.flags.rottenSeedPlanted) return '田里的果苗已经长起来了，不需要再找种子。'
+  if (game.flags.rottenSeedSprouted) return '种子已经在苗苗的田里了。'
+  if (countItem(game.inventory, ROTTEN_SEED.itemId) > 0) return '那枚腐烂种子已经在背包里。'
+
+  advanceTurns(1)
+  if (game.dead) return ''
+  if (addItem(game.inventory, ROTTEN_SEED.itemId, 1) > 0) {
+    return '背包已满，你腾不出手把它带走。'
+  }
+  game.flags.rottenSeedFound = true
+  return '你在塌掉的果箱底下翻到一枚腐烂种子。它裂开的口子里，冒出一点白。'
+}
+
+/** 曙光阵地：把种子交给苗苗育苗，消耗 3 份任意水果 */
+export function sproutRottenSeed() {
+  if (game.dead) return ''
+  if (game.location !== 'dawn-post') return '育苗要找曙光阵地的苗苗。'
+  if (game.flags.rottenSeedPlanted) return '果苗已经移栽进田里了。'
+  if (!game.flags.rottenSeedFound) return '你还没有找到那枚腐烂种子。'
+  if (game.flags.rottenSeedSprouted) return '种子已经在她手里育着，该去补果苗了。'
+  if (countItem(game.inventory, ROTTEN_SEED.itemId) < 1) return '种子不在背包里。'
+  if (fruitTotal() < ROTTEN_SEED.sproutFruits) {
+    return `育苗至少需要 ${ROTTEN_SEED.sproutFruits} 份水果。`
+  }
+
+  removeItem(game.inventory, ROTTEN_SEED.itemId, 1)
+  consumeFruits(ROTTEN_SEED.sproutFruits)
+  advanceTurns(ROTTEN_SEED.sproutTurns)
+  if (game.dead) return ''
+
+  game.flags.rottenSeedSprouted = true
+  return '苗苗把种子埋进湿土里，说：过两天你再来，它要么活，要么烂透。'
+}
+
+/** 曙光阵地：补齐 9 份水果后移栽，触发结局「生机」 */
+export function plantRottenSeed() {
+  if (game.dead) return ''
+  if (game.location !== 'dawn-post') return '移栽得在曙光阵地苗苗的田里。'
+  if (game.flags.rottenSeedPlanted) return '果苗已经长在田里了。'
+  if (!game.flags.rottenSeedSprouted) return '先让苗苗把种子育出苗来。'
+  if (fruitTotal() < ROTTEN_SEED.plantFruits) {
+    return `移栽需要 ${ROTTEN_SEED.plantFruits} 份水果，让她把苗周围的土养住。`
+  }
+
+  consumeFruits(ROTTEN_SEED.plantFruits)
+  advanceTurns(ROTTEN_SEED.plantTurns)
+  if (game.dead) return ''
+
+  game.flags.rottenSeedPlanted = true
+  game.finale = ROTTEN_SEED.finale
+  if (typeof window !== 'undefined') notify(`结局达成 · ${ROTTEN_SEED.finale}`)
+  return ''
+}
+
+/** 露营山区：奇怪烧烤，每日一次 */
+export function eatStrangeBarbecue() {
+  if (game.dead) return ''
+  if (game.location !== STRANGE_BARBECUE.mapId) return '烧烤摊只在露营山区。'
+
+  const left = cooldownLeft(STRANGE_BARBECUE.cooldownKey, STRANGE_BARBECUE.cooldownDays)
+  if (left > 0) return '今天这炉已经吃过了，阿三在收摊。'
+
+  advanceTurns(STRANGE_BARBECUE.turns)
+  if (game.dead) return ''
+
+  adjustStats(STRANGE_BARBECUE.effects)
+  if (game.dead) return ''
+
+  game.cooldowns[STRANGE_BARBECUE.cooldownKey] = game.day
+  game.flags.ateStrangeMeat = true
+  return '肉有点酸，但你还是咽了下去。胃里暖起来，伤口却在发烫。'
+}
+
+function maSanStage() {
+  return Number(game.flags.maSanStage) || 0
+}
+
+function maSanGuard() {
+  if (game.dead) return ''
+  if (game.location !== MA_SAN.mapId) return '阿三的摊子只在露营山区。'
+  if (!game.flags.ateStrangeMeat) return MA_SAN.lockedLine
+  if (game.flags.maSanKilled) return MA_SAN.killedLine
+  return null
+}
+
+/** 冷面阿三·第一段：3 罐白威啤酒 */
+export function deliverMaSanBeer() {
+  const blocked = maSanGuard()
+  if (blocked !== null) return blocked
+  if (maSanStage() !== 0) return '他已经收下酒了。'
+
+  const have = countItem(game.inventory, MA_SAN.beerId)
+  if (have < MA_SAN.beerCount) return `白威啤酒不够：${have} / ${MA_SAN.beerCount}。`
+
+  removeItem(game.inventory, MA_SAN.beerId, MA_SAN.beerCount)
+  game.flags.maSanStage = 1
+  return '阿三把三罐白威啤酒塞进围裙口袋，刀口往砧板上一拍。'
+}
+
+/** 冷面阿三·第二段：3 份任意水果 */
+export function deliverMaSanFruit() {
+  const blocked = maSanGuard()
+  if (blocked !== null) return blocked
+  if (maSanStage() !== 1) return '现在还不是递水果的时候。'
+
+  const have = fruitTotal()
+  if (have < MA_SAN.fruitCount) return `水果不够：${have} / ${MA_SAN.fruitCount}。`
+
+  consumeFruits(MA_SAN.fruitCount)
+  game.flags.maSanStage = 2
+  return '他捏了捏果子，没说好坏，只把果核吐进了火里。'
+}
+
+/** 冷面阿三·第三段：5 瓶任意烈酒 */
+export function deliverMaSanSpirit() {
+  const blocked = maSanGuard()
+  if (blocked !== null) return blocked
+  if (maSanStage() !== 2) return '他还没打算喝这一轮。'
+
+  const have = spiritTotal()
+  if (have < MA_SAN.spiritCount) return `烈酒不够：${have} / ${MA_SAN.spiritCount}。`
+
+  consumeSpirits(MA_SAN.spiritCount)
+  game.flags.maSanStage = 3
+  return '阿三拧开第五瓶，先给自己倒了半碗。他看你的眼神变了。'
+}
+
+/** 冷面阿三·接受邀请：不可继续结局「食人魔」 */
+export function acceptMaSanInvite() {
+  const blocked = maSanGuard()
+  if (blocked !== null) return blocked
+  if (maSanStage() !== 3) return '他还没打算让你进后厨。'
+
+  die(MA_SAN.acceptReason, '食人魔')
+  return ''
+}
+
+/* ===== 郊区卖场 · 人鱼公主 ===== */
+
+export function mermaidStage() {
+  return Number(game.flags.mermaidStage) || 0
+}
+
+export function mermaidCurrent() {
+  return MERMAID.stages[mermaidStage()] ?? null
+}
+
+/** 提交当前阶段饮品；第四段完成后发放三叉戟-海歌与结局 */
+export function submitMermaidDrink() {
+  if (game.dead) return ''
+  if (game.location !== MERMAID.mapId) return '人鱼公主在郊区卖场的水族箱边。'
+  if (mermaidStage() >= MERMAID.stages.length) return MERMAID.healedLine
+
+  const index = mermaidStage()
+  const stage = MERMAID.stages[index]
+  const def = getItem(stage.itemId)
+  const have = countItem(game.inventory, stage.itemId)
+  if (have < stage.count) {
+    return `还差 ${stage.count - have} 瓶${def?.name ?? '饮品'}。`
+  }
+
+  removeItem(game.inventory, stage.itemId, stage.count)
+  advanceTurns(MERMAID.turns)
+  if (game.dead) return ''
+
+  game.flags.mermaidStage = index + 1
+  if (index + 1 < MERMAID.stages.length) return MERMAID.lines[index]
+
+  const leftover = addItem(game.inventory, MERMAID.rewardItemId, 1)
+  if (leftover > 0) {
+    game.flags.mermaidStage = index
+    return '背包已满，三叉戟-海歌还留在水边。'
+  }
+  game.finale = MERMAID.finale
+  if (typeof window !== 'undefined') notify(`结局达成 · ${MERMAID.finale}`)
+  return `${MERMAID.lines[index]}\n\n${MERMAID.rewardLine}`
+}
+
+/* ===== 核心商圈 · 半感染者嫣然 ===== */
+
+export function countAntiInfection() {
+  return countItem(game.inventory, YANRAN.serumId)
+}
+
+/** 已发现时返回剩余天数；未发现返回 null */
+export function yanranDaysLeft() {
+  if (!game.flags.yanranSeen) return null
+  if (game.flags.yanranRescued || game.flags.yanranKilled) return null
+  const left = Number(game.flags.yanranDeadline) - game.day
+  return Math.max(0, left)
+}
+
+/** 第一次靠近：开始 30 天倒计时 */
+export function approachYanran() {
+  if (game.dead) return ''
+  if (game.location !== YANRAN.mapId) return '嫣然在核心商圈的中庭。'
+  if (game.flags.yanranRescued) return '嫣然已经在安全屋等你了。'
+  if (game.flags.yanranKilled) return YANRAN.killedLine
+
+  if (game.flags.yanranSeen) {
+    if (game.day > Number(game.flags.yanranDeadline)) {
+      game.flags.yanranLost = true
+      return YANRAN.lostLine
+    }
+    return `你又一次靠近她。距离她彻底变异还有 ${yanranDaysLeft()} 天。`
+  }
+
+  advanceTurns(1)
+  if (game.dead) return ''
+
+  game.flags.yanranSeen = true
+  game.flags.yanranDeadline = game.day + YANRAN.deadlineDays
+  return `${YANRAN.intro}\n\n她还有 ${YANRAN.deadlineDays} 天。你数了数身上的抗感染针。`
+}
+
+/** 一次性注射 5 支抗感染针 */
+export function rescueYanran() {
+  if (game.dead) return ''
+  if (game.location !== YANRAN.mapId) return '嫣然在核心商圈的中庭。'
+  if (game.flags.yanranRescued) return '嫣然已经在安全屋等你了。'
+  if (game.flags.yanranKilled) return YANRAN.killedLine
+  if (!game.flags.yanranSeen) return '你先得靠近她，才知道她还有没有救。'
+  if (game.day > Number(game.flags.yanranDeadline)) {
+    game.flags.yanranLost = true
+    return YANRAN.lostLine
+  }
+
+  const have = countAntiInfection()
+  if (have < YANRAN.serumCount) {
+    return `抗感染针不够：${have} / ${YANRAN.serumCount}。`
+  }
+
+  removeItem(game.inventory, YANRAN.serumId, YANRAN.serumCount)
+  advanceTurns(1)
+  if (game.dead) return ''
+
+  game.flags.yanranRescued = true
+  if (typeof window !== 'undefined') notify('伙伴加入 · 嫣然', 3200)
+  return YANRAN.rescuedLine
+}
+
+/* ===== 核心商圈 · 地下车库 ===== */
+
+export function countGasoline() {
+  return countItem(game.inventory, GARAGE.gasolineId)
+}
+
+function garageGuard() {
+  if (game.dead) return ''
+  if (game.location !== GARAGE.mapId) return '地下车库在核心商圈负一层。'
+  if (!game.flags[GARAGE.requiresFlag]) return GARAGE.lockedLine
+  if (game.flags.garageDeparted) return GARAGE.departedLine
+  return null
+}
+
+/** 第一段：装备撬棍撬开卷帘门 */
+export function openGarageDoor() {
+  const blocked = garageGuard()
+  if (blocked !== null) return blocked
+  if (game.flags.garageOpened) return '门已经开了。'
+
+  if (game.equipment.melee?.id !== GARAGE.crowbarId) {
+    return '卷帘门纹丝不动，你需要装备一根撬棍。'
+  }
+
+  advanceTurns(1)
+  if (game.dead) return ''
+  game.flags.garageOpened = true
+  return '撬棍卡进卷帘门的缝里，你整个人压上去。门后是几排积灰的车位。'
+}
+
+/** 第二段：翻找车钥匙 */
+export function searchGarageKey() {
+  const blocked = garageGuard()
+  if (blocked !== null) return blocked
+  if (!game.flags.garageOpened) return '得先撬开卷帘门。'
+  if (game.flags.garageKeyFound || countItem(game.inventory, GARAGE.carKeyId) > 0) {
+    return '车钥匙在你口袋里。'
+  }
+
+  advanceTurns(1)
+  if (game.dead) return ''
+
+  if (Math.random() >= GARAGE.keyChance) return '你翻遍了几辆车，只摸到一手灰。'
+  const leftover = addItem(game.inventory, GARAGE.carKeyId, 1)
+  if (leftover > 0) return '车钥匙就在遮阳板后面，可你的背包塞不下。'
+  game.flags.garageKeyFound = true
+  return '你在第三辆车的遮阳板后面摸到一把车钥匙。'
+}
+
+/** 第三段：从油桶里偷取汽油 */
+export function stealGarageGasoline() {
+  const blocked = garageGuard()
+  if (blocked !== null) return blocked
+  if (!game.flags.garageOpened) return '得先撬开卷帘门。'
+
+  advanceTurns(1)
+  if (game.dead) return ''
+
+  const amount =
+    GARAGE.fuelMin + Math.floor(Math.random() * (GARAGE.fuelMax - GARAGE.fuelMin + 1))
+  const leftover = addItem(game.inventory, GARAGE.gasolineId, amount)
+  const added = amount - leftover
+  if (added <= 0) return '背包已满，你连一桶汽油都带不走。'
+  const rest = leftover > 0 ? `，剩下的 ${leftover} 桶留在了车库` : ''
+  return `你从油桶里倒出 ${added} 桶汽油${rest}（当前 ${countGasoline()} / ${GARAGE.gasolineCount}）。`
+}
+
+/** 终点：出发私奔，可继续结局「私奔」 */
+export function elopeGarage() {
+  const blocked = garageGuard()
+  if (blocked !== null) return blocked
+  if (!game.flags.garageOpened) return '得先撬开卷帘门。'
+  if (!game.flags.garageKeyFound) return '还没找到车钥匙。'
+  if (countGasoline() < GARAGE.gasolineCount) {
+    return `汽油不够：${countGasoline()} / ${GARAGE.gasolineCount}。`
+  }
+
+  removeItem(game.inventory, GARAGE.gasolineId, GARAGE.gasolineCount)
+  advanceTurns(1)
+  if (game.dead) return ''
+
+  game.flags.garageDeparted = true
+  game.finale = GARAGE.finale
+  if (typeof window !== 'undefined') notify(`结局达成 · ${GARAGE.finale}`)
+  return '引擎第一次打火就着了。嫣然坐进副驾，把地图摊在膝盖上。'
+}
+
+/* ===== 公立医院 · 饥饿丧尸露露 ===== */
+
+export function countCans() {
+  return game.inventory.reduce((sum, entry) => {
+    if (!entry) return sum
+    return isCannedItem(entry.id) ? sum + (entry.qty ?? 1) : sum
+  }, 0)
+}
+
+/** 按背包顺序消耗任意罐头；返回实际消耗数量 */
+function consumeCans(qty) {
+  let remaining = qty
+  for (let index = 0; index < game.inventory.length && remaining > 0; index += 1) {
+    const entry = game.inventory[index]
+    if (!entry || !isCannedItem(entry.id)) continue
+    const have = entry.qty ?? 1
+    const take = Math.min(have, remaining)
+    remaining -= take
+    if (have - take <= 0) game.inventory[index] = null
+    else entry.qty = have - take
+  }
+  return qty - remaining
+}
+
+/** 一次性放下 30 个任意罐头 */
+export function feedLulu() {
+  if (game.dead) return ''
+  if (game.location !== LULU.mapId) return '露露在公立医院的护士站。'
+  if (game.flags.luluRescued) return '露露已经跟着你了。'
+
+  const have = countCans()
+  if (have < LULU.cannedCount) {
+    return `罐头不够：${have} / ${LULU.cannedCount}。`
+  }
+
+  consumeCans(LULU.cannedCount)
+  advanceTurns(1)
+  if (game.dead) return ''
+
+  game.flags.luluRescued = true
+  if (typeof window !== 'undefined') notify('伙伴加入 · 露露', 3200)
+  return LULU.rescuedLine
+}
+
+/* ===== 伙伴收获 ===== */
+
+function companionGuard(partnerId) {
+  if (game.dead) return ''
+  if (!game.flags[`${partnerId}Rescued`]) return '她还没有跟着你。'
+  return null
+}
+
+/** 嫣然每天带回 2 件食物/饮品/水果 */
+export function harvestYanran() {
+  const blocked = companionGuard('yanran')
+  if (blocked !== null) return blocked
+  const left = cooldownLeft(COMPANIONS.yanran.harvestKey, COMPANIONS.yanran.cooldownDays)
+  if (left > 0) return `嫣然今天已经出去过了，${left} 天后可以再来。`
+
+  advanceTurns(1)
+  if (game.dead) return ''
+
+  const picks = pickCompanionLoot('yanran')
+  const names = []
+  let leftoverTotal = 0
+  for (const itemId of picks) {
+    const leftover = addItem(game.inventory, itemId, 1)
+    const def = getItem(itemId)
+    if (leftover > 0) leftoverTotal += 1
+    else names.push(def?.name ?? itemId)
+  }
+  if (!names.length) return '嫣然空手回来了。你的背包已经塞不下任何东西。'
+
+  game.cooldowns[COMPANIONS.yanran.harvestKey] = game.day
+  const tail = leftoverTotal > 0 ? ' 有东西没能塞进背包。' : ''
+  return `嫣然带回：${names.join('、')}。${tail}`
+}
+
+/** 露露每天带回 1 件药品 */
+export function harvestLulu() {
+  const blocked = companionGuard('lulu')
+  if (blocked !== null) return blocked
+  const left = cooldownLeft(COMPANIONS.lulu.harvestKey, COMPANIONS.lulu.cooldownDays)
+  if (left > 0) return `露露今天已经出去过了，${left} 天后可以再来。`
+
+  advanceTurns(1)
+  if (game.dead) return ''
+
+  const itemId = pickRandomMedicine()
+  const leftover = addItem(game.inventory, itemId, 1)
+  const def = getItem(itemId)
+  if (leftover > 0) return '露露带回了一件药品，可你的背包塞不下。'
+
+  game.cooldowns[COMPANIONS.lulu.harvestKey] = game.day
+  return `露露带回：${def?.name ?? '药品'}。`
+}
+
+/* ===== X研究所 · 陈博士 ===== */
+
+function doctorGuard() {
+  if (game.dead) return ''
+  if (game.location !== DOCTOR.mapId) return '陈博士在 X研究所的培养区。'
+  return null
+}
+
+/** 背包里已经攒了几枚发射徽章 */
+export function countDoctorBadges() {
+  return DOCTOR.badges.reduce(
+    (sum, id) => sum + (countItem(game.inventory, id) > 0 ? 1 : 0),
+    0,
+  )
+}
+
+/** 模拟「扣掉一批物品后还能放下新物品」，避免交付后徽章无处安放 */
+function fitsAfterRemove(removals, newItemId) {
+  const copy = game.inventory.map((entry) => (entry ? { ...entry } : null))
+  for (const { category, itemId, qty } of removals) {
+    if (category) consumeCategory(copy, category, qty)
+    else removeItem(copy, itemId, qty)
+  }
+  return addItem(copy, newItemId, 1) === 0
+}
+
+function countCategory(inventory, category) {
+  return inventory.reduce((sum, entry) => {
+    if (!entry) return sum
+    return getItem(entry.id)?.category === category ? sum + (entry.qty ?? 1) : sum
+  }, 0)
+}
+
+/** 按背包顺序消耗某一分类的物品；返回实际消耗数量 */
+function consumeCategory(inventory, category, qty) {
+  let remaining = qty
+  for (let index = 0; index < inventory.length && remaining > 0; index += 1) {
+    const entry = inventory[index]
+    if (!entry || getItem(entry.id)?.category !== category) continue
+    const have = entry.qty ?? 1
+    const take = Math.min(have, remaining)
+    remaining -= take
+    if (have - take <= 0) inventory[index] = null
+    else entry.qty = have - take
+  }
+  return qty - remaining
+}
+
+/** 交付 30 支抗感染针，换一把 M700 */
+export function doctorTrade() {
+  const blocked = doctorGuard()
+  if (blocked !== null) return blocked
+  if (game.flags.doctorTradeDone) return '陈博士已经把最后一把 M700 交给你了。'
+
+  const have = countAntiInfection()
+  if (have < DOCTOR.serumCount) {
+    return `抗感染针不够：${have} / ${DOCTOR.serumCount}。`
+  }
+  if (!fitsAfterRemove([{ itemId: DOCTOR.serumId, qty: DOCTOR.serumCount }], DOCTOR.rewardItemId)) {
+    return DOCTOR.fullLine
+  }
+
+  removeItem(game.inventory, DOCTOR.serumId, DOCTOR.serumCount)
+  advanceTurns(1)
+  if (game.dead) return ''
+
+  addItem(game.inventory, DOCTOR.rewardItemId, 1)
+  game.flags.doctorTradeDone = true
+  return DOCTOR.tradedLine
+}
+
+/** 任务①：上交小核能发电机，取得动力徽章 */
+export function submitGenerator() {
+  const blocked = doctorGuard()
+  if (blocked !== null) return blocked
+  if (!game.flags.doctorTradeDone) return '先用手里的抗感染针换下那把 M700，陈博士才肯谈下一步。'
+  if (game.flags.doctorQuest1Done) return '动力回路已经接好了。'
+  if (!game.flags.giantPuppetDefeated) return DOCTOR.needPuppetLine
+  if (countItem(game.inventory, DOCTOR.generatorId) < 1) {
+    return '发电机还在航天基地发射中心那具傀儡的残骸里。'
+  }
+
+  removeItem(game.inventory, DOCTOR.generatorId, 1)
+  advanceTurns(1)
+  if (game.dead) return ''
+
+  if (addItem(game.inventory, DOCTOR.badges[0], 1) > 0) {
+    addItem(game.inventory, DOCTOR.generatorId, 1)
+    return DOCTOR.fullLine
+  }
+  game.flags.doctorQuest1Done = true
+  return '陈博士把铭牌拧下来，在背面刻了一个「动」字。「动力这一环，过了。」'
+}
+
+/** 任务②：能源井每天抽 1 份纯净能源 */
+export function extractEnergy() {
+  const blocked = doctorGuard()
+  if (blocked !== null) return blocked
+  if (!game.flags.doctorTradeDone) return '先用手里的抗感染针换下那把 M700，陈博士才肯谈下一步。'
+  if (!game.flags.doctorQuest1Done) return '得先把动力回路接上，能源井才会通电。'
+  if (game.flags.doctorQuest2Done) return '能源已经抽够了，井口封了回去。'
+
+  const left = cooldownLeft(DOCTOR.energyCooldownKey, DOCTOR.energyCooldownDays)
+  if (left > 0) return `能源井今天已经抽过一份，还要等 ${left} 天。`
+
+  advanceTurns(1)
+  if (game.dead) return ''
+
+  if (addItem(game.inventory, DOCTOR.energyId, 1) > 0) {
+    return '能源井吐出一份纯净能源，可你的背包塞不下。'
+  }
+  game.cooldowns[DOCTOR.energyCooldownKey] = game.day
+  const have = countItem(game.inventory, DOCTOR.energyId)
+  return `能源井抽出 1 份纯净能源（${have} / ${DOCTOR.energyCount}）。${DOCTOR.quest2Line}`
+}
+
+/** 任务②：上交 15 份纯净能源，取得燃料徽章 */
+export function submitEnergy() {
+  const blocked = doctorGuard()
+  if (blocked !== null) return blocked
+  if (!game.flags.doctorQuest1Done) return '得先把动力回路接上。'
+  if (game.flags.doctorQuest2Done) return '燃料舱已经灌满了。'
+
+  const have = countItem(game.inventory, DOCTOR.energyId)
+  if (have < DOCTOR.energyCount) {
+    return `纯净能源不够：${have} / ${DOCTOR.energyCount}。`
+  }
+  if (!fitsAfterRemove([{ itemId: DOCTOR.energyId, qty: DOCTOR.energyCount }], DOCTOR.badges[1])) {
+    return DOCTOR.fullLine
+  }
+
+  removeItem(game.inventory, DOCTOR.energyId, DOCTOR.energyCount)
+  advanceTurns(1)
+  if (game.dead) return ''
+
+  addItem(game.inventory, DOCTOR.badges[1], 1)
+  game.flags.doctorQuest2Done = true
+  return '淡蓝色的能源一点点灌进燃料舱。陈博士递来一枚沾着残渍的铜片：「燃料这一环，也过了。」'
+}
+
+/** 任务③所需的医疗 / 食物 / 饮品数量 */
+export function doctorSupplyCounts() {
+  return {
+    medicine: countCategory(game.inventory, 'medicine'),
+    food: countCategory(game.inventory, 'food'),
+    drink: countCategory(game.inventory, 'drink'),
+  }
+}
+
+/** 任务③：上交医疗 / 食物 / 饮品各 10 份，取得生存徽章 */
+export function submitSupplies() {
+  const blocked = doctorGuard()
+  if (blocked !== null) return blocked
+  if (!game.flags.doctorQuest2Done) return '得先把燃料舱灌满，再来谈物资。'
+  if (game.flags.doctorQuest3Done) return '物资已经码进舱里了。'
+
+  const counts = doctorSupplyCounts()
+  const need = DOCTOR.supply
+  if (
+    counts.medicine < need.medicine ||
+    counts.food < need.food ||
+    counts.drink < need.drink
+  ) {
+    return `物资还差：医疗 ${counts.medicine}/${need.medicine}，食物 ${counts.food}/${need.food}，饮品 ${counts.drink}/${need.drink}。`
+  }
+
+  const removals = Object.entries(need).map(([category, qty]) => ({ category, qty }))
+  if (!fitsAfterRemove(removals, DOCTOR.badges[2])) return DOCTOR.fullLine
+
+  for (const { category, qty } of removals) consumeCategory(game.inventory, category, qty)
+  advanceTurns(1)
+  if (game.dead) return ''
+
+  addItem(game.inventory, DOCTOR.badges[2], 1)
+  game.flags.doctorQuest3Done = true
+  return '医疗、食物、饮品一样样码进舱里。陈博士把一枚用罐头铁皮压成的圆牌放在你手心。「三枚都在了。去航天基地吧，最后一步不在我这里。」'
+}
+
+/** 傀儡掉落时背包满的兜底：回发射中心把发电机抱走 */
+export function collectGenerator() {
+  if (game.dead) return ''
+  if (game.location !== GIANT_PUPPET.mapId) return '小核能发电机还在发射中心的残骸里。'
+  if (countItem(game.inventory, GIANT_PUPPET.rewardItemId) > 0) return '那台发电机已经在背包里了。'
+  if (!game.flags.generatorPending) return '残骸里已经空了。'
+
+  if (addItem(game.inventory, GIANT_PUPPET.rewardItemId, 1) > 0) {
+    return '背包已满，你得先腾出一点地方。'
+  }
+  game.flags.generatorPending = false
+  return '你从傀儡胸腔里抱出了那台还在运转的小核能发电机。'
+}
+
+/* ===== 航天基地 · 发射中心 ===== */
+
+function rocketGuard() {
+  if (game.dead) return ''
+  if (game.location !== ROCKET.mapId) return '发射中心在航天基地最深处。'
+  if (countDoctorBadges() < ROCKET.badgeIds.length) return ROCKET.lockedLine
+  return null
+}
+
+/**
+ * 火箭四选一：all 带所有人 / solo 独自飞走 / send 让他们走 / stay 留下
+ * 前三种直接达成不可继续的好结局，stay 不设结局，可以继续游戏
+ */
+export function launchRocket(kind) {
+  const blocked = rocketGuard()
+  if (blocked !== null) return blocked
+
+  if (kind === 'all') {
+    const missing = ROCKET.companionFlags.some((flag) => !game.flags[flag])
+    if (missing) return '嫣然和露露还没有都在安全屋。火箭上不能少了她们。'
+    game.finale = ROCKET.finaleAll
+    if (typeof window !== 'undefined') notify(`结局达成 · ${ROCKET.finaleAll}`)
+    return '倒计时归零。舱门合上的一瞬间，嫣然和露露都抓住了扶手。火箭穿过云层，把整片废墟甩在脚下。'
+  }
+
+  if (kind === 'solo') {
+    game.finale = ROCKET.finaleSolo
+    if (typeof window !== 'undefined') notify(`结局达成 · ${ROCKET.finaleSolo}`)
+    return '你一个人按下发射键。发射台下，嫣然和露露站在原地，直到火光把她们的影子拉得很长。'
+  }
+
+  if (kind === 'send') {
+    game.finale = ROCKET.finaleSend
+    if (typeof window !== 'undefined') notify(`结局达成 · ${ROCKET.finaleSend}`)
+    return '陈博士、嫣然和露露走进舱门。你把最后的补给递上去，退后两步，按下了发射键。'
+  }
+
+  if (kind === 'stay') {
+    return ROCKET.stayedLine
+  }
+
+  return ''
+}
+
+/* ===== 郊区卖场 · 某开发者 ===== */
+
+function devGuard() {
+  if (game.dead) return ''
+  if (game.location !== DEV_SHOP.mapId) return '某开发者只在郊区卖场的角落。'
+  return null
+}
+
+/** 一次性救济：慎选，会大幅降低游戏难度 */
+export function takeDevGift() {
+  const blocked = devGuard()
+  if (blocked !== null) return blocked
+  if (game.flags.devGiftTaken) return '他已经把那份补给交给你了，没有第二份。'
+  if (!canStoreItems(game.inventory, DEV_SHOP.giftItems)) {
+    return '背包放不下这份补给，先腾出几格再来。'
+  }
+
+  for (const item of DEV_SHOP.giftItems) {
+    addItem(game.inventory, item.id, item.qty)
+  }
+  game.coins += DEV_SHOP.giftCoins
+  game.dawnCoins += DEV_SHOP.giftDawnCoins
+  game.flags.devGiftTaken = true
+  return `某开发者把一箱东西推过来：末日币 +${DEV_SHOP.giftCoins}，曙光币 +${DEV_SHOP.giftDawnCoins}，外加一批药品、罐头、水果和两把武器。「拿去吧。别问我为什么。」`
+}
+
+/** 背包扩容：每次 5 末日币 + 5 曙光币，增加 10 格，上限 200 格 */
+export function expandBackpack() {
+  const blocked = devGuard()
+  if (blocked !== null) return blocked
+  if (game.inventory.length >= DEV_SHOP.expandLimit) {
+    return `背包已经到 ${DEV_SHOP.expandLimit} 格上限，装不下更多了。`
+  }
+
+  const cost = DEV_SHOP.expandCost
+  if (game.coins < cost) return `末日币不足，扩容需要 ${cost} 末日币。`
+  if (game.dawnCoins < cost) return `曙光币不足，扩容需要 ${cost} 曙光币。`
+
+  game.coins -= cost
+  game.dawnCoins -= cost
+  const before = game.inventory.length
+  const next = Math.min(before + DEV_SHOP.expandSteps, DEV_SHOP.expandLimit)
+  for (let index = before; index < next; index += 1) game.inventory.push(null)
+  return `你付了 ${cost} 末日币和 ${cost} 曙光币。背包从 ${before} 格扩到 ${next} 格。`
+}
+
+/* ===== 开发者控制台 ===== */
+
+const DEV_HELP = [
+  '/help — 查看指令帮助',
+  '/kill on|off — 开启 / 关闭一击必杀',
+  '/lock — 锁定所有状态条，不再恶化',
+  '/unlock — 解除状态条锁定',
+  '/backpack — 背包容量提升至 200 格',
+  '/get 物品名称 数量 — 获得对应物品',
+].join('\n')
+
+/** 执行开发者指令，返回要显示在控制台里的文本 */
+export function runDevCommand(input) {
+  const raw = String(input ?? '').trim()
+  if (!raw) return ''
+  const [cmd, ...args] = raw.split(/\s+/)
+  const command = cmd.toLowerCase()
+
+  if (command === '/help') return DEV_HELP
+
+  if (command === '/kill') {
+    const mode = (args[0] ?? '').toLowerCase()
+    if (mode === 'on') {
+      devState.oneHitKill = true
+      return '一击必杀已开启：你的下一次攻击会直接放倒目标。'
+    }
+    if (mode === 'off') {
+      devState.oneHitKill = false
+      return '一击必杀已关闭。'
+    }
+    return '用法：/kill on 或 /kill off'
+  }
+
+  if (command === '/lock') {
+    devState.lockStats = true
+    return '状态条已锁定：生命、饱食、口渴、理智、体力不再下降，感染不再上升。'
+  }
+
+  if (command === '/unlock') {
+    devState.lockStats = false
+    return '状态条已解锁，恢复正常衰减。'
+  }
+
+  if (command === '/backpack') {
+    if (game.inventory.length >= BACKPACK_MAX_SIZE) {
+      return `背包已经是 ${BACKPACK_MAX_SIZE} 格上限。`
+    }
+    const before = game.inventory.length
+    for (let index = before; index < BACKPACK_MAX_SIZE; index += 1) {
+      game.inventory.push(null)
+    }
+    return `背包从 ${before} 格提升到 ${BACKPACK_MAX_SIZE} 格。`
+  }
+
+  if (command === '/get') {
+    const tokens = [...args]
+    let qty = 1
+    if (tokens.length && /^\d+$/.test(tokens[tokens.length - 1])) {
+      qty = Number.parseInt(tokens.pop(), 10)
+    }
+    const name = tokens.join(' ').trim()
+    if (!name) return '用法：/get 物品名称 数量'
+    if (!Number.isFinite(qty) || qty <= 0) return '数量必须是正整数。'
+
+    const def =
+      Object.values(ITEMS).find((item) => item.name === name) ?? ITEMS[name] ?? null
+    if (!def) return `没有找到「${name}」这件物品。`
+    const leftover = addItem(game.inventory, def.id, qty)
+    return leftover > 0
+      ? `背包只放下了 ${qty - leftover} 个「${def.name}」，还有 ${leftover} 个没装下。`
+      : `获得 ${def.name} ×${qty}。`
+  }
+
+  return `未知指令：${cmd}。输入 /help 查看可用指令。`
+}
+
+/** 都城劳动：按身份选择活计，每天一次，消耗回合并结算属性损耗 */
+export function laborCity(tierId = 'common') {
+  if (game.dead || game.location !== 'ruined-city') return ''
+
+  const tier = LABOR_TIERS.find((item) => item.id === tierId)
+  if (!tier) return ''
+  if (identityRank(game.identity) < tier.rank) {
+    return `「${tier.name}」需要「${tier.identity}」身份。`
+  }
+  if (!useCooldown('labor', PALACE_COOLDOWN.daily)) return '今天已经做过一份工，明天再来。'
+
+  advanceTurns(tier.turns)
+  if (game.dead) return ''
+
+  adjustStats(tier.effects)
+  game.coins += tier.coins
+  const cost = tier.costText ? `${tier.costText}，` : ''
+  return `${tier.name}结束：${cost}末日币 +${tier.coins}。`
+}
+
+export function joinCity() {
+  if (game.dead) return ''
+  if (game.identity) return `你已经是「${game.identity}」，不必再投靠。`
+  if (!grantIdentity('平民')) return '背包已满，收不下平民徽章。'
+  return '你向都城衙门投了名册，领到一枚「平民徽章」。'
+}
+
+export function restoreIdentity() {
+  if (game.dead) return ''
+  if (game.identity) return `身份牌还在你身上（${game.identity}），无需补办。`
+  if (!game.maxIdentity) return '没有可补办的身份记录。'
+  if (!grantIdentity(game.maxIdentity)) return '背包已满，补办的身份牌无处安放。'
+  return `已补办历史最高身份「${game.maxIdentity}」的身份牌。`
+}
+
+export function becomeKnight() {
+  if (game.dead) return ''
+  if (!game.identity) return '需要先办理平民身份。'
+  if (identityRank(game.identity) >= identityRank('骑士')) {
+    return `你已经是「${game.identity}」，无需再办理骑士。`
+  }
+  if (game.coins < KNIGHT_COST) return `末日币不足，办理骑士需要 ${KNIGHT_COST} 末日币。`
+  game.coins -= KNIGHT_COST
+  if (!grantIdentity('骑士')) {
+    game.coins += KNIGHT_COST
+    return '背包已满，骑士徽章无处安放。'
+  }
+  return `缴纳 ${KNIGHT_COST} 末日币，你成为了「骑士」。`
+}
+
+export function canEnterPalace() {
+  return identityRank(game.identity) >= identityRank('骑士')
+}
+
+export function bribeGuard() {
+  if (game.dead) return ''
+  if (game.coins < 1) return '末日币不足 1，守卫连眼皮都没抬。'
+  game.coins -= 1
+  return '守卫掂了掂末日币，侧身让开了一条路。'
+}
+
+export function borrowCoins(amount) {
+  if (game.dead) return ''
+  if (!game.identity) return '至少需要平民身份才能借贷。'
+
+  const tier = loanTierFor(game.identity)
+  if (!tier) return '当前身份无法在都城银行借贷。'
+  if (game.loan) {
+    return `上一笔贷款还没结清（欠 ${game.loan.due} 末日币），银行不肯再借。`
+  }
+
+  const value = Math.floor(Number(amount))
+  if (!Number.isFinite(value) || value < tier.min || value > tier.max) {
+    return `以「${game.identity}」身份，借款额度为 ${tier.min}-${tier.max} 末日币。`
+  }
+
+  const interest = loanInterest(value, tier.rate)
+  game.coins += value
+  game.loan = {
+    principal: value,
+    interest,
+    rate: tier.rate,
+    due: value + interest,
+    identity: game.identity,
+    rank: tier.rank,
+    termDays: LOAN_TERM_DAYS,
+    startDay: game.day,
+    // 借款当天算第 1 天：第 10 天是最后还款日，第 11 天起逾期
+    dueDay: game.day + LOAN_TERM_DAYS - 1,
+    graceDays: tier.graceDays,
+    graceUsed: false,
+    confiscated: false,
+    defaulted: false,
+  }
+  return `借入 ${value} 末日币：利息 ${interest}，${LOAN_TERM_DAYS} 天内需还 ${value + interest}（第 ${game.loan.dueDay} 天为最后还款日）。`
+}
+
+/** 申请宽限：每笔贷款只能申请一次，逾期后不再受理 */
+export function applyLoanGrace() {
+  if (game.dead) return ''
+  if (!game.loan) return '你并没有欠款。'
+
+  const days = game.loan.graceDays ?? loanTierByRank(game.loan.rank).graceDays
+  if (!days) return `「${loanTierByRank(game.loan.rank).identity}」的贷款没有宽限期。`
+  if (game.loan.graceUsed) return '这笔贷款已经申请过宽限，不能再拖。'
+  if (game.day > game.loan.dueDay) return '贷款已经逾期，宽限申请不会被受理。'
+
+  game.loan.dueDay += days
+  game.loan.graceUsed = true
+  return `银行同意宽限 ${days} 天：到期日顺延至第 ${game.loan.dueDay} 天。`
+}
+
+export function repayLoan() {
+  if (game.dead) return ''
+  if (!game.loan) return '你并没有欠款。'
+  if (game.coins < game.loan.due) {
+    return `末日币不足，需要 ${game.loan.due} 才能结清。`
+  }
+  const paid = game.loan.due
+  game.coins -= paid
+  game.loan = null
+  game.flags.loanRepaid = true
+  checkAchievements()
+  return `已还清 ${paid} 末日币，贷款结清。`
+}
+
+export function buyGood(goodId) {
+  if (game.dead) return ''
+  const good = SHOP_GOODS.find((item) => item.id === goodId)
+  if (!good) return ''
+  if (game.coins < good.price) return `末日币不足，${good.name} 需要 ${good.price}。`
+  if (addItem(game.inventory, good.itemId, 1) > 0) return '背包已满，无法购买。'
+
+  game.coins -= good.price
+  return `购买 ${good.name} ×1，花费 ${good.price} 末日币。`
+}
+
+/* ===== 曙光阵地 ===== */
+
+function dawnReady() {
+  return !game.dead && game.location === 'dawn-post'
+}
+
+/** 领取救济：每天一次，随机一个水果，不消耗回合 */
+export function claimDawnRelief() {
+  if (!dawnReady()) return ''
+  if (cooldownLeft('dawn-relief', PALACE_COOLDOWN.daily) > 0) return '今天的救济已经领过了，明天再来。'
+  const itemId = pickDawnFruit()
+  if (!itemId) return '救济处今天没有水果可发。'
+
+  const def = getItem(itemId)
+  if (addItem(game.inventory, itemId, 1) > 0) {
+    return `背包已满，${def?.name ?? '水果'}留在了物资箱里，今天的水果还不算领走`
+  }
+  game.cooldowns['dawn-relief'] = game.day
+  return `你从物资箱里领到一份救济：获得 ${def?.name ?? itemId} ×1`
+}
+
+/** 曙光市场：全部用曙光币结算 */
+export function buyDawnGood(goodId) {
+  if (!dawnReady()) return ''
+  const good = DAWN_MARKET.find((item) => item.id === goodId)
+  if (!good) return ''
+  if (game.dawnCoins < good.price) return `曙光币不足，${good.name} 需要 ${good.price} 枚。`
+  if (addItem(game.inventory, good.itemId, 1) > 0) return '背包已满，无法购买。'
+  game.dawnCoins -= good.price
+  return `购买 ${good.name} ×1，花费 ${good.price} 曙光币。`
+}
+
+/** 补办历史最高的曙光徽章 */
+export function restoreDawnIdentity() {
+  if (!dawnReady()) return ''
+  if (game.dawnIdentity) return `你的曙光身份牌还在（${game.dawnIdentity}），无需补办。`
+  if (!game.maxDawnIdentity) return '没有可补办的曙光身份记录。'
+  if (!grantDawnIdentity(game.maxDawnIdentity)) return '背包已满，补办的徽章无处安放。'
+  return `已补办历史最高曙光身份「${game.maxDawnIdentity}」的徽章。`
+}
+
+/** 加入曙光：需要累计击杀 5 只行尸 */
+export function joinDawn() {
+  if (!dawnReady()) return ''
+  if (game.dawnIdentity) return `你已经是曙光「${game.dawnIdentity}」，无需再加入。`
+  if (game.zombieKills < DAWN_JOIN_KILLS) {
+    return `管事翻了个白眼：实力不足，先杀够 ${DAWN_JOIN_KILLS} 只行尸再来（当前 ${game.zombieKills}）。`
+  }
+  if (!grantDawnIdentity('队员')) return '背包已满，队员徽章无处安放。'
+  return '管事在名册上写下你的名字，你领到一枚「曙光队员徽章」。'
+}
+
+/* ===== 曙光常驻人物服务 ===== */
+
+/** 苏涵：每日配餐，2 曙光币换一份随机食物 / 饮品 */
+export function nutritionistMeal() {
+  if (!dawnReady()) return ''
+  if (cooldownLeft('dawn-meal', PALACE_COOLDOWN.daily) > 0) {
+    return '苏涵已经把今天的配餐分完了，明天再来。'
+  }
+
+  const price = DAWN_SERVICE.meal.price
+  if (game.dawnCoins < price) return `曙光币不足，配餐需要 ${price} 枚。`
+
+  const itemId = pickDawnMeal()
+  if (!itemId) return '配餐台上空着。'
+  const def = getItem(itemId)
+  if (addItem(game.inventory, itemId, 1) > 0) {
+    return `背包已满，${def?.name ?? '配餐'}没能装下，曙光币没有扣。`
+  }
+
+  game.dawnCoins -= price
+  game.cooldowns['dawn-meal'] = game.day
+  return `苏涵把一份热食推到你面前：获得 ${def?.name ?? itemId} ×1，花费 ${price} 曙光币。`
+}
+
+/** 莉莉：每日调配一支药剂，清除 20 点感染 */
+export function lilyBrewMedicine() {
+  if (!dawnReady()) return ''
+  if (cooldownLeft('dawn-brew', PALACE_COOLDOWN.daily) > 0) {
+    return '莉莉说今天的药已经熬过一锅了，明天再来。'
+  }
+  if (game.stats.infection <= 0) return '莉莉看了看你的伤口：没有感染，药白熬了。'
+
+  const price = DAWN_SERVICE.brew.price
+  if (game.dawnCoins < price) return `曙光币不足，药剂需要 ${price} 枚。`
+
+  game.dawnCoins -= price
+  adjustStats({ infection: -DAWN_SERVICE.brew.infection })
+  game.cooldowns['dawn-brew'] = game.day
+  return `莉莉把一支药剂推过来：感染 -${DAWN_SERVICE.brew.infection}，花费 ${price} 曙光币。`
+}
+
+/** 莉莉：拆解背包里的远程武器，按品质返还曙光币 */
+export function recycleRangedWeapon(slotIndex) {
+  if (!dawnReady()) return ''
+  const entry = game.inventory[slotIndex]
+  if (!entry) return '这个格子里没有东西。'
+  const def = getItem(entry.id)
+  if (!def || def.category !== 'ranged') return '莉莉只收远程武器。'
+
+  const price = DAWN_RECYCLE_PRICES[def.tier] ?? 0
+  game.inventory[slotIndex] = null
+  game.dawnCoins += price
+  return `莉莉把「${def.name}」拆成零件：曙光币 +${price}。`
+}
+
+/** 物资回收：背包里所有多余武器（近战 + 远程），装备中的不算 */
+export function weaponRecyclables() {
+  return game.inventory
+    .map((entry, index) => {
+      const def = entry ? getItem(entry.id) : null
+      if (!def || def.category !== 'melee' && def.category !== 'ranged') return null
+      return { index, def, price: DAWN_RECYCLE_PRICES[def.tier] ?? 0 }
+    })
+    .filter(Boolean)
+}
+
+/** 回收任意一件多余武器，按品质结算曙光币 */
+export function recycleWeapon(slotIndex) {
+  if (!dawnReady()) return ''
+  const entry = game.inventory[slotIndex]
+  if (!entry) return '这个格子里没有东西。'
+  const def = getItem(entry.id)
+  if (!def || (def.category !== 'melee' && def.category !== 'ranged')) {
+    return '物资回收只收武器。'
+  }
+
+  const price = DAWN_RECYCLE_PRICES[def.tier] ?? 0
+  game.inventory[slotIndex] = null
+  game.dawnCoins += price
+  return `你把「${def.name}」交了上去：曙光币 +${price}。`
+}
+
+/** 薇尔：每日一次训练，消耗 1 回合 */
+export function mercenaryTraining() {
+  if (!dawnReady()) return ''
+  if (cooldownLeft('dawn-training', PALACE_COOLDOWN.daily) > 0) {
+    return '薇尔把毛巾丢回架子上：今天练过了，明天再来。'
+  }
+
+  const price = DAWN_SERVICE.training.price
+  if (game.dawnCoins < price) return `曙光币不足，训练需要 ${price} 枚。`
+
+  advanceTurns(1)
+  if (game.dead) return ''
+  adjustStats({
+    stamina: DAWN_SERVICE.training.stamina,
+    sanity: DAWN_SERVICE.training.sanity,
+  })
+  game.dawnCoins -= price
+  game.cooldowns['dawn-training'] = game.day
+  return `薇尔陪你练了一轮：体力 +${DAWN_SERVICE.training.stamina}，理智 +${DAWN_SERVICE.training.sanity}，花费 ${price} 曙光币。`
+}
+
+/** 苗苗：每日照看一次实验田，消耗 2 回合，累计田地进度 */
+export function tendExperimentField() {
+  if (!dawnReady()) return ''
+  if (cooldownLeft('field-tend', PALACE_COOLDOWN.daily) > 0) {
+    return '苗苗说今天的田已经浇过水了，明天再来。'
+  }
+
+  advanceTurns(DAWN_SERVICE.tend.turns)
+  if (game.dead) return ''
+
+  let line = '你帮苗苗翻了一遍土，又浇了两桶水。'
+  const itemId = pickDawnFruit()
+  if (itemId) {
+    const def = getItem(itemId)
+    const leftover = addItem(game.inventory, itemId, 1)
+    line +=
+      leftover > 0
+        ? `背包已满，${def?.name ?? '果子'}落在了田埂上。`
+        : `苗苗摘了一个${def?.name ?? '水果'}给你。`
+  }
+
+  game.cooldowns['field-tend'] = game.day
+  const progress = (Number(game.flags.fieldProgress) || 0) + 1
+  game.flags.fieldProgress = progress
+
+  if (progress >= DAWN_SERVICE.fieldSecretAt && !game.flags.fieldSecret) {
+    line += `田地进度 ${progress} / ${DAWN_SERVICE.fieldSecretAt}。苗苗盯着那几垄地看了很久，忽然说：「你想不想听一个秘密？」`
+  } else {
+    line += `田地进度 ${progress} / ${DAWN_SERVICE.fieldSecretAt}。`
+  }
+  return line
+}
+
+/** 苗苗：田地进度满 5 后，听她讲一个秘密，获得农业大师徽章 */
+export function revealFieldSecret() {
+  if (!dawnReady()) return ''
+  if (game.flags.fieldSecret) return '苗苗把日记本合上，锁回了抽屉里。'
+
+  const progress = Number(game.flags.fieldProgress) || 0
+  if (progress < DAWN_SERVICE.fieldSecretAt) {
+    return `苗苗摇摇头：「田还没长好呢。」（田地进度 ${progress} / ${DAWN_SERVICE.fieldSecretAt}）`
+  }
+
+  if (addItem(game.inventory, 'badge-farming-master', 1) > 0) {
+    return '背包已满，那枚旧徽章还压在苗苗手里。'
+  }
+  game.flags.fieldSecret = true
+  return '苗苗从日记本里取出一枚褪色的徽章，放在你掌心。\n\n「我娘以前是农技站的。她总说，地不会骗人，你给它多少，它就还你多少。」她把日记本翻到最后一页，上面画着一整片田，「这块地是我替她留的。现在，你也算种过它的人了。」\n\n获得【农业大师徽章】。'
+}
+
+/* ===== 都城王宫（进入不消耗回合） ===== */
+
+function palaceReady() {
+  return !game.dead && game.location === 'ruined-city'
+}
+
+function knightReady() {
+  return identityRank(game.identity) >= identityRank('骑士')
+}
+
+/** 偷窃：1 回合（正常衰减），20% 得 1 末日币，80% 被抓生命 -50 */
+export function stealPalace() {
+  if (!palaceReady()) return ''
+  advanceTurns(1)
+  if (game.dead) return ''
+
+  if (Math.random() < 0.2) {
+    game.coins += 1
+    return '你从银器柜里摸走一枚末日币，没有人看见：末日币 +1。'
+  }
+
+  adjustStats({ hp: -50 })
+  return game.dead ? '' : '守卫抓住了你的手腕，把你扔出长廊：生命 -50。'
+}
+
+/** 宫廷舞会：1 回合，无衰减，每天一次，骑士以上，理智 +50 */
+export function palaceDance() {
+  if (!palaceReady()) return ''
+  if (!knightReady()) return '至少需要「骑士」身份才能参加宫廷舞会。'
+  if (!useCooldown('dance', PALACE_COOLDOWN.daily)) return '今天的舞会已经结束，明天再来。'
+
+  advanceTurns(1, { decay: false })
+  if (game.dead) return ''
+  adjustStats({ sanity: 50 })
+  return '你在大理石厅里跳完一支舞：理智 +50。'
+}
+
+/** 宫廷宴会：1 回合，无衰减，每天一次，骑士以上，饱食 / 口渴 +50 */
+export function palaceBanquet() {
+  if (!palaceReady()) return ''
+  if (!knightReady()) return '至少需要「骑士」身份才能参加宫廷宴会。'
+  if (!useCooldown('banquet', PALACE_COOLDOWN.daily)) return '今天的宴会已经结束，明天再来。'
+
+  advanceTurns(1, { decay: false })
+  if (game.dead) return ''
+  adjustStats({ hunger: 50, thirst: 50 })
+  return '长桌上的食物与酒水敞开供应：饱食 +50，口渴 +50。'
+}
+
+/** 宫廷客房：2 回合，无衰减，每天一次，骑士以上，体力 +50 */
+export function palaceGuestRoom() {
+  if (!palaceReady()) return ''
+  if (!knightReady()) return '至少需要「骑士」身份才能入住宫廷客房。'
+  if (!useCooldown('room', PALACE_COOLDOWN.daily)) return '今天已经住过一次客房，明天再来。'
+
+  advanceTurns(2, { decay: false })
+  if (game.dead) return ''
+  adjustStats({ stamina: 50 })
+  return '你在客房里睡了个安稳觉：体力 +50。'
+}
+
+/** 感染治疗：1 回合，无衰减，每天一次，按身份解锁不同档位 */
+export function treatInfection(tierId) {
+  if (!palaceReady()) return ''
+  const tier = TREATMENT_TIERS.find((item) => item.id === tierId)
+  if (!tier) return ''
+  if (identityRank(game.identity) < tier.minRank) {
+    return `「${tier.name}」至少需要「${tier.minIdentity}」身份。`
+  }
+  if (!useCooldown('treatment', PALACE_COOLDOWN.daily)) {
+    return '今天已经接受过一次治疗，明天再来。'
+  }
+
+  advanceTurns(1, { decay: false })
+  if (game.dead) return ''
+  adjustStats({ infection: -tier.reduce })
+  return `接受了${tier.name}：感染 -${tier.reduce}。`
+}
+
+/** 领取俸禄：1 回合，无衰减，每天一次，按身份发币 */
+export function claimSalary() {
+  if (!palaceReady()) return ''
+  const amount = PALACE_SALARY[game.identity]
+  if (!amount) return '只有骑士及以上身份才能领取俸禄。'
+  if (!useCooldown('salary', PALACE_COOLDOWN.daily)) return '今天已经领过俸禄，明天再来。'
+
+  advanceTurns(1, { decay: false })
+  if (game.dead) return ''
+  game.coins += amount
+  return `以「${game.identity}」的身份领取俸禄：末日币 +${amount}。`
+}
+
+/** 参加会议：1 回合，无衰减，五种会议共用七日冷却 */
+export function attendCouncil(councilId = 'knight') {
+  if (!palaceReady()) return ''
+
+  const council = PALACE_COUNCILS.find((item) => item.id === councilId)
+  if (!council) return ''
+  if (identityRank(game.identity) < council.rank) {
+    return `「${council.name}」需要「${council.identity}」身份。`
+  }
+  if (!useCooldown('council', PALACE_COOLDOWN.weekly)) return '会议七天一次，还没到下一次。'
+
+  advanceTurns(council.turns, { decay: false })
+  if (game.dead) return ''
+
+  adjustStats({ sanity: council.sanity })
+  game.coins += council.coins
+  let line = `你参加「${council.name}」直到散会：理智 +${council.sanity}，末日币 +${council.coins}。`
+
+  if (council.medicine) {
+    const itemId = pickRandomMedicine()
+    if (itemId) {
+      const def = getItem(itemId)
+      const leftover = addItem(game.inventory, itemId, 1)
+      line +=
+        leftover > 0
+          ? ` 背包已满，${def?.name ?? '药品'}留在了会议桌上。`
+          : ` 书记官会后塞给你一份${def?.name ?? '药品'}。`
+    }
+  }
+  return line
+}
+
+/** 宫廷花园：只有储君能进，七天一次，药品、稀有食物与末日币 */
+export function visitGarden() {
+  if (!palaceReady()) return ''
+  if (identityRank(game.identity) < GARDEN.rank) {
+    return `花园只对「${GARDEN.identity}」开放。守卫没有让你进去。`
+  }
+  if (!useCooldown('garden', PALACE_COOLDOWN.weekly)) {
+    return '花园七天开放一次，还没到下一次。'
+  }
+
+  advanceTurns(GARDEN.turns, { decay: false })
+  if (game.dead) return ''
+
+  game.coins += GARDEN.coins
+  const gained = []
+  const missed = []
+  for (const itemId of pickGardenLoot()) {
+    const def = getItem(itemId)
+    if (addItem(game.inventory, itemId, 1) > 0) missed.push(def?.name ?? itemId)
+    else gained.push(def?.name ?? itemId)
+  }
+
+  let line = `你在花园里走了一圈：末日币 +${GARDEN.coins}。`
+  if (gained.length) line += `获得 ${gained.join('、')}。`
+  if (missed.length) line += `背包已满，${missed.join('、')}留在了石桌上。`
+  return line
+}
+
+/* ===== 背包操作 ===== */
+
+export function useItem(slotIndex) {
+  const entry = game.inventory[slotIndex]
+  if (!entry) return
+  const def = getItem(entry.id)
+  if (!def?.effects) {
+    notify(`${def?.name ?? '该物品'}暂时无法使用`)
+    return
+  }
+
+  const changes = []
+  for (const [key, delta] of Object.entries(def.effects)) {
+    game.stats[key] = clampStat((game.stats[key] ?? 0) + delta)
+    changes.push(`${STAT_LABELS[key] ?? key} ${delta > 0 ? '+' : ''}${delta}`)
+  }
+  checkStatDeaths()
+
+  entry.qty -= 1
+  if (entry.qty <= 0) game.inventory[slotIndex] = null
+
+  notify(`使用 ${def.name} ×1 · ${changes.join('，')}`)
+}
+
+export function discardItem(slotIndex) {
+  const entry = game.inventory[slotIndex]
+  if (!entry) return
+  const def = getItem(entry.id)
+  const isBadge = def?.category === 'identity'
+
+  if (entry.qty > 1) entry.qty -= 1
+  else game.inventory[slotIndex] = null
+
+  if (isBadge) {
+    syncIdentities()
+    const still = def.faction === 'dawn' ? game.dawnIdentity : game.identity
+    const factionName = def.faction === 'dawn' ? '曙光' : '都城'
+    notify(
+      still
+        ? `已丢弃 ${def.name} · 当前身份「${still}」`
+        : `已丢弃 ${def.name} · 你失去了${factionName}身份`,
+      3000,
+    )
+    return
+  }
+
+  notify(`已丢弃 ${def?.name ?? '物品'} ×1`)
+}
+
+export function equipMelee(slotIndex) {
+  const entry = game.inventory[slotIndex]
+  if (!entry) return
+  const def = getItem(entry.id)
+
+  if (!def?.weapon || def.category !== 'melee') {
+    notify('这件物品不能装备到近战位')
+    return
+  }
+
+  const previous = game.equipment.melee
+  game.inventory[slotIndex] = previous
+    ? { id: previous.id, qty: 1, durability: previous.durability }
+    : null
+
+  game.equipment.melee = {
+    id: entry.id,
+    durability: entry.durability ?? def.weapon.durability,
+  }
+
+  notify(`已装备 ${def.name}`)
+}
+
+export function unequipMelee() {
+  const current = game.equipment.melee
+  if (!current) return
+
+  const emptyIndex = game.inventory.findIndex((entry) => entry === null)
+  if (emptyIndex === -1) {
+    notify('背包已满，无法卸下武器')
+    return
+  }
+
+  const def = getItem(current.id)
+  game.inventory[emptyIndex] = {
+    id: current.id,
+    qty: 1,
+    durability: current.durability,
+  }
+  game.equipment.melee = null
+
+  notify(`已卸下 ${def?.name ?? '武器'} · 赤手空拳`)
+}
+
+export function equipRanged(slotIndex) {
+  const entry = game.inventory[slotIndex]
+  if (!entry) return
+  const def = getItem(entry.id)
+
+  if (!def?.weapon || def.category !== 'ranged') {
+    notify('这件物品不能装备到远程位')
+    return
+  }
+
+  const previous = game.equipment.ranged
+  game.inventory[slotIndex] = previous
+    ? {
+        id: previous.id,
+        qty: 1,
+        cleanliness: Number.isFinite(previous.cleanliness)
+          ? previous.cleanliness
+          : CLEANLINESS_MAX,
+      }
+    : null
+
+  game.equipment.ranged = {
+    id: entry.id,
+    cleanliness: Number.isFinite(entry.cleanliness) ? entry.cleanliness : CLEANLINESS_MAX,
+  }
+
+  notify(`已装备 ${def.name}`)
+}
+
+export function unequipRanged() {
+  const current = game.equipment.ranged
+  if (!current) return
+
+  const emptyIndex = game.inventory.findIndex((entry) => entry === null)
+  if (emptyIndex === -1) {
+    notify('背包已满，无法卸下远程武器')
+    return
+  }
+
+  const def = getItem(current.id)
+  game.inventory[emptyIndex] = {
+    id: current.id,
+    qty: 1,
+    cleanliness: current.cleanliness,
+  }
+  game.equipment.ranged = null
+
+  notify(`已卸下 ${def?.name ?? '远程武器'}`)
+}
+
+/**
+ * 远程武器开火：每开一枪扣清洁度，归零后无法开火
+ * 返回 { current, empty, name }
+ */
+export function consumeRangedCleanliness() {
+  const equipped = game.equipment.ranged
+  if (!equipped) return { current: 0, empty: true, name: '' }
+
+  const def = getItem(equipped.id)
+  const current = Number.isFinite(equipped.cleanliness) ? equipped.cleanliness : CLEANLINESS_MAX
+  equipped.cleanliness = Math.max(0, current - CLEANLINESS_PER_SHOT)
+
+  if (equipped.cleanliness <= 0 && current > 0) {
+    notify(`${def?.name ?? '远程武器'}清洁度归零，需要保养后才能开火`, 3000)
+  }
+
+  return { current: equipped.cleanliness, empty: equipped.cleanliness <= 0, name: def?.name ?? '' }
+}
+
+/** 都城近战保养：按耐久缺口收费，每 1 币磨回 20% 最大耐久，一次修满 */
+function repairEquippedMelee(currency, label) {
+  const equipped = game.equipment.melee
+  if (!equipped) return '你还没有装备近战武器，保养台前空着。'
+
+  const def = getItem(equipped.id)
+  const max = def?.weapon?.durability
+  if (!Number.isFinite(max)) return `「${def?.name ?? '拳头'}」不需要保养。`
+
+  const current = Number.isFinite(equipped.durability) ? equipped.durability : max
+  if (current >= max) return `「${def?.name ?? '近战武器'}」的刃口还锋利，不需要打磨。`
+
+  const cost = repairCoinCost(current, max)
+  if (game[currency] < cost) {
+    return `${label}不足，修复「${def?.name ?? '近战武器'}」需要 ${cost} ${label}。`
+  }
+
+  game[currency] -= cost
+  equipped.durability = max
+  return `你重新打磨上油，「${def?.name ?? '近战武器'}」耐久恢复至 ${max}，花费 ${cost} ${label}（每 ${REPAIR_PERCENT_PER_COIN}% 缺口 1 币）。`
+}
+
+/** 曙光远程保养：按清洁度缺口收费，每 1 币擦回 20% 清洁度，一次保养完 */
+function repairEquippedRanged(currency, label) {
+  const equipped = game.equipment.ranged
+  if (!equipped) return '你还没有装备远程武器，保养台前空着。'
+
+  const def = getItem(equipped.id)
+  const current = Number.isFinite(equipped.cleanliness) ? equipped.cleanliness : CLEANLINESS_MAX
+  if (current >= CLEANLINESS_MAX) {
+    return `「${def?.name ?? '远程武器'}」已经很干净，不需要保养。`
+  }
+
+  const cost = repairCoinCost(current, CLEANLINESS_MAX)
+  if (game[currency] < cost) {
+    return `${label}不足，保养「${def?.name ?? '远程武器'}」需要 ${cost} ${label}。`
+  }
+
+  game[currency] -= cost
+  equipped.cleanliness = CLEANLINESS_MAX
+  return `你擦净了「${def?.name ?? '远程武器'}」：清洁度恢复至 ${CLEANLINESS_MAX}，花费 ${cost} ${label}（每 ${REPAIR_PERCENT_PER_COIN}% 缺口 1 币）。`
+}
+
+/** 末日城堡集市：只保养近战武器 */
+export function repairMeleeCity() {
+  if (!palaceReady()) return ''
+  return repairEquippedMelee('coins', '末日币')
+}
+
+/** 曙光阵地：只保养远程武器 */
+export function repairRangedDawn() {
+  if (!dawnReady()) return ''
+  return repairEquippedRanged('dawnCoins', '曙光币')
+}
+
+/**
+ * 战斗中使用近战武器：每命中一次扣 1 点耐久，归零后武器报废并卸下
+ * 返回 { broken, name }
+ */
+export function consumeMeleeDurability() {
+  const equipped = game.equipment.melee
+  if (!equipped) return { broken: false, name: '' }
+
+  const def = getItem(equipped.id)
+  const max = def?.weapon?.durability
+  if (!Number.isFinite(max)) return { broken: false, name: def?.name ?? '' }
+
+  const current = Number.isFinite(equipped.durability) ? equipped.durability : max
+  equipped.durability = Math.max(0, current - 1)
+  if (equipped.durability > 0) return { broken: false, name: def?.name ?? '' }
+
+  game.equipment.melee = null
+  notify(`${def?.name ?? '武器'}已经彻底损坏`, 3000)
+  return { broken: true, name: def?.name ?? '' }
+}
+
+/* ===== NPC 任务 ===== */
+
+const DAWN_NPC_OWNERS = ['nutritionist', 'mechanic', 'mercenary', 'agronomist']
+
+function questOwnerReady(owner) {
+  return owner === 'king' || owner === 'queen' ? palaceReady() : dawnReady()
+}
+
+function previousQuest(quest) {
+  const line = questLine(quest.owner)
+  const index = line.findIndex((item) => item.id === quest.id)
+  return index > 0 ? line[index - 1] : null
+}
+
+export function isQuestDone(id) {
+  return game.quests[id]?.status === 'done'
+}
+
+export function isQuestActive(id) {
+  return game.quests[id]?.status === 'active'
+}
+
+/** 击杀进度：接取时记录基准，只统计接取之后的击杀 */
+export function questKillProgress(id) {
+  const quest = questById(id)
+  const target = quest?.require?.kills
+  if (!target) return null
+  const baseline = Number(game.quests[id]?.baseline) || 0
+  return { current: Math.max(0, game.zombieKills - baseline), target }
+}
+
+/** 整条任务线的对话门槛：返回空字符串表示可以对话 */
+export function questLineLocked(owner) {
+  if (owner === 'king') {
+    if (identityRank(game.identity) < identityRank('骑士')) {
+      return '国王艾伦没有看你。至少需要「骑士」身份，他才愿意开口。'
+    }
+    return ''
+  }
+
+  if (owner === 'queen') {
+    if (identityRank(game.identity) < identityRank('骑士')) {
+      return '皇后米娅没有看你。至少需要「骑士」身份，王宫的门才会为你打开。'
+    }
+    if (!isQuestDone('yiyang-5')) {
+      return '皇后米娅没有召见你。她只肯见曙光阵地那位首领信得过的人。'
+    }
+    if (!game.flags.queenLetterDelivered) {
+      return game.flags.queenLetter
+        ? '皇后米娅看着你手里的信，没有先开口。'
+        : '皇后米娅没有召见你。'
+    }
+    return ''
+  }
+
+  if (owner === 'yiyang' && game.flags.dawnLeaderKilled) return '羿阳已经不在了。'
+
+  if (DAWN_NPC_OWNERS.includes(owner) && !game.dawnIdentity) {
+    return '哨塔里的人还不认识你。先联系管事加入曙光。'
+  }
+  return ''
+}
+
+/** 单个任务不能接取的原因 */
+export function questLockReason(id) {
+  const quest = questById(id)
+  if (!quest) return '未知任务。'
+  const state = game.quests[id]?.status
+  if (state === 'done') return '这个任务已经完成。'
+  if (state === 'active') return ''
+
+  const lineGate = questLineLocked(quest.owner)
+  if (lineGate) return lineGate
+
+  if (game.flags.dawnLeaderKilled && quest.owner === 'queen') {
+    return '羿阳已经不在了，皇后不再交办新的事。'
+  }
+
+  const previous = previousQuest(quest)
+  if (previous && !isQuestDone(previous.id)) {
+    return `需要先完成「${previous.name}」。`
+  }
+
+  if (quest.require?.dawnIdentity && dawnRank(game.dawnIdentity) < dawnRank(quest.require.dawnIdentity)) {
+    return `需要曙光「${quest.require.dawnIdentity}」身份（当前：${game.dawnIdentity ?? '无'}）。`
+  }
+
+  return ''
+}
+
+export function questStatus(id) {
+  const quest = questById(id)
+  if (!quest) return 'locked'
+  const state = game.quests[id]?.status
+  if (state === 'done') return 'done'
+  if (state === 'active') return 'active'
+  return questLockReason(id) ? 'locked' : 'available'
+}
+
+export function acceptQuest(id) {
+  const quest = questById(id)
+  if (!quest || !questOwnerReady(quest.owner)) return ''
+  const reason = questLockReason(id)
+  if (reason) return reason
+
+  game.quests[id] = { status: 'active', baseline: game.zombieKills }
+  return quest.require?.kills
+    ? `已接取「${quest.name}」，从现在开始计算击杀。`
+    : `已接取「${quest.name}」。`
+}
+
+function questClaimBlocker(quest) {
+  const state = game.quests[quest.id]
+  if (!state || state.status !== 'active') return '这个任务现在不能提交。'
+
+  for (const item of quest.require?.items ?? []) {
+    const have = countItem(game.inventory, item.id)
+    if (have < item.qty) {
+      const name = getItem(item.id)?.name ?? item.id
+      return `「${name}」不够：${have}/${item.qty}。`
+    }
+  }
+
+  if (quest.require?.kills) {
+    const progress = questKillProgress(quest.id)
+    if (progress.current < progress.target) {
+      return `还差 ${progress.target - progress.current} 只行尸。`
+    }
+  }
+
+  if (quest.require?.boss === 'dawn-leader' && !game.flags.dawnLeaderKilled) {
+    return '羿阳还活着。'
+  }
+
+  return ''
+}
+
+/** 在背包副本上模拟扣除与发放，空间不够时整体拒绝 */
+function simulateQuestClaim(quest) {
+  const copy = game.inventory.map((entry) => (entry ? { ...entry } : null))
+  for (const item of quest.require?.items ?? []) {
+    if (removeItem(copy, item.id, item.qty) > 0) return false
+  }
+
+  const reward = quest.reward ?? {}
+
+  if (reward.identity) {
+    const badgeId = identityItemId(reward.identity)
+    for (let index = 0; index < copy.length; index += 1) {
+      const entry = copy[index]
+      if (!entry) continue
+      const def = getItem(entry.id)
+      if (def?.category === 'identity' && def.faction !== 'dawn') copy[index] = null
+    }
+    if (!badgeId || addItem(copy, badgeId, 1) > 0) return false
+  }
+
+  if (reward.dawnIdentity) {
+    const badgeId = dawnItemId(reward.dawnIdentity)
+    for (let index = 0; index < copy.length; index += 1) {
+      const entry = copy[index]
+      if (!entry) continue
+      const def = getItem(entry.id)
+      if (def?.category === 'identity' && def.faction === 'dawn') copy[index] = null
+    }
+    if (!badgeId || addItem(copy, badgeId, 1) > 0) return false
+  }
+
+  for (const item of reward.items ?? []) {
+    if (addItem(copy, item.id, item.qty ?? 1) > 0) return false
+  }
+
+  return true
+}
+
+function grantQuestRewards(quest) {
+  const reward = quest.reward ?? {}
+  if (reward.identity) grantIdentity(reward.identity)
+  if (reward.dawnIdentity) grantDawnIdentity(reward.dawnIdentity)
+  if (reward.coins) game.coins += reward.coins
+  if (reward.dawnCoins) game.dawnCoins += reward.dawnCoins
+  for (const item of reward.items ?? []) addItem(game.inventory, item.id, item.qty ?? 1)
+  if (reward.flag && typeof reward.flag === 'object') Object.assign(game.flags, reward.flag)
+  if (reward.finale) game.finale = reward.finale
+}
+
+function questRewardText(quest) {
+  const reward = quest.reward ?? {}
+  const parts = []
+  if (reward.identity) parts.push(`「${reward.identity}」身份牌`)
+  if (reward.dawnIdentity) parts.push(`曙光「${reward.dawnIdentity}」徽章`)
+  if (reward.coins) parts.push(`${reward.coins} 末日币`)
+  if (reward.dawnCoins) parts.push(`${reward.dawnCoins} 曙光币`)
+  for (const item of reward.items ?? []) {
+    parts.push(`${getItem(item.id)?.name ?? item.id} ×${item.qty ?? 1}`)
+  }
+  if (reward.finale) parts.push(`结局「${reward.finale}」`)
+  return parts.join('、')
+}
+
+export function claimQuest(id) {
+  const quest = questById(id)
+  if (!quest || !questOwnerReady(quest.owner)) return ''
+
+  const blocker = questClaimBlocker(quest)
+  if (blocker) return blocker
+  if (!simulateQuestClaim(quest)) return '背包空间不足，先腾出位置再来领取。'
+
+  for (const item of quest.require?.items ?? []) {
+    removeItem(game.inventory, item.id, item.qty)
+  }
+  grantQuestRewards(quest)
+  game.quests[id] = { status: 'done' }
+
+  const rewards = questRewardText(quest)
+  const note = quest.reward?.note ? `\n\n${quest.reward.note}` : ''
+  return `任务「${quest.name}」完成。获得 ${rewards}。${note}`
+}
+
+/** 皇后线前置：把羿阳托付的信交给皇后 */
+export function deliverQueenLetter() {
+  if (!palaceReady()) return ''
+  if (!game.flags.queenLetter) return '你手里没有要交给皇后的信。'
+  game.flags.queenLetter = false
+  game.flags.queenLetterDelivered = true
+  return '皇后米娅接过信，看到信封上的字迹时，手停在了半空。\n\n「这是……哥哥的字。」她的声音很轻，「三年了，他才肯让人送信来。」\n\n她把信折好，按在胸口，没有哭。\n\n「既然是他信得过的人，那你也算我信得过的人。」她抬起头，「替我办几件事。」'
+}
+
+/** 管事处的晋升：按累计击杀授予队长 / 指挥 */
+export function promoteDawnIdentity() {
+  if (!dawnReady()) return ''
+  if (!game.dawnIdentity) return '你还没有加入曙光，先去联系管事登记名册。'
+
+  const promotion = DAWN_PROMOTIONS.find((item) => item.from === game.dawnIdentity)
+  if (!promotion) {
+    return game.dawnIdentity === '指挥'
+      ? '管事关上名册：副首只能由首领羿阳亲自授予。'
+      : '你已经是曙光「副首」，没有更高的位置。'
+  }
+
+  if (game.zombieKills < promotion.kills) {
+    return `管事翻了翻名册：晋升${promotion.to}需要累计击杀 ${promotion.kills} 只行尸（当前 ${game.zombieKills}）。`
+  }
+
+  if (!grantDawnIdentity(promotion.to)) return '背包已满，晋升徽章无处安放。'
+  return `管事在名册上划掉旧名字：你晋升为曙光「${promotion.to}」。`
+}
