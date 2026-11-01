@@ -59,7 +59,8 @@ import {
   submitGenerator,
   submitMermaidDrink,
   submitSupplies,
-  takeDevGift,
+  takeDevMedicalSupport,
+  takeDevNoviceGift,
   takeRottenSeed,
   yanranDaysLeft,
 } from '../game/store'
@@ -128,8 +129,9 @@ const mermaidHint = computed(() => {
   return MERMAID.lines[index - 1] ?? ''
 })
 
-const devConfirm = ref(false)
-const devGiftTaken = computed(() => Boolean(game.flags.devGiftTaken))
+const noviceGiftTaken = computed(() => Boolean(game.flags.devNoviceGiftTaken))
+const medicalSupportTaken = computed(() => Boolean(game.flags.devMedicalSupportTaken))
+const devGiftTaken = computed(() => noviceGiftTaken.value && medicalSupportTaken.value)
 const bagSize = computed(() => game.inventory.length)
 const bagFull = computed(() => bagSize.value >= DEV_SHOP.expandLimit)
 const canExpand = computed(
@@ -232,11 +234,6 @@ function run(action) {
     return
   }
   if (line) feed.value = line
-}
-
-function claimDevGift() {
-  devConfirm.value = false
-  run(takeDevGift)
 }
 
 function fightMaSan() {
@@ -563,47 +560,57 @@ function closePanel() {
           </header>
           <p class="extra__desc">
             他蹲在卖场角落，面前摆着一台亮着屏幕的旧电脑。
-            <q>
-              「难度太高？我可以帮你一把。不过想清楚——拿了这个，游戏就没什么意思了。只能选一次。」
-            </q>
+            <q>「缺什么就说。我这儿的东西只发一次。」</q>
           </p>
-          <div class="chips">
-            <span>末日币 +{{ DEV_SHOP.giftCoins }}</span>
-            <span>曙光币 +{{ DEV_SHOP.giftDawnCoins }}</span>
-            <span>万能灵药 ×6</span>
-            <span>抗感染针 ×6</span>
-            <span>豆类罐头 ×66</span>
-            <span>桃子 ×66</span>
-            <span>蝴蝶刀-金蝶 ×1</span>
-            <span>AKM ×1</span>
+
+          <div class="dev-gift">
+            <header class="extra__head">
+              <h4 class="extra__title">需要新手礼包</h4>
+              <span class="extra__tag">{{ noviceGiftTaken ? '已领取' : '一次性' }}</span>
+            </header>
+            <div class="chips">
+              <span>末日币 +{{ DEV_SHOP.noviceCoins }}</span>
+              <span>曙光币 +{{ DEV_SHOP.noviceDawnCoins }}</span>
+              <span>万能灵药 ×5</span>
+              <span>抗感染针 ×5</span>
+              <span>豆类罐头 ×30</span>
+              <span>越蔓梅 ×30</span>
+              <span>战术匕首 ×1</span>
+              <span>Glock ×1</span>
+            </div>
+            <p v-if="noviceGiftTaken" class="extra__desc">
+              新手礼包已经在你包里了。
+            </p>
+            <button
+              v-else
+              type="button"
+              class="btn btn--primary extra__action"
+              @click="run(takeDevNoviceGift)"
+            >
+              领取新手礼包
+            </button>
           </div>
 
-          <p v-if="devGiftTaken" class="extra__desc">
-            他把电脑合上，再没抬头。那份补给已经在你包里了。
-          </p>
-          <template v-else-if="devConfirm">
-            <p class="extra__warn">慎选：这会大幅降低游戏体验，且只能领取一次。</p>
-            <div class="extra__actions">
-              <button type="button" class="btn extra__deadly" @click="claimDevGift">
-                确认领取
-              </button>
-              <button
-                type="button"
-                class="btn extra__action"
-                @click="devConfirm = false"
-              >
-                再想想
-              </button>
+          <div class="dev-gift">
+            <header class="extra__head">
+              <h4 class="extra__title">需要医疗支持</h4>
+              <span class="extra__tag">{{ medicalSupportTaken ? '已领取' : '一次性' }}</span>
+            </header>
+            <div class="chips">
+              <span>缝合包 ×10</span>
             </div>
-          </template>
-          <button
-            v-else
-            type="button"
-            class="btn btn--primary extra__action"
-            @click="devConfirm = true"
-          >
-            游戏难度太高 · 领取救济
-          </button>
+            <p v-if="medicalSupportTaken" class="extra__desc">
+              十包缝合包已经塞进你的背包。
+            </p>
+            <button
+              v-else
+              type="button"
+              class="btn extra__action"
+              @click="run(takeDevMedicalSupport)"
+            >
+              领取医疗支持
+            </button>
+          </div>
 
           <div class="dev-expand">
             <header class="extra__head">
@@ -1187,6 +1194,19 @@ function closePanel() {
   color: var(--rust-soft);
   border: 1px solid rgba(193, 74, 50, 0.4);
   background: rgba(193, 74, 50, 0.08);
+}
+
+.dev-gift {
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+}
+
+.dev-gift .extra__head {
+  margin-bottom: 8px;
+}
+
+.dev-gift .chips {
+  margin-bottom: 8px;
 }
 
 .dev-expand {

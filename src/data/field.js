@@ -502,16 +502,17 @@ export const ROCKET = {
 /** 郊区卖场的「某开发者」：一次性救济与背包扩容 */
 export const DEV_SHOP = {
   mapId: 'suburb-market',
-  giftCoins: 66,
-  giftDawnCoins: 66,
-  giftItems: [
-    { id: 'panacea', qty: 6 },
-    { id: 'anti-infection-shot', qty: 6 },
-    { id: 'canned-beans', qty: 66 },
-    { id: 'peach', qty: 66 },
-    { id: 'butterfly-gold', qty: 1 },
-    { id: 'akm', qty: 1 },
+  noviceCoins: 5,
+  noviceDawnCoins: 5,
+  noviceItems: [
+    { id: 'panacea', qty: 5 },
+    { id: 'anti-infection-shot', qty: 5 },
+    { id: 'canned-beans', qty: 30 },
+    { id: 'cranberry', qty: 30 },
+    { id: 'dagger', qty: 1 },
+    { id: 'glock', qty: 1 },
   ],
+  medicalItems: [{ id: 'suture-kit', qty: 10 }],
   expandCost: 5,
   expandSteps: 10,
   expandLimit: 200,

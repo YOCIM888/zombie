@@ -1470,22 +1470,38 @@ function devGuard() {
   return null
 }
 
-/** 一次性救济：慎选，会大幅降低游戏难度 */
-export function takeDevGift() {
+/** 一次性新手礼包：少量货币与基础物资 */
+export function takeDevNoviceGift() {
   const blocked = devGuard()
   if (blocked !== null) return blocked
-  if (game.flags.devGiftTaken) return '他已经把那份补给交给你了，没有第二份。'
-  if (!canStoreItems(game.inventory, DEV_SHOP.giftItems)) {
+  if (game.flags.devNoviceGiftTaken) return '新手礼包已经领过了。'
+  if (!canStoreItems(game.inventory, DEV_SHOP.noviceItems)) {
     return '背包放不下这份补给，先腾出几格再来。'
   }
 
-  for (const item of DEV_SHOP.giftItems) {
+  for (const item of DEV_SHOP.noviceItems) {
     addItem(game.inventory, item.id, item.qty)
   }
-  game.coins += DEV_SHOP.giftCoins
-  game.dawnCoins += DEV_SHOP.giftDawnCoins
-  game.flags.devGiftTaken = true
-  return `某开发者把一箱东西推过来：末日币 +${DEV_SHOP.giftCoins}，曙光币 +${DEV_SHOP.giftDawnCoins}，外加一批药品、罐头、水果和两把武器。「拿去吧。别问我为什么。」`
+  game.coins += DEV_SHOP.noviceCoins
+  game.dawnCoins += DEV_SHOP.noviceDawnCoins
+  game.flags.devNoviceGiftTaken = true
+  return `某开发者递来一个新手礼包：末日币 +${DEV_SHOP.noviceCoins}，曙光币 +${DEV_SHOP.noviceDawnCoins}，外加万能灵药、抗感染针、罐头、越蔓梅、战术匕首和 Glock。「先活过这几天再说。」`
+}
+
+/** 一次性医疗支持：十包缝合包 */
+export function takeDevMedicalSupport() {
+  const blocked = devGuard()
+  if (blocked !== null) return blocked
+  if (game.flags.devMedicalSupportTaken) return '医疗支持已经领过了。'
+  if (!canStoreItems(game.inventory, DEV_SHOP.medicalItems)) {
+    return '背包放不下这些缝合包，先腾出几格再来。'
+  }
+
+  for (const item of DEV_SHOP.medicalItems) {
+    addItem(game.inventory, item.id, item.qty)
+  }
+  game.flags.devMedicalSupportTaken = true
+  return '某开发者推来十包缝合包：「伤口先缝上，别死在半路。」'
 }
 
 /** 背包扩容：每次 5 末日币 + 5 曙光币，增加 10 格，上限 200 格 */
