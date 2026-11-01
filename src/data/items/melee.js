@@ -29,7 +29,7 @@ const MELEE_LIST = [
   /* ===== 普通 ===== */
   melee('kitchen-knife', '菜刀', '普通', { attack: 12, crit: 0.05, critDamage: 1.15, combo: 0.03, durability: 100 },
     '厨房里最常见的铁器，卷刃、生锈，但依然能切开东西。'),
-  melee('dagger', '匕首', '普通', { attack: 15, crit: 0.06, critDamage: 1.22, combo: 0.2, durability: 80 },
+  melee('dagger', '战术匕首', '普通', { attack: 20, crit: 0.02, critDamage: 1.22, combo: 0.21, durability: 80 },
     '贫民集市里最锋利的货色，刀柄缠着发黑的布条。'),
   melee('baseball-bat', '棒球棍', '普通', { attack: 16, crit: 0.04, critDamage: 1.2, combo: 0.08, durability: 130 },
     '球棒上还粘着干掉的泥，握柄缠了几圈胶带。'),

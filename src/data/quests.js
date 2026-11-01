@@ -306,7 +306,7 @@ export const MECHANIC_QUESTS = [
     owner: 'mechanic',
     no: '01',
     name: '拆解练习',
-    desc: '莉莉收了一堆废铁，要你带两把匕首和一根棒球棍来练手。',
+    desc: '莉莉收了一堆废铁，要你带两把战术匕首和一根棒球棍来练手。',
     require: {
       items: [
         { id: 'dagger', qty: 2 },
