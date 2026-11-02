@@ -344,10 +344,10 @@ export const MAFEI = {
 export const MERMAID = {
   mapId: 'suburb-market',
   stages: [
-    { itemId: 'mineral-water', count: 5 },
-    { itemId: 'milk', count: 3 },
-    { itemId: 'functional-drink', count: 3 },
-    { itemId: 'electrolyte-water', count: 3 },
+    { itemId: 'mineral-water', count: 8 },
+    { itemId: 'milk', count: 10 },
+    { itemId: 'functional-drink', count: 20 },
+    { itemId: 'electrolyte-water', count: 30 },
   ],
   turns: 1,
   rewardItemId: 'trident',
@@ -358,7 +358,7 @@ export const MERMAID = {
     '你把矿泉水一瓶瓶拧开，倒进她身下的水槽。她终于抬起头，看了你很久。',
     '牛奶见底的时候，她伤口边缘的颜色淡了一些。她低声说，还差一点。',
     '功能饮料让她撑起了半个身子。她的手指搭在玻璃上，像在数你留下的东西。',
-    '最后三瓶电解质水放下时，她的鱼尾已经能拍起水花。',
+    '最后三十瓶电解质水放下时，她的鱼尾已经能拍起水花。',
   ],
   rewardLine:
     '她从水雾里抬起手，三叉戟-海歌浮出水面，落进你掌心。\n\n「这是我母亲留下的东西。现在它归你了。」',
