@@ -1,5 +1,6 @@
 <script setup>
 import { computed, nextTick, ref } from 'vue'
+import { battle } from '../game/battle'
 import { devState, game, notify, runDevCommand } from '../game/store'
 
 const emit = defineEmits(['close'])
@@ -24,9 +25,13 @@ async function submit() {
   if (!value) return
 
   lines.value.push(`> ${value}`)
-  const result = runDevCommand(value)
-  if (result) {
-    lines.value.push(...String(result).split('\n'))
+  if (/^\/tp(?:\s|$)/i.test(value) && battle.active) {
+    lines.value.push('战斗中无法传送，请先结束战斗。')
+  } else {
+    const result = runDevCommand(value)
+    if (result) {
+      lines.value.push(...String(result).split('\n'))
+    }
   }
   if (lines.value.length > 80) lines.value = lines.value.slice(-80)
 
@@ -76,7 +81,12 @@ function close() {
         class="dev__line"
         :class="{
           'dev__line--cmd': line.startsWith('>'),
-          'dev__line--ok': line.startsWith('获得') || line.startsWith('一击') || line.startsWith('状态条'),
+          'dev__line--ok':
+            line.startsWith('获得') ||
+            line.startsWith('一击') ||
+            line.startsWith('状态条') ||
+            line.startsWith('已传送') ||
+            line.startsWith('所有天赋'),
           'dev__line--warn': line.startsWith('未知') || line.startsWith('用法') || line.startsWith('没有'),
         }"
       >

@@ -7,9 +7,21 @@ import {
   cleanlinessMultiplier,
   countUsedSlots,
   getItem,
+  talentBonus,
+  talentEffects,
 } from '../data'
-import { formatCritDamage, formatPercent } from '../game/format'
-import { game, unequipMelee, unequipRanged } from '../game/store'
+import {
+  formatCritDamage,
+  formatPercent,
+  formatPercentWithBonus,
+  formatValueWithBonus,
+} from '../game/format'
+import {
+  game,
+  isTalentActive,
+  unequipMelee,
+  unequipRanged,
+} from '../game/store'
 
 defineProps({
   wide: { type: Boolean, default: false },
@@ -22,6 +34,23 @@ const equippedDef = computed(() => {
 
 const isEquipped = computed(() => Boolean(game.equipment.melee))
 const melee = computed(() => equippedDef.value.weapon)
+const activeMeleeBonus = computed(() =>
+  isTalentActive('melee') ? talentBonus('melee', game.talents.melee) : 0,
+)
+const activeArena = computed(() =>
+  !isEquipped.value && isTalentActive('arena')
+    ? talentEffects('arena', game.talents.arena)
+    : {},
+)
+const meleeAttackText = computed(() =>
+  formatValueWithBonus(melee.value.attack ?? 0, activeArena.value.damage ?? 0),
+)
+const meleeComboText = computed(() =>
+  formatPercentWithBonus(
+    melee.value.combo ?? 0,
+    activeMeleeBonus.value + (activeArena.value.combo ?? 0),
+  ),
+)
 const usedSlots = computed(() => countUsedSlots(game.inventory))
 
 const durabilityText = computed(() => {
@@ -46,6 +75,18 @@ const rangedEffectiveAttack = computed(() =>
   Math.round((rangedWeapon.value?.attack ?? 0) * rangedDamageScale.value),
 )
 const rangedJam = computed(() => cleanlinessJamChance(rangedCleanliness.value))
+const rangedCritText = computed(() =>
+  formatPercentWithBonus(
+    rangedWeapon.value?.crit ?? 0,
+    isTalentActive('ranged') ? talentBonus('ranged', game.talents.ranged) : 0,
+  ),
+)
+const rangedDodgeText = computed(() =>
+  formatPercentWithBonus(
+    rangedWeapon.value?.dodge ?? 0,
+    isTalentActive('corridor') ? talentBonus('corridor', game.talents.corridor) : 0,
+  ),
+)
 const rangedState = computed(() => {
   if (!isRangedEquipped.value) return '空 · 无法开火'
   if (rangedCleanliness.value <= 0) return '需保养'
@@ -98,7 +139,7 @@ const critDamage = formatCritDamage
       <div class="stats">
         <div class="stat">
           <span>攻击</span>
-          <b>{{ melee.attack }}</b>
+          <b>{{ meleeAttackText }}</b>
         </div>
         <div class="stat">
           <span>暴击</span>
@@ -110,7 +151,7 @@ const critDamage = formatCritDamage
         </div>
         <div class="stat">
           <span>连击</span>
-          <b>{{ percent(melee.combo) }}</b>
+          <b>{{ meleeComboText }}</b>
         </div>
         <div class="stat stat--wide">
           <span>耐久</span>
@@ -170,7 +211,7 @@ const critDamage = formatCritDamage
         </div>
         <div class="stat">
           <span>暴击</span>
-          <b>{{ percent(rangedWeapon.crit) }}</b>
+          <b>{{ rangedCritText }}</b>
         </div>
         <div class="stat">
           <span>暴伤</span>
@@ -178,7 +219,7 @@ const critDamage = formatCritDamage
         </div>
         <div class="stat">
           <span>闪避</span>
-          <b>{{ percent(rangedWeapon.dodge) }}</b>
+          <b>{{ rangedDodgeText }}</b>
         </div>
         <div class="stat">
           <span>卡壳</span>

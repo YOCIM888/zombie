@@ -9,10 +9,13 @@ import {
   ORCHARD,
   PALACE_COOLDOWN,
   STRANGE_BARBECUE,
+  TALENTS,
   identityRank,
 } from '../data'
 import {
+  arenaLeft,
   cooldownLeft,
+  corridorLeft,
   game,
   isNpcDead,
   practiceLeft,
@@ -25,7 +28,7 @@ defineEmits(['close'])
 const NEED_KNIGHT = () => identityRank(game.identity) < 1
 
 function practiceRowState(kind) {
-  if ((game.talents[kind] ?? 0) >= AIRSHIP.practice.maxLevel) {
+  if ((game.talents[kind] ?? 0) >= TALENTS[kind].maxLevel) {
     return { label: '天赋已满级', tone: 'done', left: '剩余 0 次' }
   }
   const left = practiceLeft(kind)
@@ -40,6 +43,34 @@ function treasureRowState() {
   return sold
     ? { label: '今日已售罄', tone: 'cooling', left: '剩余 0 次' }
     : { label: '今日可购买', tone: 'ready', left: '剩余 1 次' }
+}
+
+function corridorRowState() {
+  const left = corridorLeft()
+  if ((game.talents.corridor ?? 0) >= TALENTS.corridor.maxLevel) {
+    return { label: '天赋已满级', tone: 'done', left: '剩余 0 次' }
+  }
+  if (game.equipment.melee || game.equipment.ranged) {
+    return { label: '需卸下所有武器', tone: 'locked', left: `剩余 ${left} 次` }
+  }
+  if (left <= 0) {
+    return { label: '今日次数已用完', tone: 'cooling', left: '剩余 0 次' }
+  }
+  return { label: `今日剩余 ${left} 次`, tone: 'ready', left: `剩余 ${left} 次` }
+}
+
+function arenaRowState() {
+  const left = arenaLeft()
+  if ((game.talents.arena ?? 0) >= TALENTS.arena.maxLevel) {
+    return { label: '天赋已满级', tone: 'done', left: '剩余 0 次' }
+  }
+  if (game.equipment.melee || game.equipment.ranged) {
+    return { label: '需卸下所有武器', tone: 'locked', left: `剩余 ${left} 次` }
+  }
+  if (left <= 0) {
+    return { label: '今日次数已用完', tone: 'cooling', left: '剩余 0 次' }
+  }
+  return { label: `今日剩余 ${left} 次`, tone: 'ready', left: `剩余 ${left} 次` }
 }
 
 const GROUPS = [
@@ -93,6 +124,11 @@ const GROUPS = [
         days: PALACE_COOLDOWN.daily,
         locked: () => isNpcDead('agronomist'),
         lockText: '苗苗已经不在了',
+      },
+      {
+        name: '行尸走廊',
+        cycle: '每天两次',
+        customState: corridorRowState,
       },
     ],
   },
@@ -148,6 +184,11 @@ const GROUPS = [
         days: PALACE_COOLDOWN.weekly,
         locked: () => identityRank(game.identity) < GARDEN.rank,
         lockText: '需要储君身份',
+      },
+      {
+        name: '王宫 · 斗兽擂台',
+        cycle: '每天两次',
+        customState: arenaRowState,
       },
     ],
   },

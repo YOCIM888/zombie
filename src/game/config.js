@@ -144,6 +144,8 @@ export const ACHIEVEMENTS = [
   { id: 'coin-tycoon', name: '富甲一方', desc: '手头攒下 200 枚末日币。' },
   { id: 'dawn-wealth', name: '曙光之富', desc: '手头攒下 300 枚曙光币。' },
   { id: 'ma-san', name: '掀了烧烤摊', desc: '拒绝冷面阿三的邀请，并把他打倒。' },
+  { id: 'no-cheat', name: '我没开挂', desc: '在生死角斗中击败游戏开发者。' },
+  { id: 'coup-victory', name: '臣服于我', desc: '在高台政变中让所有贵族低头。' },
   { id: 'death-list', name: '死亡名单', desc: '接过马斐的第十二份委托，成为他名单上的最后一行。' },
   { id: 'seed-life', name: '生机', desc: '把腐烂种子种成一片果苗。' },
   { id: 'doctor-badges', name: '三枚徽章', desc: '集齐陈博士的三枚发射徽章。' },

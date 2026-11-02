@@ -112,7 +112,7 @@ export const KING_QUESTS = [
         { id: 'glock', qty: 1 },
       ],
     },
-    reward: { identity: '侯爵', items: [{ id: 'noble-shortsword', qty: 1 }] },
+    reward: { identity: '侯爵', items: [{ id: 'spring-knife-monochrome', qty: 1 }] },
   },
   {
     id: 'king-5',
@@ -139,7 +139,7 @@ export const KING_QUESTS = [
     desc: '曙光阵地的首领羿阳，是王宫里不能提起的名字。国王要你亲自去把他从名单上划掉。',
     hint: '接取后到曙光阵地的羿阳页面动手；需要先摘下都城徽章才能进入曙光。',
     require: { boss: 'dawn-leader' },
-    reward: { identity: '储君', items: [{ id: 'keel-blade', qty: 1 }], finale: '权力游戏' },
+    reward: { identity: '储君', items: [{ id: 'katana-dusk', qty: 1 }], finale: '权力游戏' },
   },
 ]
 
@@ -190,7 +190,7 @@ export const QUEEN_QUESTS = [
     desc: '今天是他们的结婚纪念日。皇后想送国王一把 M700，可她的名字不该出现在任何一张军械单上。',
     require: { items: [{ id: 'm700', qty: 1 }] },
     reward: {
-      items: [{ id: 'longsword-silver-rose', qty: 1 }],
+      items: [{ id: 'karambit-ghost', qty: 1 }],
       coins: 40,
       finale: '爱恨情仇',
     },
@@ -690,10 +690,10 @@ export const MORAN_QUESTS = [
     hint: '接取后开始计算击杀，在任何区域清理 30 只行尸。',
     require: { kills: 30 },
     reward: {
-      items: [{ id: 'desert-eagle', qty: 1 }],
+      items: [{ id: 'm4a1', qty: 1 }],
       coins: 100,
       reputation: 8,
-      note: '漠然把沙漠之鹰推到桌沿：「船上不需要会用刀的人。会用枪的人，才配站在甲板上。」',
+      note: '漠然把M4A1推到桌沿：「船上不需要会用刀的人。会用枪的人，才配站在甲板上。」',
     },
   },
 ]
@@ -785,5 +785,10 @@ export const FINALES = {
     title: '飞行船主宰',
     text:
       '席卡先倒下去，然后是努比。高台下的贵族们没有一个人离席，他们只是把手里的酒杯慢慢放下。\n\n漠然站起身，又坐了回去。他终于开口，声音很轻：「这艘船，是你的了。」\n\n舷窗外的灰云被风吹开一道口子。整座废墟都在脚下，灯火却第一次为你亮着。\n\n——从此以后，末日飞行船上只有一个声音。',
+  },
+  作弊者: {
+    title: '作弊者',
+    text:
+      '开发者的血条终于见底。他把十字剑推到你面前，又回头看了一眼后台日志，像是在确认某个不该存在的数字。\n\n「我没开挂。」你说。\n\n他点点头，点得很慢，仿佛在给自己的职业生涯做最后的心理建设：「嗯。你没开挂。你只是刚好每一刀都命中，刚好伤害高了一点，刚好那个 99999 也刚好不够用。……你开心就好。」\n\n他关掉调试面板，转身时小声补了一句：「下次记得把测试数值藏好，别让玩家看见。」\n\n——你赢了。以一种所有人心知肚明、但谁也不打算拆穿的方式。',
   },
 }

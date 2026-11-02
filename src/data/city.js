@@ -395,6 +395,25 @@ export const GARDEN = {
   foods: 2,
 }
 
+/** 王宫斗兽擂台：赤手空拳提升拳头天赋 */
+export const ARENA = {
+  title: '斗兽擂台',
+  talentKey: 'arena',
+  turns: 1,
+  hpCost: 30,
+  sanityCost: 30,
+  dailyLimit: 2,
+  progressMin: 5,
+  progressMax: 10,
+  levelSize: 100,
+  flag: 'arenaPractice',
+  desc: '王宫最深处的石阶通向一座下沉的擂台。看台上没有灯，只有贵族们压低声音下注。想上场，先把手里的武器全部放下。',
+  needEmptyLine: '你必须卸下近战与远程武器，赤手空拳才能上场。',
+  dailyLine: '今天的擂台已经打满两场，守卫开始收起赌注。',
+  maxedLine: '拳头天赋已经练到顶点，擂台不再接受你的挑战。',
+  doneLine: '你从擂台上翻下来，指节还在发烫。',
+}
+
 /**
  * 在此探索的分支概率：25% 食物 / 25% 饮品 / 50% 什么也没有
  * 掉落池由物品数据自动生成：食物排除水果（fruit=true），饮品全部可掉落

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import {
   DEV_SHOP,
   DOCTOR,
@@ -16,6 +16,7 @@ import {
   STRANGE_BARBECUE,
   YANRAN,
   ZOMBIE_ABILITY_LABELS,
+  canStoreItems,
   countItem,
   fieldMapById,
   getItem,
@@ -70,7 +71,8 @@ import {
   submitGenerator,
   submitMermaidDrink,
   submitSupplies,
-  takeDevMedicalSupport,
+  takeDevHealingGift,
+  takeDevKnightGift,
   takeDevNoviceGift,
   takeRottenSeed,
   yanranDaysLeft,
@@ -78,18 +80,27 @@ import {
 import { battle, resetBattle, startFieldCombat } from '../game/battle'
 import AssassinationCard from './AssassinationCard.vue'
 import BattleView from './BattleView.vue'
+import MapMenuList from './MapMenuList.vue'
 import ModalShell from './ModalShell.vue'
 import QuestLinePanel from './QuestLinePanel.vue'
 import StatusHud from './StatusHud.vue'
 
 const emit = defineEmits(['close', 'travel'])
 const feed = ref('')
+const view = ref('menu')
+const zombiesOpen = ref(false)
 
 const map = computed(() => fieldMapById(game.location))
 const zombies = computed(() => zombiePool(map.value?.zombiePool))
 const encounterPercent = computed(() => Math.round((map.value?.encounterRate ?? 0) * 100))
 const lootText = computed(() => lootCategoryText(map.value?.lootTable))
 const rarityLabel = computed(() => rarityText(map.value?.rarityWeights))
+
+// 切换地图时回到菜单并重新折叠「出没丧尸」
+watch(map, () => {
+  view.value = 'menu'
+  zombiesOpen.value = false
+})
 
 const isPolice = computed(() => map.value?.id === HELICOPTER.mapId)
 const helicopterRepaired = computed(() => Boolean(game.flags[HELICOPTER.repairedFlag]))
@@ -156,8 +167,16 @@ const mermaidHint = computed(() => {
 })
 
 const noviceGiftTaken = computed(() => Boolean(game.flags.devNoviceGiftTaken))
-const medicalSupportTaken = computed(() => Boolean(game.flags.devMedicalSupportTaken))
-const devGiftTaken = computed(() => noviceGiftTaken.value && medicalSupportTaken.value)
+const knightGiftTaken = computed(() => Boolean(game.flags.devKnightGiftTaken))
+const healingGiftTaken = computed(() => Boolean(game.flags.devHealingGiftTaken))
+const devGiftTaken = computed(
+  () => noviceGiftTaken.value && knightGiftTaken.value && healingGiftTaken.value,
+)
+const devDuelWon = computed(() => Boolean(game.flags[DEV_SHOP.duel.doneFlag]))
+const devMenuTag = computed(() => {
+  if (!devGiftTaken.value) return '可领取'
+  return devDuelWon.value ? '已完成' : '可角斗'
+})
 const bagSize = computed(() => game.inventory.length)
 const bagFull = computed(() => bagSize.value >= DEV_SHOP.expandLimit)
 const canExpand = computed(
@@ -235,6 +254,180 @@ const rocketTag = computed(() => {
   return '已就绪'
 })
 
+// 当前地图可进入的选项卡片
+const fieldMenu = computed(() => {
+  if (isPolice.value) {
+    return [
+      {
+        id: 'helicopter',
+        name: '老旧直升机',
+        desc: '修复后可从警局天台飞往末日飞行船。',
+        tag: helicopterRepaired.value ? '已修复' : '未修复',
+      },
+    ]
+  }
+  if (isVillage.value) {
+    return [
+      {
+        id: 'orchard',
+        name: '果园采摘',
+        desc: `随机水果 ×${ORCHARD.quantity}，同一片果园要缓上几天。`,
+        tag: orchardLeft.value > 0 ? `冷却 ${orchardLeft.value} 天` : '可采摘',
+      },
+      {
+        id: 'seed',
+        name: '腐烂种子',
+        desc: '塌掉的果箱底下压着一条隐藏线索。',
+        tag: seedPlanted.value
+          ? '已完成'
+          : seedSprouted.value
+            ? '育苗中'
+            : seedFound.value
+              ? '已拾取'
+              : '未发现',
+      },
+    ]
+  }
+  if (isCamp.value) {
+    return [
+      {
+        id: 'barbecue',
+        name: '奇怪烧烤',
+        desc: '来路不明的烤肉，每天只能吃一次。',
+        tag: barbecueLeft.value > 0 ? '今日已吃' : '每日一次',
+      },
+      {
+        id: 'masan',
+        name: '冷面阿三',
+        desc: '烧烤摊老板，递上他想要的东西。',
+        tag: maSanKilled.value
+          ? '已击杀'
+          : !ateStrangeMeat.value
+            ? '未接触'
+            : maSanStage.value === 3
+              ? '后厨邀请'
+              : `第 ${maSanStage.value + 1} 段`,
+      },
+    ]
+  }
+  if (isMarket.value) {
+    return [
+      {
+        id: 'mermaid',
+        name: '人鱼公主',
+        desc: '用饮品换回她需要的治疗。',
+        tag: mermaidDead.value
+          ? '已死亡'
+          : mermaidDone.value
+            ? '已愈合'
+            : mermaidStage.value === 0
+              ? '未愈合'
+              : `第 ${mermaidStage.value + 1} / ${mermaidStageCount.value} 段`,
+      },
+      {
+        id: 'dev',
+        name: '游戏开发者',
+        desc: '一次性补给、背包扩容与生死角斗。',
+        tag: devMenuTag.value,
+      },
+    ]
+  }
+  if (isCore.value) {
+    return [
+      {
+        id: 'yanran',
+        name: '半感染者嫣然',
+        desc: '限时营救，成功后可加入队伍。',
+        tag: yanranKilled.value
+          ? '已击杀'
+          : yanranRescued.value
+            ? '已入队'
+            : yanranMutated.value
+              ? '已变异'
+              : yanranSeen.value
+                ? `剩余 ${yanranDays.value} 天`
+                : '未接触',
+      },
+      {
+        id: 'garage',
+        name: '地下车库',
+        desc: '撬棍、车钥匙与汽油，通往城外。',
+        tag: garageDeparted.value
+          ? '已出发'
+          : !garageUnlocked.value
+            ? '未解锁'
+            : !garageOpened.value
+              ? '门未开'
+              : !garageKeyFound.value
+                ? '找钥匙'
+                : gasolineCount.value < GARAGE.gasolineCount
+                  ? '凑汽油'
+                  : '可以出发',
+      },
+    ]
+  }
+  if (isHospital.value) {
+    return [
+      {
+        id: 'lulu',
+        name: '饥饿丧尸露露',
+        desc: '用罐头把她换回来。',
+        tag: luluRescued.value ? '已入队' : '未投喂',
+      },
+    ]
+  }
+  if (isLab.value) {
+    return [
+      {
+        id: 'doctor',
+        name: '陈博士',
+        desc: '抗感染针换 M700，以及火箭的三枚徽章。',
+        tag: doctorTag.value,
+      },
+    ]
+  }
+  if (isBarracks.value) {
+    return [
+      {
+        id: 'mafei',
+        name: '马斐',
+        desc: '名单上的委托与最后的第十二份。',
+        tag: mafeiKilled.value ? '已死亡' : '名单',
+      },
+      {
+        id: 'craft',
+        name: '合成炸药',
+        desc: '在营房后面合成高能炸药。',
+        tag: mafeiKilled.value
+          ? '已停止'
+          : mafeiQuest10Done.value
+            ? '可合成'
+            : '未解锁',
+      },
+    ]
+  }
+  if (isSpaceport.value) {
+    const items = [
+      {
+        id: 'rocket',
+        name: '发射中心',
+        desc: '傀儡、徽章与最后的发射。',
+        tag: rocketTag.value,
+      },
+    ]
+    if (mafeiQuest11Active.value || spaceportBlown.value) {
+      items.push({
+        id: 'blow',
+        name: '爆破发射架',
+        desc: '马斐的最终委托：让火箭再也飞不起来。',
+        tag: spaceportBlown.value ? '已爆破' : '等待引爆',
+      })
+    }
+    return items
+  }
+  return []
+})
+
 onMounted(() => {
   if (battle.finished) resetBattle()
 })
@@ -310,17 +503,44 @@ function fightPuppet() {
   }
 }
 
+function startDevDuel() {
+  if (game.dead || battle.active) return
+  if (game.flags[DEV_SHOP.duel.doneFlag]) {
+    feed.value = '这场生死角斗已经结束了。'
+    return
+  }
+  if (!canStoreItems(game.inventory, [{ id: DEV_SHOP.duel.rewardItemId, qty: 1 }])) {
+    feed.value = '背包至少要留一格，才能带走角斗的奖品。'
+    return
+  }
+
+  advanceTurns(1)
+  if (game.dead) {
+    feed.value = game.deathReason
+    return
+  }
+  if (startFieldCombat(DEV_SHOP.duel, DEV_SHOP.mapId, 'dev-duel')) {
+    feed.value = DEV_SHOP.duel.intro
+  }
+}
+
 function battleDone() {
   const wasMaSan = battle.kind === 'npc'
   const wasYanran = battle.kind === 'yanran'
   const wasPuppet = battle.kind === 'puppet'
   const wasAssassination = battle.kind === 'assassination'
+  const wasDuel = battle.kind === 'dev-duel'
   const assassinationSummary = battle.summary
+  const duelSummary = battle.summary
   const yanranKilled = Boolean(game.flags.yanranKilled)
   const puppetKilled = Boolean(game.flags.giantPuppetDefeated)
   resetBattle()
   if (wasAssassination) {
     feed.value = assassinationSummary || '目标倒下了。'
+    return
+  }
+  if (wasDuel) {
+    feed.value = duelSummary || '你赢下了这场生死角斗。'
     return
   }
   if (wasMaSan && game.flags.maSanKilled) {
@@ -372,17 +592,25 @@ function closePanel() {
     </section>
 
     <section v-else class="pane">
-      <p class="pane__desc">{{ map.desc }}</p>
+      <template v-if="view === 'menu'">
+        <p class="pane__desc">{{ map.desc }}</p>
 
-      <div class="chips">
-        <span>遭遇率 {{ encounterPercent }}%</span>
-        <span>探索掉落：{{ lootText }}</span>
-        <span>武器品质：{{ rarityLabel }}</span>
-        <span>{{ map.lootNote }}</span>
-      </div>
+        <div class="chips">
+          <span>遭遇率 {{ encounterPercent }}%</span>
+          <span>探索掉落：{{ lootText }}</span>
+          <span>武器品质：{{ rarityLabel }}</span>
+          <span>{{ map.lootNote }}</span>
+        </div>
 
-      <div v-if="isPolice" class="extras">
-        <article class="extra extra--wide">
+        <MapMenuList :items="fieldMenu" @select="view = $event.id" />
+      </template>
+
+      <template v-else>
+        <div class="bar">
+          <button type="button" class="btn" @click="view = 'menu'">← 返回选项</button>
+        </div>
+
+        <article v-if="view === 'helicopter'" class="extra">
           <header class="extra__head">
             <h4 class="extra__title">老旧直升机</h4>
             <span class="extra__tag">{{ helicopterRepaired ? '已修复' : '未修复' }}</span>
@@ -423,10 +651,8 @@ function closePanel() {
             </button>
           </div>
         </article>
-      </div>
 
-      <div v-else-if="isVillage" class="extras">
-        <article class="extra">
+        <article v-else-if="view === 'orchard'" class="extra">
           <header class="extra__head">
             <h4 class="extra__title">果园采摘</h4>
             <span class="extra__tag">
@@ -451,7 +677,7 @@ function closePanel() {
           </button>
         </article>
 
-        <article class="extra">
+        <article v-else-if="view === 'seed'" class="extra">
           <header class="extra__head">
             <h4 class="extra__title">腐烂种子</h4>
             <span class="extra__tag">
@@ -496,10 +722,8 @@ function closePanel() {
             翻找果箱 · 1 回合
           </button>
         </article>
-      </div>
 
-      <div v-else-if="isCamp" class="extras">
-        <article class="extra">
+        <article v-else-if="view === 'barbecue'" class="extra">
           <header class="extra__head">
             <h4 class="extra__title">奇怪烧烤</h4>
             <span class="extra__tag">
@@ -525,7 +749,7 @@ function closePanel() {
           </button>
         </article>
 
-        <article class="extra">
+        <article v-else-if="view === 'masan'" class="extra">
           <header class="extra__head">
             <h4 class="extra__title">冷面阿三</h4>
             <span class="extra__tag">
@@ -595,10 +819,8 @@ function closePanel() {
 
           <AssassinationCard npc-id="ma-san" @feedback="feed = $event" />
         </article>
-      </div>
 
-      <div v-else-if="isBarracks" class="extras">
-        <article class="extra">
+        <article v-else-if="view === 'mafei'" class="extra">
           <header class="extra__head">
             <h4 class="extra__title">马斐</h4>
             <span class="extra__tag">{{ mafeiKilled ? '已死亡' : '名单' }}</span>
@@ -614,7 +836,7 @@ function closePanel() {
           <QuestLinePanel v-if="!mafeiKilled" owner="mafei" @feedback="feed = $event" />
         </article>
 
-        <article class="extra">
+        <article v-else-if="view === 'craft'" class="extra">
           <header class="extra__head">
             <h4 class="extra__title">合成炸药</h4>
             <span class="extra__tag">
@@ -640,10 +862,8 @@ function closePanel() {
             }}
           </button>
         </article>
-      </div>
 
-      <div v-else-if="isMarket" class="extras">
-        <article class="extra">
+        <article v-else-if="view === 'mermaid'" class="extra">
           <header class="extra__head">
             <h4 class="extra__title">人鱼公主</h4>
             <span class="extra__tag">
@@ -688,10 +908,10 @@ function closePanel() {
           <AssassinationCard npc-id="mermaid" @feedback="feed = $event" />
         </article>
 
-        <article class="extra">
+        <article v-else-if="view === 'dev'" class="extra">
           <header class="extra__head">
-            <h4 class="extra__title">某开发者</h4>
-            <span class="extra__tag">{{ devGiftTaken ? '已领取' : '可领取' }}</span>
+            <h4 class="extra__title">游戏开发者</h4>
+            <span class="extra__tag">{{ devMenuTag }}</span>
           </header>
           <p class="extra__desc">
             他蹲在卖场角落，面前摆着一台亮着屏幕的旧电脑。
@@ -700,7 +920,7 @@ function closePanel() {
 
           <div class="dev-gift">
             <header class="extra__head">
-              <h4 class="extra__title">需要新手礼包</h4>
+              <h4 class="extra__title">领取新手礼包</h4>
               <span class="extra__tag">{{ noviceGiftTaken ? '已领取' : '一次性' }}</span>
             </header>
             <div class="chips">
@@ -728,22 +948,46 @@ function closePanel() {
 
           <div class="dev-gift">
             <header class="extra__head">
-              <h4 class="extra__title">需要医疗支持</h4>
-              <span class="extra__tag">{{ medicalSupportTaken ? '已领取' : '一次性' }}</span>
+              <h4 class="extra__title">领取骑士礼包</h4>
+              <span class="extra__tag">{{ knightGiftTaken ? '已领取' : '一次性' }}</span>
             </header>
             <div class="chips">
-              <span>缝合包 ×10</span>
+              <span>骑士徽章 ×1</span>
+              <span>白兰地 ×10</span>
             </div>
-            <p v-if="medicalSupportTaken" class="extra__desc">
-              十包缝合包已经塞进你的背包。
+            <p v-if="knightGiftTaken" class="extra__desc">
+              骑士徽章已经在你身上了。
             </p>
             <button
               v-else
               type="button"
-              class="btn extra__action"
-              @click="run(takeDevMedicalSupport)"
+              class="btn btn--primary extra__action"
+              @click="run(takeDevKnightGift)"
             >
-              领取医疗支持
+              领取骑士礼包
+            </button>
+          </div>
+
+          <div class="dev-gift">
+            <header class="extra__head">
+              <h4 class="extra__title">领取治疗礼包</h4>
+              <span class="extra__tag">{{ healingGiftTaken ? '已领取' : '一次性' }}</span>
+            </header>
+            <div class="chips">
+              <span>绷带 ×20</span>
+              <span>止痛药 ×20</span>
+              <span>止血带 ×20</span>
+            </div>
+            <p v-if="healingGiftTaken" class="extra__desc">
+              一箱医疗物资已经塞进你的背包。
+            </p>
+            <button
+              v-else
+              type="button"
+              class="btn btn--primary extra__action"
+              @click="run(takeDevHealingGift)"
+            >
+              领取治疗礼包
             </button>
           </div>
 
@@ -765,11 +1009,35 @@ function closePanel() {
               {{ bagFull ? '已达容量上限' : `扩容 +${DEV_SHOP.expandSteps} 格` }}
             </button>
           </div>
-        </article>
-      </div>
 
-      <div v-else-if="isCore" class="extras">
-        <article class="extra">
+          <div class="dev-gift">
+            <header class="extra__head">
+              <h4 class="extra__title">进行生死角斗</h4>
+              <span class="extra__tag">{{ devDuelWon ? '已获胜' : '99999 生命' }}</span>
+            </header>
+            <p class="extra__desc">{{ DEV_SHOP.duel.description }}</p>
+            <div class="chips">
+              <span>对手生命 {{ DEV_SHOP.duel.hp }}</span>
+              <span>攻击 {{ DEV_SHOP.duel.attack }}</span>
+              <span>消耗 1 回合</span>
+              <span>胜利掉落：十字剑-圣战</span>
+            </div>
+            <p v-if="devDuelWon" class="extra__desc">
+              角斗结束，十字剑-圣战已经在你手里。
+            </p>
+            <button
+              v-else
+              type="button"
+              class="btn btn--primary extra__action"
+              :disabled="battle.active"
+              @click="startDevDuel"
+            >
+              开始角斗 · 1 回合
+            </button>
+          </div>
+        </article>
+
+        <article v-else-if="view === 'yanran'" class="extra">
           <header class="extra__head">
             <h4 class="extra__title">半感染者嫣然</h4>
             <span class="extra__tag">
@@ -828,7 +1096,7 @@ function closePanel() {
           </button>
         </article>
 
-        <article class="extra">
+        <article v-else-if="view === 'garage'" class="extra">
           <header class="extra__head">
             <h4 class="extra__title">地下车库</h4>
             <span class="extra__tag">
@@ -894,10 +1162,8 @@ function closePanel() {
             </button>
           </template>
         </article>
-      </div>
 
-      <div v-else-if="isHospital" class="extras">
-        <article class="extra">
+        <article v-else-if="view === 'lulu'" class="extra">
           <header class="extra__head">
             <h4 class="extra__title">饥饿丧尸露露</h4>
             <span class="extra__tag">{{ luluRescued ? '已入队' : '未投喂' }}</span>
@@ -920,10 +1186,8 @@ function closePanel() {
             一次放下 {{ LULU.cannedCount }} 个罐头
           </button>
         </article>
-      </div>
 
-      <div v-else-if="isLab" class="extras">
-        <article class="extra">
+        <article v-else-if="view === 'doctor'" class="extra">
           <header class="extra__head">
             <h4 class="extra__title">陈博士</h4>
             <span class="extra__tag">{{ doctorTag }}</span>
@@ -1010,10 +1274,8 @@ function closePanel() {
 
           <AssassinationCard npc-id="doctor" @feedback="feed = $event" />
         </article>
-      </div>
 
-      <div v-else-if="isSpaceport" class="extras">
-        <article class="extra">
+        <article v-else-if="view === 'rocket'" class="extra">
           <header class="extra__head">
             <h4 class="extra__title">发射中心</h4>
             <span class="extra__tag">{{ rocketTag }}</span>
@@ -1087,7 +1349,7 @@ function closePanel() {
           </div>
         </article>
 
-        <article v-if="mafeiQuest11Active || spaceportBlown" class="extra">
+        <article v-else-if="view === 'blow'" class="extra">
           <header class="extra__head">
             <h4 class="extra__title">爆破发射架</h4>
             <span class="extra__tag">{{ spaceportBlown ? '已爆破' : '等待引爆' }}</span>
@@ -1114,31 +1376,43 @@ function closePanel() {
             安放炸药 · 1 回合
           </button>
         </article>
-      </div>
+      </template>
 
-      <div class="zombies">
-        <header class="zombies__head">
-          <h4 class="zombies__title">出没丧尸</h4>
-          <span class="zombies__count">{{ zombies.length }} 种</span>
-        </header>
-        <article v-for="zombie in zombies" :key="zombie.id" class="zombie">
-          <div class="zombie__main">
-            <h5 class="zombie__name">{{ zombie.name }}</h5>
-            <p class="zombie__desc">{{ zombie.description }}</p>
-          </div>
-          <div class="zombie__stats">
-            <span>生命 {{ zombie.hp }}</span>
-            <span>攻击 {{ zombie.attack }}</span>
-            <span v-if="zombie.infection > 0">感染 +{{ zombie.infection }}%</span>
-            <span v-for="ability in zombie.abilities" :key="ability" class="zombie__ability">
-              {{ abilityLabel(ability) }}
-            </span>
-          </div>
-        </article>
+      <div v-if="view === 'menu'" class="zombies">
+        <button
+          type="button"
+          class="zombies__head"
+          :aria-expanded="zombiesOpen"
+          @click="zombiesOpen = !zombiesOpen"
+        >
+          <span class="zombies__title">出没丧尸</span>
+          <span class="zombies__meta">
+            <span class="zombies__count">{{ zombies.length }} 种</span>
+            <span class="zombies__toggle">{{ zombiesOpen ? '收起' : '展开' }}</span>
+          </span>
+        </button>
+        <template v-if="zombiesOpen">
+          <article v-for="zombie in zombies" :key="zombie.id" class="zombie">
+            <div class="zombie__main">
+              <h5 class="zombie__name">{{ zombie.name }}</h5>
+              <p class="zombie__desc">{{ zombie.description }}</p>
+            </div>
+            <div class="zombie__stats">
+              <span>生命 {{ zombie.hp }}</span>
+              <span>攻击 {{ zombie.attack }}</span>
+              <span v-if="zombie.infection > 0">感染 +{{ zombie.infection }}%</span>
+              <span v-for="ability in zombie.abilities" :key="ability" class="zombie__ability">
+                {{ abilityLabel(ability) }}
+              </span>
+            </div>
+          </article>
+        </template>
       </div>
 
       <div class="actions">
-        <button type="button" class="btn btn--primary" @click="explore">探索 · 1 回合</button>
+        <button v-if="view === 'menu'" type="button" class="btn btn--primary" @click="explore">
+          探索 · 1 回合
+        </button>
         <button type="button" class="btn" @click="closePanel">返回安全屋</button>
       </div>
     </section>
@@ -1210,22 +1484,41 @@ function closePanel() {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  width: 100%;
   padding: 9px 12px;
   background: #0d0f10;
+  text-align: left;
+  transition: background 0.2s;
+}
+
+.zombies__head:hover {
+  background: #121516;
 }
 
 .zombies__title {
-  margin: 0;
   font-size: 11px;
   font-weight: 400;
   letter-spacing: 0.18em;
   color: var(--text-mute);
 }
 
+.zombies__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .zombies__count {
   font-family: var(--font-mono);
   font-size: 9.5px;
   color: var(--text-mute);
+}
+
+.zombies__toggle {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  color: var(--rust-soft);
 }
 
 .zombie {
@@ -1277,11 +1570,20 @@ function closePanel() {
   border-color: rgba(184, 98, 70, 0.45) !important;
 }
 
-.extras {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1px;
-  background: var(--line);
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pane :deep(.map-menu) {
+  margin-top: 0;
+}
+
+.bar .btn {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 10.5px;
 }
 
 .extra {
@@ -1289,11 +1591,8 @@ function closePanel() {
   flex-direction: column;
   gap: 8px;
   padding: 12px;
+  border: 1px solid var(--line);
   background: #0d0f10;
-}
-
-.extra--wide {
-  grid-column: 1 / -1;
 }
 
 .extra__head {
@@ -1415,10 +1714,6 @@ function closePanel() {
 }
 
 @media (max-width: 680px) {
-  .extras {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .zombie {
     flex-direction: column;
   }

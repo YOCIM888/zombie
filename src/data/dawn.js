@@ -94,6 +94,25 @@ export const DAWN_SERVICE = {
   fieldSecretAt: 5,
 }
 
+/** 行尸走廊：赤手空拳穿越走廊，提升远程闪避天赋 */
+export const CORRIDOR = {
+  title: '行尸走廊',
+  talentKey: 'corridor',
+  turns: 1,
+  hpCost: 30,
+  infectionCost: 30,
+  dailyLimit: 2,
+  progressMin: 5,
+  progressMax: 10,
+  levelSize: 100,
+  flag: 'corridorPractice',
+  desc: '阵地最外侧有一条被封死的走廊，里面挤满了被铁链拴住的行尸。想练身法，就得空着手从它们中间穿过去。',
+  needEmptyLine: '你必须卸下近战与远程武器，赤手空拳才能进入走廊。',
+  dailyLine: '今天的走廊已经走了两趟，哨兵不再给你开门。',
+  maxedLine: '远程闪避天赋已经练到顶点，走廊里再也挤不出新东西给你。',
+  doneLine: '你贴着墙根从行尸之间穿了出来，掌心全是冷汗。',
+}
+
 /** 物资回收：所有多余武器按品质结算曙光币 */
 export const DAWN_RECYCLE_PRICES = {
   普通: 1,

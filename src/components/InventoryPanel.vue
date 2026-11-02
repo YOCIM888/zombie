@@ -4,13 +4,15 @@ import { INVENTORY_CATEGORIES, STAT_DEFS } from '../game/config'
 import {
   CLEANLINESS_MAX,
   MELEE_TIER_COLORS,
-  PRACTICE_TALENTS,
   STACK_LIMIT,
+  TALENTS,
+  TALENT_ACTIVE_LIMIT,
+  TALENT_EFFECT_LABELS,
   categoryLabel,
   cleanlinessMultiplier,
   countUsedSlots,
   getItem,
-  talentBonus,
+  talentEffects,
   talentTitle,
 } from '../data'
 import { formatCritDamage, formatPercent } from '../game/format'
@@ -19,7 +21,10 @@ import {
   equipMelee,
   equipRanged,
   game,
+  isTalentActive,
+  notify,
   organizeBackpack,
+  toggleTalentActive,
   useItem,
 } from '../game/store'
 import ModalShell from './ModalShell.vue'
@@ -42,26 +47,58 @@ const usedSlots = computed(() => countUsedSlots(game.inventory))
 const equippedCount = computed(
   () => Number(Boolean(game.equipment.melee)) + Number(Boolean(game.equipment.ranged)),
 )
-const talentLevels = computed(
-  () => Number(game.talents.melee || 0) + Number(game.talents.ranged || 0),
+const talentLevels = computed(() =>
+  Object.values(TALENTS).reduce(
+    (total, config) => total + (Number(game.talents[config.key]) || 0),
+    0,
+  ),
 )
+const talentActiveCount = computed(
+  () => Object.values(TALENTS).filter((config) => isTalentActive(config.key)).length,
+)
+const talentActiveLabel = computed(
+  () => `${talentActiveCount.value}/${TALENT_ACTIVE_LIMIT}`,
+)
+
+function toggleTalent(kind) {
+  const line = toggleTalentActive(kind)
+  if (line) notify(line, 3000)
+}
+
+function effectText(effects) {
+  const entries = Object.entries(effects ?? {})
+  if (!entries.length) return '—'
+  return entries
+    .map(([key, value]) => {
+      const label = TALENT_EFFECT_LABELS[key] ?? key
+      return `${label} +${key === 'damage' ? value : Math.round(value * 100) + '%'}`
+    })
+    .join(' · ')
+}
+
 const talentCards = computed(() =>
-  ['melee', 'ranged'].map((kind) => {
-    const config = PRACTICE_TALENTS[kind]
-    const level = Math.max(0, Math.min(3, Number(game.talents[kind]) || 0))
-    const full = level >= 3
-    const progress = full ? 100 : Math.max(0, Math.min(99, Number(game.training[kind]) || 0))
+  Object.values(TALENTS).map((config) => {
+    const kind = config.key
+    const level = Math.max(0, Math.min(config.maxLevel, Number(game.talents[kind]) || 0))
+    const full = level >= config.maxLevel
+    const progress = full
+      ? 100
+      : Math.max(0, Math.min(99, Number(game.training[kind]) || 0))
     return {
       key: kind,
       label: config.label,
-      titles: config.titles,
-      bonuses: config.bonuses,
-      stat: config.stat,
+      maxLevel: config.maxLevel,
       level,
       full,
       progress,
+      active: isTalentActive(kind),
       title: talentTitle(kind, level) || '暂无天赋',
-      bonus: level ? `+${Math.round(talentBonus(kind, level) * 100)}%` : '—',
+      effect: level ? effectText(talentEffects(kind, level)) : '—',
+      tiers: config.effects.map((effects, index) => ({
+        level: index + 1,
+        title: config.titles[index],
+        text: effectText(effects),
+      })),
     }
   }),
 )
@@ -227,7 +264,7 @@ function weaponLine(weapon) {
               ? `${usedSlots}/${game.inventory.length}`
               : view.id === 'panel'
                 ? equippedCount
-                : talentLevels
+                : talentActiveLabel
           }}
         </span>
       </button>
@@ -334,17 +371,41 @@ function weaponLine(weapon) {
     </div>
 
     <div v-else class="talent-view">
-      <article v-for="card in talentCards" :key="card.key" class="talent-card">
+      <div class="talent-view__head">
+        <span class="talent-view__limit">
+          最多同时启用 {{ TALENT_ACTIVE_LIMIT }} 个天赋 · 已启用
+          {{ talentActiveCount }} / {{ TALENT_ACTIVE_LIMIT }}
+        </span>
+        <span class="talent-view__note">只有启用中的天赋会加成到面板与战斗</span>
+      </div>
+
+      <article
+        v-for="card in talentCards"
+        :key="card.key"
+        class="talent-card"
+        :class="{ 'is-active': card.active }"
+      >
         <header class="talent-card__head">
           <div>
             <span class="talent-card__label">{{ card.label }}</span>
             <h3 class="talent-card__title">{{ card.title }}</h3>
           </div>
-          <span class="talent-card__level">Lv.{{ card.level }} / 3</span>
+          <div class="talent-card__side">
+            <button
+              type="button"
+              class="talent-card__toggle"
+              :class="{ 'is-active': card.active }"
+              :disabled="card.level <= 0"
+              @click="toggleTalent(card.key)"
+            >
+              {{ card.active ? '生效中' : card.level > 0 ? '启用' : '未获得' }}
+            </button>
+            <span class="talent-card__level">Lv.{{ card.level }} / {{ card.maxLevel }}</span>
+          </div>
         </header>
 
         <div class="talent-card__rows">
-          <span>{{ card.stat }} <b>{{ card.bonus }}</b></span>
+          <span>当前加成 <b>{{ card.effect }}</b></span>
           <span>
             熟练度
             <b>{{ card.full ? '已满级' : `${card.progress} / 100` }}</b>
@@ -357,17 +418,18 @@ function weaponLine(weapon) {
 
         <div class="talent-card__tiers">
           <span
-            v-for="(title, index) in card.titles"
-            :key="title"
-            :class="{ 'is-on': card.level > index }"
+            v-for="tier in card.tiers"
+            :key="tier.title"
+            :class="{ 'is-on': card.level >= tier.level }"
           >
-            Lv.{{ index + 1 }} · {{ title }} +{{ Math.round(card.bonuses[index] * 100) }}%
+            Lv.{{ tier.level }} · {{ tier.title }} · {{ tier.text }}
           </span>
         </div>
       </article>
 
       <p v-if="talentLevels === 0" class="talent-empty">
-        还没有任何天赋。去末日飞行船的木桩或靶场练习，熟练度满 100% 会提升一级天赋。
+        还没有任何天赋。去末日飞行船的木桩或靶场、都城的斗兽擂台，或曙光阵地的行尸走廊
+        练习，熟练度满 100% 会提升一级天赋。
       </p>
     </div>
 
@@ -379,7 +441,10 @@ function weaponLine(weapon) {
       <span v-else-if="activeView === 'panel'" class="foot-note">
         装备面板 · 近战与远程武器详情
       </span>
-      <span v-else class="foot-note">天赋 · 熟练度与加成，取最高等级且不叠加</span>
+      <span v-else class="foot-note">
+        天赋 · 熟练度与加成，取最高等级且不叠加；最多同时启用
+        {{ TALENT_ACTIVE_LIMIT }} 个
+      </span>
       <div v-if="activeView === 'bag' && selectedDef" class="foot-actions">
         <span class="foot-item">{{ selectedDef.name }} ×{{ selectedEntry.qty }}</span>
         <button
@@ -736,6 +801,61 @@ function weaponLine(weapon) {
   gap: 14px;
 }
 
+.talent-view__head {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 16px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.025);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--text-mute);
+}
+
+.talent-view__limit {
+  color: var(--bone);
+}
+
+.talent-card.is-active {
+  border-color: rgba(124, 152, 64, 0.35);
+  background: rgba(124, 152, 64, 0.04);
+}
+
+.talent-card__side {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.talent-card__toggle {
+  height: 24px;
+  padding: 0 9px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--text-mute);
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  cursor: pointer;
+}
+
+.talent-card__toggle.is-active {
+  color: var(--sick);
+  border-color: rgba(124, 152, 64, 0.5);
+  background: rgba(124, 152, 64, 0.08);
+}
+
+.talent-card__toggle:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .talent-card {
   display: flex;
   flex-direction: column;
@@ -743,6 +863,10 @@ function weaponLine(weapon) {
   padding: 16px;
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.022);
+}
+
+.talent-card:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
 }
 
 .talent-card__head {
@@ -882,6 +1006,14 @@ function weaponLine(weapon) {
 @media (max-width: 680px) {
   .grid {
     grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .talent-view {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .talent-card:last-child:nth-child(odd) {
+    grid-column: auto;
   }
 }
 

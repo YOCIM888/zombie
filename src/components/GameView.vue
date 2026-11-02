@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { BACKGROUND_IMAGE, DEFAULT_CHARACTER_NAME, STAT_DEFS, STAT_MAX } from '../game/config'
 import { AIRSHIP, FINALES, fieldMapById, formatMoney } from '../data'
 import {
@@ -83,6 +83,14 @@ function openRegion() {
     panel.value = 'city'
   }
 }
+
+// 位置变化即打开对应区域：开发者传送等直接改 location 的入口也能自动弹出面板
+watch(
+  () => game.location,
+  (mapId) => {
+    if (mapId && !game.dead) openRegion()
+  },
+)
 
 function backHome() {
   leaveToMenu()

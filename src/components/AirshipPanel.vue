@@ -11,7 +11,7 @@ import {
   roundToCents,
   stockProfitRounded,
   stockTradeFee,
-  PRACTICE_TALENTS,
+  TALENTS,
   QUEST_OWNERS,
   commissionForDay,
   countItem,
@@ -103,9 +103,9 @@ const coupOpponents = computed(() =>
 )
 
 function practiceInfo(kind) {
-  const talent = PRACTICE_TALENTS[kind]
+  const talent = TALENTS[kind]
   const level = game.talents[kind]
-  const full = level >= AIRSHIP.practice.maxLevel
+  const full = level >= TALENTS[kind].maxLevel
   const progress = full ? 100 : Math.max(0, Math.min(99, Number(game.training[kind]) || 0))
   return {
     level,

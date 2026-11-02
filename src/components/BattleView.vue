@@ -10,9 +10,15 @@ import {
   cleanlinessJamChance,
   cleanlinessMultiplier,
   getItem,
+  talentBonus,
+  talentEffects,
 } from '../data'
-import { formatPercent } from '../game/format'
-import { game } from '../game/store'
+import {
+  formatPercent,
+  formatPercentWithBonus,
+  formatValueWithBonus,
+} from '../game/format'
+import { game, isTalentActive } from '../game/store'
 import {
   battle,
   fleeBattle,
@@ -29,9 +35,22 @@ const STAT_LABELS = Object.fromEntries(STAT_DEFS.map((stat) => [stat.key, stat.l
 const melee = computed(() => {
   const equipped = game.equipment.melee
   const def = equipped ? getItem(equipped.id) : null
+  const weapon = def?.weapon ?? UNARMED.weapon
+  const arena =
+    !equipped && isTalentActive('arena') ? talentEffects('arena', game.talents.arena) : {}
+  const meleeTalent = isTalentActive('melee')
+    ? talentBonus('melee', game.talents.melee)
+    : 0
+  const comboBonus = meleeTalent + (arena.combo ?? 0)
   return {
     name: def?.name ?? UNARMED.name,
-    weapon: def?.weapon ?? UNARMED.weapon,
+    attackText: formatValueWithBonus(weapon.attack ?? 0, arena.damage ?? 0),
+    comboText: formatPercentWithBonus(weapon.combo ?? 0, comboBonus),
+    weapon: {
+      ...weapon,
+      attack: (weapon.attack ?? 0) + (arena.damage ?? 0),
+      combo: Math.min(1, (weapon.combo ?? 0) + comboBonus),
+    },
   }
 })
 
@@ -128,7 +147,7 @@ function finish() {
 
     <section class="player">
       <span>近战 <b>{{ melee.name }}</b></span>
-      <span>连击 <b>{{ formatPercent(melee.weapon.combo) }}</b></span>
+      <span>连击 <b>{{ melee.comboText }}</b></span>
       <span>远程 <b>{{ ranged.name }}</b></span>
       <span v-if="game.equipment.ranged">清洁度 <b>{{ ranged.cleanliness }}</b></span>
       <span v-if="ranged.jamChance > 0">卡壳 <b>{{ formatPercent(ranged.jamChance) }}</b></span>
@@ -143,7 +162,7 @@ function finish() {
     <section v-if="battle.active" class="actions">
       <button type="button" class="btn btn--primary" @click="meleeAttack">
         近战攻击
-        <span class="actions__hint">攻击 {{ melee.weapon.attack }}</span>
+        <span class="actions__hint">攻击 {{ melee.attackText }}</span>
       </button>
       <button type="button" class="btn" :disabled="!ranged.canFire" @click="rangedAttack">
         远程攻击

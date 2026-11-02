@@ -24,7 +24,11 @@ import {
   AIRSHIP,
   AIRSHIP_SHOP_GOODS,
   AIRSHIP_STOCKS,
-  PRACTICE_TALENTS,
+  ARENA,
+  CORRIDOR,
+  TALENTS,
+  TALENT_ACTIVE_LIMIT,
+  TALENT_EFFECT_LABELS,
   STOCK_PRICE_MAX,
   STOCK_PRICE_MIN,
   commissionForDay,
@@ -73,6 +77,7 @@ import {
   loanInterest,
   loanTierByRank,
   loanTierFor,
+  NPCS,
   npcById,
   organizeInventory,
   pickCityLoot,
@@ -88,6 +93,7 @@ import {
   removeItem,
   repairCoinCost,
   talentBonus,
+  talentEffects,
   talentTitle,
   treasureForDay,
 } from '../data'
@@ -141,8 +147,9 @@ export const game = reactive({
   flags: {},
   finale: '',
   reputation: 0,
-  talents: { melee: 0, ranged: 0 },
-  training: { melee: 0, ranged: 0 },
+  talents: { melee: 0, ranged: 0, arena: 0, corridor: 0 },
+  training: { melee: 0, ranged: 0, arena: 0, corridor: 0 },
+  activeTalents: [],
   market: null,
   playtimeBase: 0,
   sessionSeconds: 0,
@@ -237,6 +244,8 @@ const ACHIEVEMENT_CHECKS = {
   'coin-tycoon': () => game.coins >= 200,
   'dawn-wealth': () => game.dawnCoins >= 300,
   'ma-san': () => Boolean(game.flags.maSanKilled),
+  'no-cheat': () => Boolean(game.flags.devDuelWon),
+  'coup-victory': () => Boolean(game.flags.airshipCoupDone),
   'seed-life': () => Boolean(game.flags.rottenSeedPlanted),
   'doctor-badges': () => Boolean(game.flags.doctorQuest3Done),
   'rocket-crew': () => game.finale === ROCKET.finaleAll,
@@ -353,6 +362,7 @@ function makeSavePayload() {
     reputation: game.reputation,
     talents: { ...game.talents },
     training: { ...game.training },
+    activeTalents: [...game.activeTalents],
     market: cloneStockMarket(game.market),
     playtime: currentPlaytime.value,
     savedAt: Date.now(),
@@ -382,10 +392,31 @@ function applySlot(slot) {
   game.talents = {
     melee: Math.max(0, Math.min(3, Math.round(Number(slot.talents?.melee) || 0))),
     ranged: Math.max(0, Math.min(3, Math.round(Number(slot.talents?.ranged) || 0))),
+    arena: Math.max(
+      0,
+      Math.min(TALENTS.arena.maxLevel, Math.round(Number(slot.talents?.arena) || 0)),
+    ),
+    corridor: Math.max(
+      0,
+      Math.min(TALENTS.corridor.maxLevel, Math.round(Number(slot.talents?.corridor) || 0)),
+    ),
   }
   game.training = {
     melee: Math.max(0, Math.min(99, Math.round(Number(slot.training?.melee) || 0))),
     ranged: Math.max(0, Math.min(99, Math.round(Number(slot.training?.ranged) || 0))),
+    arena: Math.max(0, Math.min(99, Math.round(Number(slot.training?.arena) || 0))),
+    corridor: Math.max(0, Math.min(99, Math.round(Number(slot.training?.corridor) || 0))),
+  }
+
+  const learnedTalents = Object.values(TALENTS)
+    .filter((talent) => (game.talents[talent.key] || 0) > 0)
+    .map((talent) => talent.key)
+  if (Array.isArray(slot.activeTalents)) {
+    game.activeTalents = [
+      ...new Set(slot.activeTalents.filter((key) => learnedTalents.includes(key))),
+    ].slice(0, TALENT_ACTIVE_LIMIT)
+  } else {
+    game.activeTalents = learnedTalents.slice(0, TALENT_ACTIVE_LIMIT)
   }
   game.market = normalizeStockMarket(slot.market) ?? createStockMarket(game.day)
   game.location = null
@@ -454,8 +485,9 @@ export async function enterGame(slotIndex, { isNew = false, name = '' } = {}) {
     game.flags = {}
     game.finale = ''
     game.reputation = 0
-    game.talents = { melee: 0, ranged: 0 }
-    game.training = { melee: 0, ranged: 0 }
+    game.talents = { melee: 0, ranged: 0, arena: 0, corridor: 0 }
+    game.training = { melee: 0, ranged: 0, arena: 0, corridor: 0 }
+    game.activeTalents = []
     game.market = createStockMarket(1)
     game.playtimeBase = 0
     game.sessionSeconds = 0
@@ -1633,11 +1665,11 @@ export function launchRocket(kind) {
   return ''
 }
 
-/* ===== 郊区卖场 · 某开发者 ===== */
+/* ===== 郊区卖场 · 游戏开发者 ===== */
 
 function devGuard() {
   if (game.dead) return ''
-  if (game.location !== DEV_SHOP.mapId) return '某开发者只在郊区卖场的角落。'
+  if (game.location !== DEV_SHOP.mapId) return '游戏开发者只在郊区卖场的角落。'
   return null
 }
 
@@ -1656,23 +1688,37 @@ export function takeDevNoviceGift() {
   game.coins += DEV_SHOP.noviceCoins
   game.dawnCoins += DEV_SHOP.noviceDawnCoins
   game.flags.devNoviceGiftTaken = true
-  return `某开发者递来一个新手礼包：末日币 +${DEV_SHOP.noviceCoins}，曙光币 +${DEV_SHOP.noviceDawnCoins}，外加万能灵药、抗感染针、罐头、越蔓梅、战术匕首和 Glock。「先活过这几天再说。」`
+  return `游戏开发者递来一个新手礼包：末日币 +${DEV_SHOP.noviceCoins}，曙光币 +${DEV_SHOP.noviceDawnCoins}，外加万能灵药、抗感染针、罐头、越蔓梅、战术匕首和 Glock。「先活过这几天再说。」`
 }
 
-/** 一次性医疗支持：十包缝合包 */
-export function takeDevMedicalSupport() {
+/** 一次性骑士礼包：骑士徽章与白兰地 */
+export function takeDevKnightGift() {
   const blocked = devGuard()
   if (blocked !== null) return blocked
-  if (game.flags.devMedicalSupportTaken) return '医疗支持已经领过了。'
-  if (!canStoreItems(game.inventory, DEV_SHOP.medicalItems)) {
-    return '背包放不下这些缝合包，先腾出几格再来。'
+  if (game.flags.devKnightGiftTaken) return '骑士礼包已经领过了。'
+  const brandy = DEV_SHOP.knightItems.find((item) => item.id !== 'badge-knight')
+  if (brandy && !canStoreItems(game.inventory, [brandy])) {
+    return '背包放不下这份礼包，先腾出几格再来。'
   }
+  if (!grantIdentity('骑士')) return '背包已满，骑士徽章无处安放。'
+  if (brandy) addItem(game.inventory, brandy.id, brandy.qty)
+  game.flags.devKnightGiftTaken = true
+  return `游戏开发者递来一枚骑士徽章和 ${brandy?.qty ?? 0} 瓶白兰地：「别问哪来的。」`
+}
 
-  for (const item of DEV_SHOP.medicalItems) {
+/** 一次性治疗礼包：绷带、止痛药与止血带 */
+export function takeDevHealingGift() {
+  const blocked = devGuard()
+  if (blocked !== null) return blocked
+  if (game.flags.devHealingGiftTaken) return '治疗礼包已经领过了。'
+  if (!canStoreItems(game.inventory, DEV_SHOP.healingItems)) {
+    return '背包放不下这份医疗物资，先腾出几格再来。'
+  }
+  for (const item of DEV_SHOP.healingItems) {
     addItem(game.inventory, item.id, item.qty)
   }
-  game.flags.devMedicalSupportTaken = true
-  return '某开发者推来十包缝合包：「伤口先缝上，别死在半路。」'
+  game.flags.devHealingGiftTaken = true
+  return '游戏开发者推来一箱医疗物资：绷带 20、止痛药 20、止血带 20。「这次不用缝。」'
 }
 
 /** 背包扩容：每次 5 末日币 + 5 曙光币，增加 10 格，上限 200 格 */
@@ -1704,7 +1750,42 @@ const DEV_HELP = [
   '/unlock — 解除状态条锁定',
   '/backpack — 背包容量提升至 200 格',
   '/get 物品名称 数量 — 获得对应物品',
+  '/talent max — 所有天赋满级',
+  '/talent clear — 所有天赋重置为 0',
+  '/tp 地图名字 — 0 回合传送到指定地图',
+  '/tp ship — 0 回合传送到末日飞行船',
+  '/Re NPC名字 — 复活指定 NPC（可能影响任务，慎用）',
 ].join('\n')
+
+/** 按名字或地区简写查找地图 */
+function devFindMap(query) {
+  const text = String(query ?? '').trim()
+  if (!text) return null
+  const lower = text.toLowerCase()
+  if (['ship', 'airship', '飞行船'].includes(lower)) {
+    return MAPS.find((item) => item.id === 'doomsday-airship') ?? null
+  }
+  return (
+    MAPS.find((item) => item.name === text || item.id === lower) ??
+    MAPS.find((item) => item.name.includes(text)) ??
+    null
+  )
+}
+
+/** 按名字或 ID 查找 NPC，支持省略「·」前的头衔 */
+function devFindNpc(query) {
+  const text = String(query ?? '').trim()
+  if (!text) return null
+  const lower = text.toLowerCase()
+  return (
+    npcById(text) ??
+    Object.values(NPCS).find((item) => item.name === text || item.id === lower) ??
+    Object.values(NPCS).find(
+      (item) => item.name.includes(text) || item.name.split('·').pop() === text,
+    ) ??
+    null
+  )
+}
 
 /** 执行开发者指令，返回要显示在控制台里的文本 */
 export function runDevCommand(input) {
@@ -1766,6 +1847,62 @@ export function runDevCommand(input) {
     return leftover > 0
       ? `背包只放下了 ${qty - leftover} 个「${def.name}」，还有 ${leftover} 个没装下。`
       : `获得 ${def.name} ×${qty}。`
+  }
+
+  if (command === '/talent') {
+    const mode = (args[0] ?? '').toLowerCase()
+    if (mode === 'max') {
+      for (const talent of Object.values(TALENTS)) {
+        game.talents[talent.key] = talent.maxLevel
+        game.training[talent.key] = 0
+      }
+      const levels = Object.values(TALENTS)
+        .map((talent) => `${talent.label} Lv.${talent.maxLevel}`)
+        .join(' · ')
+      return `所有天赋已满级：${levels}。最多仍只能启用 ${TALENT_ACTIVE_LIMIT} 个。`
+    }
+    if (mode === 'clear') {
+      for (const talent of Object.values(TALENTS)) {
+        game.talents[talent.key] = 0
+        game.training[talent.key] = 0
+      }
+      game.activeTalents = []
+      return '所有天赋已重置为 0，熟练度与启用列表已清空。'
+    }
+    return '用法：/talent max 或 /talent clear'
+  }
+
+  if (command === '/tp') {
+    const query = args.join(' ').trim()
+    if (!query) {
+      return `用法：/tp 地图名字（可用：${MAPS.map((item) => item.name).join(' / ')}）`
+    }
+    const map = devFindMap(query)
+    if (!map) {
+      return `没有找到「${query}」这张地图。可用：${MAPS.map((item) => item.name).join(' / ')}`
+    }
+    if (game.dead) return '你已经死了，无法传送。'
+
+    game.location = map.id
+    return `已传送至「${map.name}」，消耗 0 回合，未扣除属性。`
+  }
+
+  if (command === '/re') {
+    const query = args.join(' ').trim()
+    if (!query) {
+      return `用法：/Re NPC名字（可用：${Object.values(NPCS)
+        .map((npc) => npc.name)
+        .join(' / ')}）`
+    }
+    const npc = devFindNpc(query)
+    if (!npc) {
+      return `没有找到 NPC「${query}」。可用：${Object.values(NPCS)
+        .map((item) => item.name)
+        .join(' / ')}`
+    }
+    if (!game.flags[npc.deathFlag]) return `${npc.name} 本来就活着。`
+    game.flags[npc.deathFlag] = false
+    return `已复活「${npc.name}」。注意：相关任务与剧情标记不会回滚，可能导致任务异常或坏档，请务必先存档。`
   }
 
   return `未知指令：${cmd}。输入 /help 查看可用指令。`
@@ -2962,7 +3099,7 @@ function practiceGuard(kind) {
   if (!airshipReady()) return '练习场在末日飞行船上。'
   const practice = AIRSHIP.practice
   const detail = practice[kind]
-  if (game.talents[kind] >= practice.maxLevel) return detail.maxedLine
+  if (game.talents[kind] >= TALENTS[kind].maxLevel) return detail.maxedLine
   if (practiceLeft(kind) <= 0) return practice.dailyLine
 
   if (kind === 'melee') {
@@ -3022,18 +3159,22 @@ function practiceOnce(kind) {
     Math.floor(Math.random() * (practice.progressMax - practice.progressMin + 1))
   let level = game.talents[kind]
   let progress = game.training[kind] + gain
-  while (level < practice.maxLevel && progress >= practice.levelSize) {
+  while (level < TALENTS[kind].maxLevel && progress >= practice.levelSize) {
     level += 1
     progress -= practice.levelSize
   }
-  if (level >= practice.maxLevel) progress = 0
+  if (level >= TALENTS[kind].maxLevel) progress = 0
 
   const before = game.talents[kind]
   game.talents[kind] = level
   game.training[kind] = progress
   if (level > before) {
     const title = talentTitle(kind, level)
-    notes.push(`天赋提升 · ${title}（${PRACTICE_TALENTS[kind].stat} +${Math.round(talentBonus(kind, level) * 100)}%）`)
+    notes.push(`天赋提升 · ${title}（${TALENTS[kind].stat} +${Math.round(talentBonus(kind, level) * 100)}%）`)
+    autoEnableTalent(kind)
+    if (!isTalentActive(kind)) {
+      notes.push(`启用位已满 ${TALENT_ACTIVE_LIMIT} 个，新天赋尚未启用，请到天赋面板调整。`)
+    }
     if (typeof window !== 'undefined') notify(`天赋提升 · ${title}`, 3400)
   }
 
@@ -3045,7 +3186,7 @@ function practiceOnce(kind) {
   next[kind] += 1
   game.flags[practice.flag] = next
 
-  const progressText = level >= practice.maxLevel ? '已满级' : `${progress}%`
+  const progressText = level >= TALENTS[kind].maxLevel ? '已满级' : `${progress}%`
   notes.unshift(`${detail.doneLine}熟练度 +${gain}，当前 ${progressText}。`)
   const left = practiceLeft(kind)
   if (left <= 0) notes.push('今天的练习次数已用完。')
@@ -3171,6 +3312,215 @@ export function buyAirshipGasoline(quantity) {
   addItem(game.inventory, HELICOPTER.gasolineId, qty)
   game.coins -= total
   return `购买汽油 ${qty} 桶，花费 ${total} 末日币（单价 ${price}）。`
+}
+
+/* ===== 天赋启用 ===== */
+
+function autoEnableTalent(kind) {
+  const talent = TALENTS[kind]
+  if (!talent || (game.talents[kind] || 0) <= 0) return false
+  if (!Array.isArray(game.activeTalents)) game.activeTalents = []
+  if (game.activeTalents.includes(kind)) return false
+  if (game.activeTalents.length >= TALENT_ACTIVE_LIMIT) return false
+  game.activeTalents.push(kind)
+  return true
+}
+
+/** 当前是否启用且已获得某条天赋 */
+export function isTalentActive(kind) {
+  return (
+    (game.talents[kind] || 0) > 0 &&
+    Array.isArray(game.activeTalents) &&
+    game.activeTalents.includes(kind)
+  )
+}
+
+/** 启用/停用天赋；最多同时启用 TALENT_ACTIVE_LIMIT 个 */
+export function toggleTalentActive(kind) {
+  const talent = TALENTS[kind]
+  if (!talent) return ''
+  if ((game.talents[kind] || 0) <= 0) return '尚未获得这个天赋'
+  if (!Array.isArray(game.activeTalents)) game.activeTalents = []
+
+  const name = talentTitle(kind, game.talents[kind]) || talent.label
+  const index = game.activeTalents.indexOf(kind)
+  if (index >= 0) {
+    game.activeTalents.splice(index, 1)
+    return `已停用「${name}」`
+  }
+  if (game.activeTalents.length >= TALENT_ACTIVE_LIMIT) {
+    return `最多同时启用 ${TALENT_ACTIVE_LIMIT} 个天赋，请先停用一个`
+  }
+  game.activeTalents.push(kind)
+  return `已启用「${name}」`
+}
+
+/* ===== 王宫 · 斗兽擂台 ===== */
+
+function arenaDayState() {
+  const state = game.flags[ARENA.flag]
+  if (!state || state.day !== game.day) return { day: game.day, count: 0 }
+  return { day: game.day, count: Math.max(0, Number(state.count) || 0) }
+}
+
+/** 今日剩余的斗兽擂台次数 */
+export function arenaLeft() {
+  return Math.max(0, ARENA.dailyLimit - arenaDayState().count)
+}
+
+function arenaGuard() {
+  if (game.dead) return ''
+  if (game.location !== 'ruined-city') return '斗兽擂台在王宫深处。'
+  if (game.equipment.melee || game.equipment.ranged) return ARENA.needEmptyLine
+  if ((game.talents.arena || 0) >= TALENTS.arena.maxLevel) return ARENA.maxedLine
+  if (arenaLeft() <= 0) return ARENA.dailyLine
+  return ''
+}
+
+/** 上斗兽擂台：空手、1 回合、生命与理智各 -30，随机提升拳头熟练度 */
+export function arenaFight() {
+  const blocked = arenaGuard()
+  if (blocked) return blocked
+
+  const actionDay = game.day
+  const actionState = arenaDayState()
+  advanceTurns(ARENA.turns)
+  if (game.dead) return ''
+
+  applyStatChanges({ hp: -ARENA.hpCost, sanity: -ARENA.sanityCost })
+  if (game.dead) return ''
+
+  const gain =
+    ARENA.progressMin +
+    Math.floor(Math.random() * (ARENA.progressMax - ARENA.progressMin + 1))
+  let level = game.talents.arena
+  let progress = game.training.arena + gain
+  while (level < TALENTS.arena.maxLevel && progress >= ARENA.levelSize) {
+    level += 1
+    progress -= ARENA.levelSize
+  }
+  if (level >= TALENTS.arena.maxLevel) progress = 0
+
+  const before = game.talents.arena
+  game.talents.arena = level
+  game.training.arena = progress
+
+  game.flags[ARENA.flag] = {
+    day: actionDay,
+    count: actionState.count + 1,
+  }
+
+  const notes = [
+    `${ARENA.doneLine}熟练度 +${gain}，当前 ${
+      level >= TALENTS.arena.maxLevel ? '已满级' : `${progress}%`
+    }。`,
+  ]
+
+  if (level > before) {
+    const title = talentTitle('arena', level)
+    const effects = talentEffects('arena', level)
+    const effectText = Object.entries(effects)
+      .map(([key, value]) => {
+        const label = TALENT_EFFECT_LABELS[key] ?? key
+        return `${label} +${key === 'damage' ? value : Math.round(value * 100) + '%'}`
+      })
+      .join(' · ')
+    notes.push(`天赋提升 · ${title}（${effectText}）`)
+    autoEnableTalent('arena')
+    if (!isTalentActive('arena')) {
+      notes.push(`启用位已满 ${TALENT_ACTIVE_LIMIT} 个，新天赋尚未启用，请到天赋面板调整。`)
+    }
+    if (typeof window !== 'undefined') notify(`天赋提升 · ${title}`, 3400)
+  }
+
+  const left = arenaLeft()
+  if (left <= 0) notes.push('今天的擂台次数已用完。')
+  return notes.join('\n')
+}
+
+/* ===== 曙光 · 行尸走廊 ===== */
+
+function corridorDayState() {
+  const state = game.flags[CORRIDOR.flag]
+  if (!state || state.day !== game.day) return { day: game.day, count: 0 }
+  return { day: game.day, count: Math.max(0, Number(state.count) || 0) }
+}
+
+/** 今日剩余的行尸走廊次数 */
+export function corridorLeft() {
+  return Math.max(0, CORRIDOR.dailyLimit - corridorDayState().count)
+}
+
+function corridorGuard() {
+  if (game.dead) return ''
+  if (game.location !== 'dawn-post') return '行尸走廊在曙光阵地。'
+  if (game.equipment.melee || game.equipment.ranged) return CORRIDOR.needEmptyLine
+  if ((game.talents.corridor || 0) >= TALENTS.corridor.maxLevel) {
+    return CORRIDOR.maxedLine
+  }
+  if (corridorLeft() <= 0) return CORRIDOR.dailyLine
+  return ''
+}
+
+/** 穿行行尸走廊：空手、1 回合、生命 -30、感染 +30，随机提升远程闪避熟练度 */
+export function corridorFight() {
+  const blocked = corridorGuard()
+  if (blocked) return blocked
+
+  const actionDay = game.day
+  const actionState = corridorDayState()
+  advanceTurns(CORRIDOR.turns)
+  if (game.dead) return ''
+
+  applyStatChanges({ hp: -CORRIDOR.hpCost, infection: CORRIDOR.infectionCost })
+  if (game.dead) return ''
+
+  const gain =
+    CORRIDOR.progressMin +
+    Math.floor(Math.random() * (CORRIDOR.progressMax - CORRIDOR.progressMin + 1))
+  let level = game.talents.corridor
+  let progress = game.training.corridor + gain
+  while (level < TALENTS.corridor.maxLevel && progress >= CORRIDOR.levelSize) {
+    level += 1
+    progress -= CORRIDOR.levelSize
+  }
+  if (level >= TALENTS.corridor.maxLevel) progress = 0
+
+  const before = game.talents.corridor
+  game.talents.corridor = level
+  game.training.corridor = progress
+
+  game.flags[CORRIDOR.flag] = {
+    day: actionDay,
+    count: actionState.count + 1,
+  }
+
+  const notes = [
+    `${CORRIDOR.doneLine}熟练度 +${gain}，当前 ${
+      level >= TALENTS.corridor.maxLevel ? '已满级' : `${progress}%`
+    }。`,
+  ]
+
+  if (level > before) {
+    const title = talentTitle('corridor', level)
+    const effects = talentEffects('corridor', level)
+    const effectText = Object.entries(effects)
+      .map(([key, value]) => {
+        const label = TALENT_EFFECT_LABELS[key] ?? key
+        return `${label} +${key === 'damage' ? value : Math.round(value * 100) + '%'}`
+      })
+      .join(' · ')
+    notes.push(`天赋提升 · ${title}（${effectText}）`)
+    autoEnableTalent('corridor')
+    if (!isTalentActive('corridor')) {
+      notes.push(`启用位已满 ${TALENT_ACTIVE_LIMIT} 个，新天赋尚未启用，请到天赋面板调整。`)
+    }
+    if (typeof window !== 'undefined') notify(`天赋提升 · ${title}`, 3400)
+  }
+
+  const left = corridorLeft()
+  if (left <= 0) notes.push('今天的走廊次数已用完。')
+  return notes.join('\n')
 }
 
 /* ===== 投资中心 ===== */

@@ -8,6 +8,7 @@ import {
   DAWN_FLEE_CHANCE,
   DAWN_LEADER,
   DAWN_ZOMBIE,
+  DEV_SHOP,
   GIANT_PUPPET,
   MA_SAN,
   UNARMED,
@@ -23,6 +24,7 @@ import {
   pickDawnLoot,
   pickZombieLoot,
   talentBonus,
+  talentEffects,
   zombieById,
 } from '../data'
 import {
@@ -33,11 +35,14 @@ import {
   cooldownLeft,
   devState,
   game,
+  isTalentActive,
   questStatus,
   useItem,
   waiveLoanInterest,
+  notify,
 } from './store'
 import { playWeaponSfx } from './sfx'
+import { unlockAchievement } from './save'
 
 /** 丧尸技能数值：参考一代，按二代 100 血 / 手动回合制缩放 */
 const ABILITY = {
@@ -415,8 +420,13 @@ export function meleeAttack() {
   while (loops < 500) {
     loops += 1
     const { weapon } = currentMelee()
+    const arena =
+      !game.equipment.melee && isTalentActive('arena')
+        ? talentEffects('arena', game.talents.arena)
+        : {}
     const crit = Math.random() < (weapon.crit ?? 0) && (weapon.critDamage ?? 0) >= 1
-    let damage = Math.max(1, Math.round((weapon.attack ?? 0) * (crit ? weapon.critDamage : 1)))
+    const attack = (weapon.attack ?? 0) + (arena.damage ?? 0)
+    let damage = Math.max(1, Math.round(attack * (crit ? weapon.critDamage : 1)))
     if (armored) damage = Math.max(1, Math.floor(damage * ABILITY.armorMult))
     if (frozen && hits === 0) damage = Math.max(1, Math.floor(damage * ABILITY.frozenMult))
     if (devState.oneHitKill) damage = battle.zombie.hp
@@ -432,7 +442,13 @@ export function meleeAttack() {
       broken = result.name
       break
     }
-    const comboChance = Math.min(1, (weapon.combo ?? 0) + talentBonus('melee', game.talents.melee))
+    const meleeTalent = isTalentActive('melee')
+      ? talentBonus('melee', game.talents.melee)
+      : 0
+    const comboChance = Math.min(
+      1,
+      (weapon.combo ?? 0) + meleeTalent + (arena.combo ?? 0),
+    )
     if (Math.random() >= comboChance) break
   }
 
@@ -496,7 +512,10 @@ export function rangedAttack() {
     return
   }
 
-  const critChance = Math.min(1, (weapon.crit ?? 0) + talentBonus('ranged', game.talents.ranged))
+  const rangedTalent = isTalentActive('ranged')
+    ? talentBonus('ranged', game.talents.ranged)
+    : 0
+  const critChance = Math.min(1, (weapon.crit ?? 0) + rangedTalent)
   const crit = Math.random() < critChance && (weapon.critDamage ?? 0) >= 1
   const frozen = battle.frozen
   if (frozen) battle.frozen = false
@@ -524,7 +543,11 @@ export function rangedAttack() {
     return
   }
 
-  if (Math.random() < (weapon.dodge ?? 0)) {
+  const corridorTalent = isTalentActive('corridor')
+    ? talentBonus('corridor', game.talents.corridor)
+    : 0
+  const dodgeChance = Math.min(1, (weapon.dodge ?? 0) + corridorTalent)
+  if (Math.random() < dodgeChance) {
     pushLog('它扑了个空，你侧身退开，避开了这一击。')
     return
   }
@@ -771,6 +794,9 @@ function winBattle() {
     game.flags.airshipCoupDone = true
     game.flags.airshipCoupStep = 0
     game.finale = coup.finale
+    if (unlockAchievement('coup-victory') && typeof window !== 'undefined') {
+      notify('成就解锁 · 臣服于我')
+    }
     battle.summary = `${coup.doneLine}\n\n结局达成 · ${coup.finale}`
     pushLog(battle.summary)
     return
@@ -834,6 +860,21 @@ function winBattle() {
   if (battle.kind === 'banker') {
     battle.result = 'victory'
     battle.summary = waiveLoanInterest()
+    pushLog(battle.summary)
+    return
+  }
+
+  if (battle.kind === 'dev-duel') {
+    battle.result = 'victory'
+    game.flags[DEV_SHOP.duel.doneFlag] = true
+    game.finale = '作弊者'
+    if (unlockAchievement('no-cheat') && typeof window !== 'undefined') {
+      notify('成就解锁 · 我没开挂')
+    }
+    const leftover = addItem(game.inventory, DEV_SHOP.duel.rewardItemId, 1)
+    battle.summary = leftover
+      ? `${DEV_SHOP.duel.victoryLine} 可你的背包已经塞满，剑只能先留在桌上。`
+      : DEV_SHOP.duel.victoryLine
     pushLog(battle.summary)
     return
   }

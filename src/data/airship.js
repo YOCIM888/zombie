@@ -65,7 +65,6 @@ export const AIRSHIP = {
     dailyLimit: 2,
     progressMin: 5,
     progressMax: 10,
-    maxLevel: 3,
     levelSize: 100,
     flag: 'airshipPractice',
     melee: {
@@ -289,39 +288,6 @@ export function rollStockPrices(prices, day) {
     next[stock.id] = price
   })
   return next
-}
-
-/** 练习天赋：三级称号与加成，取最高级、不叠加 */
-export const PRACTICE_TALENTS = {
-  melee: {
-    key: 'melee',
-    label: '近战天赋',
-    stat: '近战连击率',
-    titles: ['实力打手', '战斗专家', '圣斗士'],
-    bonuses: [0.05, 0.1, 0.15],
-  },
-  ranged: {
-    key: 'ranged',
-    label: '远程天赋',
-    stat: '远程暴击率',
-    titles: ['潜力射手', '精确射手', '神枪手'],
-    bonuses: [0.05, 0.1, 0.15],
-  },
-}
-
-/** 某等级对应的天赋加成；0 级为 0 */
-export function talentBonus(kind, level) {
-  const talent = PRACTICE_TALENTS[kind]
-  if (!talent) return 0
-  const index = Math.max(0, Math.min(talent.bonuses.length - 1, Math.round(level) - 1))
-  return level > 0 ? talent.bonuses[index] : 0
-}
-
-/** 某等级对应的天赋称号；0 级返回空字符串 */
-export function talentTitle(kind, level) {
-  const talent = PRACTICE_TALENTS[kind]
-  if (!talent || level <= 0) return ''
-  return talent.titles[Math.min(talent.titles.length, Math.round(level)) - 1] ?? ''
 }
 
 const EFFECT_LABELS = {

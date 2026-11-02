@@ -31,3 +31,16 @@ export function formatPercent(value) {
 export function formatCritDamage(value) {
   return value >= 1 ? `${value}×` : formatPercent(value)
 }
+
+/** 基础百分比 + 天赋加成：0.1 + 0.1 -> 10%（+10%） */
+export function formatPercentWithBonus(base, bonus) {
+  const extra = Math.max(0, Number(bonus) || 0)
+  return extra > 0 ? `${formatPercent(base)}（+${formatPercent(extra)}）` : formatPercent(base)
+}
+
+/** 基础数值 + 天赋加成：10 + 5 -> 10（+5） */
+export function formatValueWithBonus(base, bonus) {
+  const baseValue = Math.max(0, Math.round(Number(base) || 0))
+  const extra = Math.max(0, Math.round(Number(bonus) || 0))
+  return extra > 0 ? `${baseValue}（+${extra}）` : `${baseValue}`
+}

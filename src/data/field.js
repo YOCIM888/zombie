@@ -488,7 +488,7 @@ export const ROCKET = {
   stayedLine: '你没有按下发射键。发射塔的灯还亮着，火箭明天也还会在这里。',
 }
 
-/** 郊区卖场的「某开发者」：一次性救济与背包扩容 */
+/** 郊区卖场的「游戏开发者」：一次性救济与背包扩容 */
 export const DEV_SHOP = {
   mapId: 'suburb-market',
   noviceCoins: 5,
@@ -501,7 +501,30 @@ export const DEV_SHOP = {
     { id: 'dagger', qty: 1 },
     { id: 'glock', qty: 1 },
   ],
-  medicalItems: [{ id: 'suture-kit', qty: 10 }],
+  knightItems: [
+    { id: 'badge-knight', qty: 1 },
+    { id: 'brandy', qty: 10 },
+  ],
+  healingItems: [
+    { id: 'bandage', qty: 20 },
+    { id: 'painkiller', qty: 20 },
+    { id: 'tourniquet', qty: 20 },
+  ],
+  duel: {
+    id: 'dev-duel',
+    name: '游戏开发者',
+    hp: 99999,
+    attack: 1,
+    dodge: 0,
+    infection: 0,
+    abilities: [],
+    description:
+      '他给自己挂了一条测试用的血条，又把十字剑放在桌子对面。「放心，我只用一点力。」',
+    rewardItemId: 'crusader-cross-sword',
+    doneFlag: 'devDuelWon',
+    intro: '开发者把键盘推开，站到了桌子对面。血条长得像一条不会结束的进度线。',
+    victoryLine: '开发者的血条终于见底。他把十字剑-圣战推到你面前，甩了甩手腕。',
+  },
   expandCost: 5,
   expandSteps: 10,
   expandLimit: 200,

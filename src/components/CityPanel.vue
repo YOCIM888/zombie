@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import {
+  ARENA,
   BANKER,
   GARDEN,
   IDENTITY_LEVELS,
@@ -12,6 +13,8 @@ import {
   QUEST_OWNERS,
   REPAIR_PERCENT_PER_COIN,
   SHOP_GOODS,
+  TALENTS,
+  TALENT_EFFECT_LABELS,
   TREATMENT_TIERS,
   formatMoney,
   identityInfo,
@@ -21,10 +24,14 @@ import {
   loanTierFor,
   npcById,
   repairCoinCost,
+  talentEffects,
+  talentTitle,
 } from '../data'
 import { MAPS } from '../game/config'
 import {
   applyLoanGrace,
+  arenaFight,
+  arenaLeft,
   attendCouncil,
   becomeKnight,
   borrowCoins,
@@ -56,6 +63,7 @@ import {
 import { battle, resetBattle, startBankerCombat } from '../game/battle'
 import AssassinationCard from './AssassinationCard.vue'
 import BattleView from './BattleView.vue'
+import MapMenuList from './MapMenuList.vue'
 import ModalShell from './ModalShell.vue'
 import QuestLinePanel from './QuestLinePanel.vue'
 import StatusHud from './StatusHud.vue'
@@ -82,7 +90,7 @@ const PALACE_MENU = [
   { id: 'garden', no: '08', name: '宫廷花园', desc: '仅储君可进入。七天一次，药品与食物相赠。' },
   { id: 'queen', no: '09', name: '皇后米娅', desc: '她只肯见哥哥信得过的人，手里还得有那封信。' },
   { id: 'king', no: '10', name: '国王艾伦', desc: '骑士以上，他才会开口；他要的东西一件比一件难。' },
-  { id: 'secret', no: '11', name: '秘密房间', desc: '占位区域，后续开放。', placeholder: true },
+  { id: 'arena', no: '11', name: '斗兽擂台', desc: '赤手空拳上场，每天两次，提升拳头天赋。' },
 ]
 
 const map = MAPS.find((item) => item.id === 'ruined-city')
@@ -102,10 +110,53 @@ const currentRank = computed(() => identityRank(game.identity))
 const palaceTitle = computed(
   () => PALACE_MENU.find((item) => item.id === palaceView.value)?.name ?? '都城王宫',
 )
-const palacePlaceholder = computed(
-  () => PALACE_MENU.find((item) => item.id === palaceView.value && item.placeholder) ?? null,
-)
 const salaryAmount = computed(() => PALACE_SALARY[game.identity] ?? 0)
+
+const arenaLevel = computed(() => Number(game.talents.arena) || 0)
+const arenaMaxLevel = computed(() => TALENTS.arena.maxLevel)
+const arenaFull = computed(() => arenaLevel.value >= arenaMaxLevel.value)
+const arenaProgress = computed(() =>
+  arenaFull.value ? 100 : Math.max(0, Math.min(99, Number(game.training.arena) || 0)),
+)
+const arenaRemaining = computed(() => arenaLeft())
+const arenaWeaponsEquipped = computed(() =>
+  Boolean(game.equipment.melee || game.equipment.ranged),
+)
+const arenaWeaponText = computed(() => {
+  const parts = []
+  if (game.equipment.melee) {
+    parts.push(`近战：${getItem(game.equipment.melee.id)?.name ?? '已装备'}`)
+  }
+  if (game.equipment.ranged) {
+    parts.push(`远程：${getItem(game.equipment.ranged.id)?.name ?? '已装备'}`)
+  }
+  return parts.join(' · ')
+})
+const arenaTitleName = computed(() => talentTitle('arena', arenaLevel.value) || '暂无天赋')
+const arenaEffectsText = computed(() => {
+  const effects = talentEffects('arena', arenaLevel.value)
+  const entries = Object.entries(effects)
+  if (!entries.length) return '—'
+  return entries
+    .map(([key, value]) => {
+      const label = TALENT_EFFECT_LABELS[key] ?? key
+      return `${label} +${key === 'damage' ? value : Math.round(value * 100) + '%'}`
+    })
+    .join(' · ')
+})
+const arenaCanFight = computed(
+  () =>
+    !game.dead &&
+    !arenaWeaponsEquipped.value &&
+    !arenaFull.value &&
+    arenaRemaining.value > 0,
+)
+const arenaActionLabel = computed(() => {
+  if (arenaFull.value) return '拳头天赋已满级'
+  if (arenaWeaponsEquipped.value) return '请先卸下所有武器'
+  if (arenaRemaining.value <= 0) return '今日擂台次数已用完'
+  return '上擂台 · 1 回合'
+})
 const meleeRepair = computed(() => {
   const equipped = game.equipment.melee
   if (!equipped) return { name: '', current: 0, max: 0, cost: 0, state: 'empty' }
@@ -268,16 +319,7 @@ function closePanel() {
       <StatusHud />
     </template>
 
-    <section v-if="view === 'menu'" class="menu">
-      <article v-for="item in MENU" :key="item.id" class="card" @click="go(item.id)">
-        <span class="card__no">{{ item.no }}</span>
-        <div class="card__main">
-          <h3 class="card__name">{{ item.name }}</h3>
-          <p class="card__desc">{{ item.desc }}</p>
-        </div>
-        <span class="card__arrow">→</span>
-      </article>
-    </section>
+    <MapMenuList v-if="view === 'menu'" :items="MENU" @select="go($event.id)" />
 
     <section v-else-if="view === 'explore'" class="pane">
       <header class="pane__head">
@@ -341,21 +383,7 @@ function closePanel() {
 
       <template v-if="palaceView === 'menu'">
         <p class="pane__desc">进入王宫本身不消耗回合。以下事务多数每天只能进行一次。</p>
-        <div class="menu menu--palace">
-          <article
-            v-for="item in PALACE_MENU"
-            :key="item.id"
-            class="card"
-            @click="palaceView = item.id"
-          >
-            <span class="card__no">{{ item.no }}</span>
-            <div class="card__main">
-              <h3 class="card__name">{{ item.name }}</h3>
-              <p class="card__desc">{{ item.desc }}</p>
-            </div>
-            <span class="card__arrow">→</span>
-          </article>
-        </div>
+        <MapMenuList :items="PALACE_MENU" @select="palaceView = $event.id" />
       </template>
 
       <template v-else-if="palaceView === 'steal'">
@@ -552,10 +580,44 @@ function closePanel() {
         <AssassinationCard npc-id="queen" @feedback="feed = $event" />
       </template>
 
-      <div v-else class="placeholder">
-        <span class="eyebrow">占位 · {{ palacePlaceholder?.name }}</span>
-        <p>{{ palacePlaceholder?.desc }}石阶、烛火与长廊都还只是轮廓，这里的内容会在后续版本接入。</p>
-      </div>
+      <template v-else-if="palaceView === 'arena'">
+        <p class="pane__desc">{{ ARENA.desc }}</p>
+        <div class="chips">
+          <span>必须空手 · 不装备近战/远程武器</span>
+          <span>消耗 {{ ARENA.turns }} 回合（有衰减）</span>
+          <span>生命 -{{ ARENA.hpCost }}</span>
+          <span>理智 -{{ ARENA.sanityCost }}</span>
+          <span>每天 {{ ARENA.dailyLimit }} 次</span>
+          <span>今日剩余 {{ arenaRemaining }} 次</span>
+        </div>
+        <div class="chips">
+          <span>拳头天赋 {{ arenaTitleName }} · Lv.{{ arenaLevel }}/{{ arenaMaxLevel }}</span>
+          <span>熟练度 {{ arenaProgress }} / 100</span>
+          <span>当前加成 {{ arenaEffectsText }}</span>
+        </div>
+        <div class="arena__track">
+          <div class="arena__track-fill" :style="{ width: arenaProgress + '%' }" />
+        </div>
+        <p class="arena__warn">
+          {{
+            arenaFull
+              ? '拳头天赋已经练到顶点。'
+              : '生命或理智不足 30 时上台可能直接死亡。'
+          }}
+        </p>
+        <p v-if="arenaWeaponsEquipped" class="arena__warn">
+          {{ arenaWeaponText }} · 必须全部卸下
+        </p>
+        <button
+          type="button"
+          class="btn btn--primary pane__action"
+          :disabled="!arenaCanFight"
+          @click="run(arenaFight)"
+        >
+          {{ arenaActionLabel }}
+        </button>
+      </template>
+
     </section>
 
     <section v-else-if="view === 'bank'" class="pane">
@@ -871,61 +933,6 @@ function closePanel() {
 </template>
 
 <style scoped>
-.menu {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 14px;
-}
-
-.card {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 16px;
-  border: 1px solid var(--line);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
-  cursor: pointer;
-  transition: 0.22s;
-}
-
-.card:hover {
-  border-color: rgba(193, 74, 50, 0.55);
-  background: rgba(193, 74, 50, 0.07);
-}
-
-.card__no {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--text-mute);
-  padding-top: 3px;
-}
-
-.card__main {
-  min-width: 0;
-}
-
-.card__name {
-  margin: 0;
-  font-family: var(--font-title);
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  color: var(--text);
-}
-
-.card__desc {
-  margin: 6px 0 0;
-  font-size: 10.5px;
-  line-height: 1.7;
-  color: var(--text-mute);
-}
-
-.card__arrow {
-  margin-left: auto;
-  color: var(--text-mute);
-}
-
 .pane {
   margin-top: 14px;
   padding: 18px;
@@ -998,6 +1005,29 @@ function closePanel() {
   font-size: 10.5px;
   letter-spacing: 0.05em;
   color: var(--sick);
+}
+
+.arena__warn {
+  margin: 0;
+  padding: 7px 9px;
+  font-size: 10px;
+  line-height: 1.7;
+  letter-spacing: 0.04em;
+  color: var(--rust-soft);
+  border: 1px solid rgba(193, 74, 50, 0.4);
+  background: rgba(193, 74, 50, 0.08);
+}
+
+.arena__track {
+  height: 4px;
+  background: rgba(214, 208, 191, 0.12);
+  overflow: hidden;
+}
+
+.arena__track-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--rust), var(--rust-soft));
+  transition: width 0.4s ease;
 }
 
 .salary {
@@ -1090,21 +1120,6 @@ function closePanel() {
   padding: 0 14px;
   font-size: 11px;
   flex: none;
-}
-
-.placeholder {
-  margin-top: 16px;
-  padding: 28px 24px;
-  border: 1px dashed var(--line-strong);
-  text-align: center;
-}
-
-.placeholder p {
-  max-width: 460px;
-  margin: 12px auto 0;
-  font-size: 11.5px;
-  line-height: 1.9;
-  color: var(--text-mute);
 }
 
 .loan {
@@ -1494,17 +1509,7 @@ function closePanel() {
   font-size: 10.5px;
 }
 
-@media (max-width: 900px) {
-  .menu {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
 @media (max-width: 620px) {
-  .menu {
-    grid-template-columns: 1fr;
-  }
-
   .row {
     flex-wrap: wrap;
   }

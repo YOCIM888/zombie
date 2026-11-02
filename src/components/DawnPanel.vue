@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import {
   CLEANLINESS_MAX,
+  CORRIDOR,
   DAWN_IDENTITY_LEVELS,
   DAWN_JOIN_KILLS,
   DAWN_MARKET,
@@ -12,15 +13,21 @@ import {
   QUEST_OWNERS,
   REPAIR_PERCENT_PER_COIN,
   ROTTEN_SEED,
+  TALENTS,
+  TALENT_EFFECT_LABELS,
   dawnInfo,
   getItem,
   npcById,
   repairCoinCost,
+  talentEffects,
+  talentTitle,
 } from '../data'
 import { MAPS } from '../game/config'
 import {
   claimDawnRelief,
   cooldownLeft,
+  corridorFight,
+  corridorLeft,
   countFruits,
   currentPhase,
   game,
@@ -46,6 +53,7 @@ import {
 import { battle, resetBattle, startDawnCombat, startLeaderCombat } from '../game/battle'
 import AssassinationCard from './AssassinationCard.vue'
 import BattleView from './BattleView.vue'
+import MapMenuList from './MapMenuList.vue'
 import ModalShell from './ModalShell.vue'
 import QuestLinePanel from './QuestLinePanel.vue'
 import StatusHud from './StatusHud.vue'
@@ -57,6 +65,7 @@ const MENU = [
   ...DAWN_NPCS.map((npc) => ({ ...npc, placeholder: !npc.implemented })),
   { id: 'market', no: '09', name: '曙光市场', desc: '普通远程武器、绷带与罐头，明码标价。' },
   { id: 'salvage', no: '10', name: '物资回收', desc: '背包里的多余武器按品质结算曙光币。' },
+  { id: 'corridor', no: '11', name: '行尸走廊', desc: '赤手空拳穿过走廊，每天两次，提升远程闪避天赋。' },
 ]
 
 const map = MAPS.find((item) => item.id === 'dawn-post')
@@ -106,6 +115,54 @@ const rangedRepair = computed(() => {
   const cost = repairCoinCost(current, CLEANLINESS_MAX)
   return { name: def?.name ?? '远程武器', current, cost, state: cost > 0 ? 'dirty' : 'clean' }
 })
+const corridorLevel = computed(() => Number(game.talents.corridor) || 0)
+const corridorMaxLevel = computed(() => TALENTS.corridor.maxLevel)
+const corridorFull = computed(() => corridorLevel.value >= corridorMaxLevel.value)
+const corridorProgress = computed(() =>
+  corridorFull.value ? 100 : Math.max(0, Math.min(99, Number(game.training.corridor) || 0)),
+)
+const corridorRemaining = computed(() => corridorLeft())
+const corridorWeaponsEquipped = computed(() =>
+  Boolean(game.equipment.melee || game.equipment.ranged),
+)
+const corridorWeaponText = computed(() => {
+  const parts = []
+  if (game.equipment.melee) {
+    parts.push(`近战：${getItem(game.equipment.melee.id)?.name ?? '已装备'}`)
+  }
+  if (game.equipment.ranged) {
+    parts.push(`远程：${getItem(game.equipment.ranged.id)?.name ?? '已装备'}`)
+  }
+  return parts.join(' · ')
+})
+const corridorTitleName = computed(
+  () => talentTitle('corridor', corridorLevel.value) || '暂无天赋',
+)
+const corridorEffectsText = computed(() => {
+  const effects = talentEffects('corridor', corridorLevel.value)
+  const entries = Object.entries(effects)
+  if (!entries.length) return '—'
+  return entries
+    .map(([key, value]) => {
+      const label = TALENT_EFFECT_LABELS[key] ?? key
+      return `${label} +${key === 'damage' ? value : Math.round(value * 100) + '%'}`
+    })
+    .join(' · ')
+})
+const corridorCanFight = computed(
+  () =>
+    !game.dead &&
+    !corridorWeaponsEquipped.value &&
+    !corridorFull.value &&
+    corridorRemaining.value > 0,
+)
+const corridorActionLabel = computed(() => {
+  if (corridorFull.value) return '远程闪避天赋已满级'
+  if (corridorWeaponsEquipped.value) return '请先卸下所有武器'
+  if (corridorRemaining.value <= 0) return '今日走廊次数已用完'
+  return '进入行尸走廊 · 1 回合'
+})
+
 const recyclables = computed(() =>
   game.inventory
     .map((entry, index) => {
@@ -198,16 +255,7 @@ function closePanel() {
       <StatusHud />
     </template>
 
-    <section v-if="view === 'menu'" class="menu">
-      <article v-for="item in MENU" :key="item.id" class="card" @click="go(item)">
-        <span class="card__no">{{ item.no }}</span>
-        <div class="card__main">
-          <h3 class="card__name">{{ item.name }}</h3>
-          <p class="card__desc">{{ item.desc }}</p>
-        </div>
-        <span class="card__arrow">→</span>
-      </article>
-    </section>
+    <MapMenuList v-if="view === 'menu'" :items="MENU" @select="go" />
 
     <section v-else-if="view === 'fight'" class="pane">
       <header class="pane__head">
@@ -412,6 +460,48 @@ function closePanel() {
         </article>
       </div>
       <p v-else class="pane__note">背包里没有可回收的多余武器。</p>
+    </section>
+
+    <section v-else-if="view === 'corridor'" class="pane">
+      <header class="pane__head">
+        <h3 class="pane__title">{{ CORRIDOR.title }}</h3>
+        <button type="button" class="link" @click="backToMenu">← 返回选项</button>
+      </header>
+      <p class="pane__desc">{{ CORRIDOR.desc }}</p>
+      <div class="chips">
+        <span>必须空手 · 不装备近战/远程武器</span>
+        <span>消耗 {{ CORRIDOR.turns }} 回合（有衰减）</span>
+        <span>生命 -{{ CORRIDOR.hpCost }}</span>
+        <span>感染 +{{ CORRIDOR.infectionCost }}</span>
+        <span>每天 {{ CORRIDOR.dailyLimit }} 次</span>
+        <span>今日剩余 {{ corridorRemaining }} 次</span>
+      </div>
+      <div class="chips">
+        <span>远程闪避天赋 {{ corridorTitleName }} · Lv.{{ corridorLevel }}/{{ corridorMaxLevel }}</span>
+        <span>熟练度 {{ corridorProgress }} / 100</span>
+        <span>当前加成 {{ corridorEffectsText }}</span>
+      </div>
+      <div class="corridor__track">
+        <div class="corridor__track-fill" :style="{ width: corridorProgress + '%' }" />
+      </div>
+      <p class="corridor__warn">
+        {{
+          corridorFull
+            ? '远程闪避天赋已经练到顶点。'
+            : '感染值加上 30 后达到 100 会触发「尸变」，生命不足 30 也会直接死亡。'
+        }}
+      </p>
+      <p v-if="corridorWeaponsEquipped" class="corridor__warn">
+        {{ corridorWeaponText }} · 必须全部卸下
+      </p>
+      <button
+        type="button"
+        class="btn btn--primary pane__action"
+        :disabled="!corridorCanFight"
+        @click="run(corridorFight)"
+      >
+        {{ corridorActionLabel }}
+      </button>
     </section>
 
     <section v-else-if="view === 'leader'" class="pane">
@@ -715,57 +805,6 @@ function closePanel() {
 </template>
 
 <style scoped>
-.menu {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 14px;
-}
-
-.card {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 16px;
-  border: 1px solid var(--line);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
-  cursor: pointer;
-  transition: 0.22s;
-}
-
-.card:hover {
-  border-color: rgba(193, 74, 50, 0.55);
-  background: rgba(193, 74, 50, 0.07);
-}
-
-.card__no {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--text-mute);
-  padding-top: 3px;
-}
-
-.card__name {
-  margin: 0;
-  font-family: var(--font-title);
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  color: var(--text);
-}
-
-.card__desc {
-  margin: 6px 0 0;
-  font-size: 10.5px;
-  line-height: 1.7;
-  color: var(--text-mute);
-}
-
-.card__arrow {
-  margin-left: auto;
-  color: var(--text-mute);
-}
-
 .pane {
   margin-top: 14px;
   padding: 18px;
@@ -837,6 +876,29 @@ function closePanel() {
   margin-top: 16px;
   height: 36px;
   font-size: 12px;
+}
+
+.corridor__warn {
+  margin: 0;
+  padding: 7px 9px;
+  font-size: 10px;
+  line-height: 1.7;
+  letter-spacing: 0.04em;
+  color: var(--rust-soft);
+  border: 1px solid rgba(193, 74, 50, 0.4);
+  background: rgba(193, 74, 50, 0.08);
+}
+
+.corridor__track {
+  height: 4px;
+  background: rgba(214, 208, 191, 0.12);
+  overflow: hidden;
+}
+
+.corridor__track-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--rust), var(--rust-soft));
+  transition: width 0.4s ease;
 }
 
 .identity {
@@ -1111,17 +1173,7 @@ function closePanel() {
   font-size: 10.5px;
 }
 
-@media (max-width: 900px) {
-  .menu {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
 @media (max-width: 620px) {
-  .menu {
-    grid-template-columns: 1fr;
-  }
-
   .row {
     flex-wrap: wrap;
   }
