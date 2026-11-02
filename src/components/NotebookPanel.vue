@@ -23,8 +23,6 @@ import StatusHud from './StatusHud.vue'
 defineEmits(['close'])
 
 const NEED_KNIGHT = () => identityRank(game.identity) < 1
-const airshipDiscovered = () =>
-  Array.isArray(game.flags.visitedMaps) && game.flags.visitedMaps.includes(AIRSHIP.mapId)
 
 function practiceRowState(kind) {
   if ((game.talents[kind] ?? 0) >= AIRSHIP.practice.maxLevel) {
@@ -174,7 +172,6 @@ const GROUPS = [
   },
   {
     title: '末日飞行船',
-    visible: airshipDiscovered,
     rows: [
       {
         name: '招待会所',
@@ -250,8 +247,6 @@ const groups = computed(() =>
   })),
 )
 
-const airshipVisible = computed(airshipDiscovered)
-
 const stockChanges = computed(() => {
   const market = game.market
   return AIRSHIP_STOCKS.map((stock) => {
@@ -296,7 +291,7 @@ const stockChanges = computed(() => {
         </div>
       </section>
 
-      <section v-if="airshipVisible" class="book__group">
+      <section class="book__group">
         <h3 class="book__title">末日飞行船 · 投资行情</h3>
         <div class="book__rows">
           <article v-for="stock in stockChanges" :key="stock.id" class="entry">

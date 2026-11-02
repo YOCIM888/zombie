@@ -198,14 +198,6 @@ function closePanel() {
       <StatusHud />
     </template>
 
-    <div class="status">
-      <span class="status__item">曙光币 <b>{{ game.dawnCoins }}</b></span>
-      <span class="status__item">身份 <b>{{ game.dawnIdentity ?? '无' }}</b></span>
-      <span class="status__item">历史最高 <b>{{ game.maxDawnIdentity ?? '无' }}</b></span>
-      <span class="status__item">击杀 <b>{{ game.zombieKills }} / {{ DAWN_JOIN_KILLS }}</b></span>
-      <span class="status__risk">{{ map.difficulty }}</span>
-    </div>
-
     <section v-if="view === 'menu'" class="menu">
       <article v-for="item in MENU" :key="item.id" class="card" @click="go(item)">
         <span class="card__no">{{ item.no }}</span>
@@ -255,7 +247,7 @@ function closePanel() {
       <p class="pane__desc">物资箱里堆着附近农场送来的水果。每人每天一份，管事会盯着你的手。</p>
       <div class="chips">
         <span>每天一次</span>
-        <span>随机水果 ×1</span>
+        <span>随机水果 ×2</span>
         <span>不消耗回合</span>
         <span>{{ reliefLeft > 0 ? `冷却 ${reliefLeft} 天` : '今日可领' }}</span>
       </div>
@@ -723,34 +715,6 @@ function closePanel() {
 </template>
 
 <style scoped>
-.status {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-  padding: 10px 14px;
-  border: 1px solid var(--line);
-  background: rgba(0, 0, 0, 0.28);
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  color: var(--text-mute);
-}
-
-.status b {
-  font-family: var(--font-mono);
-  font-weight: 500;
-  color: var(--bone);
-}
-
-.status__risk {
-  margin-left: auto;
-  color: var(--sick);
-  border: 1px solid rgba(124, 152, 64, 0.45);
-  padding: 2px 8px;
-  font-size: 10px;
-  letter-spacing: 0.12em;
-}
-
 .menu {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

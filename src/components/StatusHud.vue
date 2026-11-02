@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { STAT_DEFS, STAT_MAX } from '../game/config'
 import { game } from '../game/store'
+import { formatMoney } from '../data'
 
 const RING_SIZE = 34
 const RING_STROKE = 3
@@ -65,13 +66,13 @@ const stats = computed(() =>
     <article class="hud__item hud__item--coin" aria-label="末日币">
       <span class="coin__badge coin__badge--doom">末</span>
       <span class="hud__label">末日币</span>
-      <b class="coin__value coin__value--doom">{{ game.coins }}</b>
+      <b class="coin__value coin__value--doom">{{ formatMoney(game.coins) }}</b>
     </article>
 
     <article class="hud__item hud__item--coin" aria-label="曙光币">
       <span class="coin__badge coin__badge--dawn">曙</span>
       <span class="hud__label">曙光币</span>
-      <b class="coin__value coin__value--dawn">{{ game.dawnCoins }}</b>
+      <b class="coin__value coin__value--dawn">{{ formatMoney(game.dawnCoins) }}</b>
     </article>
   </section>
 </template>
@@ -169,13 +170,33 @@ const stats = computed(() =>
 
 @media (max-width: 900px) {
   .hud {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 520px) {
-  .hud {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .hud__item {
+    column-gap: 6px;
+    padding: 5px 6px;
+  }
+
+  .hud__ring,
+  .coin__badge {
+    width: 28px;
+    height: 28px;
+  }
+
+  .coin__badge {
+    font-size: 11px;
+  }
+
+  .hud__label {
+    font-size: 9px;
+  }
+
+  .hud__percent,
+  .coin__value {
+    font-size: 10px;
   }
 }
 </style>

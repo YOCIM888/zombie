@@ -1,4 +1,4 @@
-import { computed, reactive } from 'vue'
+import { computed, reactive, watch } from 'vue'
 import { ACHIEVEMENTS, DEFAULT_CHARACTER_NAME, DEFAULT_STATS, MAPS, STAT_DEFS, STAT_ENDINGS } from './config'
 import { preloadAssets } from './assets'
 import { startMusic } from './music'
@@ -28,8 +28,10 @@ import {
   STOCK_PRICE_MAX,
   STOCK_PRICE_MIN,
   commissionForDay,
+  formatMoney,
   oilPriceForDay,
   rollStockPrices,
+  roundToCents,
   stockProfitRounded,
   stockTradeFee,
   ITEMS,
@@ -146,6 +148,24 @@ export const game = reactive({
   sessionSeconds: 0,
   toast: '',
 })
+
+// 货币统一按分归一化，避免小数余额在整币加减时累积浮点误差
+watch(
+  () => game.coins,
+  (value) => {
+    const next = Math.max(0, roundToCents(value))
+    if (!Object.is(next, value)) game.coins = next
+  },
+  { flush: 'sync' },
+)
+watch(
+  () => game.dawnCoins,
+  (value) => {
+    const next = Math.max(0, roundToCents(value))
+    if (!Object.is(next, value)) game.dawnCoins = next
+  },
+  { flush: 'sync' },
+)
 
 /** 开发者控制台状态：只在当前页面会话内生效，不写入存档 */
 export const devState = reactive({
@@ -347,8 +367,8 @@ function applySlot(slot) {
       ? cloneInventory(slot.inventory)
       : createInitialBackpack()
   game.equipment = cloneEquipment(slot.equipment)
-  game.coins = Number(slot.coins) || 0
-  game.dawnCoins = Number(slot.dawnCoins) || 0
+  game.coins = Math.max(0, roundToCents(Number(slot.coins) || 0))
+  game.dawnCoins = Math.max(0, roundToCents(Number(slot.dawnCoins) || 0))
   game.maxIdentity = slot.maxIdentity ?? slot.identity ?? null
   game.maxDawnIdentity = slot.maxDawnIdentity ?? slot.dawnIdentity ?? null
   game.zombieKills = Number(slot.zombieKills) || 0
@@ -877,6 +897,7 @@ export function pickOrchard() {
   const left = cooldownLeft(ORCHARD.cooldownKey, ORCHARD.cooldownDays)
   if (left > 0) return `这片果园刚摘过，还要等 ${left} 天。`
 
+  const actionDay = game.day
   advanceTurns(ORCHARD.turns)
   if (game.dead) return ''
 
@@ -887,7 +908,7 @@ export function pickOrchard() {
   const added = ORCHARD.quantity - leftover
   if (added <= 0) return '背包已满，你连一个果子都装不下。'
 
-  game.cooldowns[ORCHARD.cooldownKey] = game.day
+  game.cooldowns[ORCHARD.cooldownKey] = actionDay
   return leftover > 0
     ? `你摘到 ${def?.name ?? '水果'} ×${added}，剩下的 ${leftover} 个装不下了。`
     : `你在果树上摘到 ${def?.name ?? '水果'} ×${ORCHARD.quantity}。`
@@ -959,13 +980,14 @@ export function eatStrangeBarbecue() {
   const left = cooldownLeft(STRANGE_BARBECUE.cooldownKey, STRANGE_BARBECUE.cooldownDays)
   if (left > 0) return '今天这炉已经吃过了，阿三在收摊。'
 
+  const actionDay = game.day
   advanceTurns(STRANGE_BARBECUE.turns)
   if (game.dead) return ''
 
   adjustStats(STRANGE_BARBECUE.effects)
   if (game.dead) return ''
 
-  game.cooldowns[STRANGE_BARBECUE.cooldownKey] = game.day
+  game.cooldowns[STRANGE_BARBECUE.cooldownKey] = actionDay
   game.flags.ateStrangeMeat = true
   return '肉有点酸，但你还是咽了下去。胃里暖起来，伤口却在发烫。'
 }
@@ -1247,16 +1269,12 @@ export function stealGarageGasoline() {
   if (blocked !== null) return blocked
   if (!game.flags.garageOpened) return '得先撬开卷帘门。'
 
-  advanceTurns(1)
+  advanceTurns(2)
   if (game.dead) return ''
 
-  const amount =
-    GARAGE.fuelMin + Math.floor(Math.random() * (GARAGE.fuelMax - GARAGE.fuelMin + 1))
-  const leftover = addItem(game.inventory, GARAGE.gasolineId, amount)
-  const added = amount - leftover
-  if (added <= 0) return '背包已满，你连一桶汽油都带不走。'
-  const rest = leftover > 0 ? `，剩下的 ${leftover} 桶留在了车库` : ''
-  return `你从油桶里倒出 ${added} 桶汽油${rest}（当前 ${countGasoline()} / ${GARAGE.gasolineCount}）。`
+  const leftover = addItem(game.inventory, GARAGE.gasolineId, 1)
+  if (leftover > 0) return '你从油桶里倒出一桶汽油，可背包已经塞满了。'
+  return `你从油桶里倒出 1 桶汽油（当前 ${countGasoline()} / ${GARAGE.gasolineCount}）。`
 }
 
 /** 终点：出发私奔，可继续结局「私奔」 */
@@ -1338,6 +1356,7 @@ export function harvestYanran() {
   const left = cooldownLeft(COMPANIONS.yanran.harvestKey, COMPANIONS.yanran.cooldownDays)
   if (left > 0) return `嫣然今天已经出去过了，${left} 天后可以再来。`
 
+  const actionDay = game.day
   advanceTurns(1)
   if (game.dead) return ''
 
@@ -1352,7 +1371,7 @@ export function harvestYanran() {
   }
   if (!names.length) return '嫣然空手回来了。你的背包已经塞不下任何东西。'
 
-  game.cooldowns[COMPANIONS.yanran.harvestKey] = game.day
+  game.cooldowns[COMPANIONS.yanran.harvestKey] = actionDay
   const tail = leftoverTotal > 0 ? ' 有东西没能塞进背包。' : ''
   return `嫣然带回：${names.join('、')}。${tail}`
 }
@@ -1364,6 +1383,7 @@ export function harvestLulu() {
   const left = cooldownLeft(COMPANIONS.lulu.harvestKey, COMPANIONS.lulu.cooldownDays)
   if (left > 0) return `露露今天已经出去过了，${left} 天后可以再来。`
 
+  const actionDay = game.day
   advanceTurns(1)
   if (game.dead) return ''
 
@@ -1372,7 +1392,7 @@ export function harvestLulu() {
   const def = getItem(itemId)
   if (leftover > 0) return '露露带回了一件药品，可你的背包塞不下。'
 
-  game.cooldowns[COMPANIONS.lulu.harvestKey] = game.day
+  game.cooldowns[COMPANIONS.lulu.harvestKey] = actionDay
   return `露露带回：${def?.name ?? '药品'}。`
 }
 
@@ -1481,13 +1501,14 @@ export function extractEnergy() {
   const left = cooldownLeft(DOCTOR.energyCooldownKey, DOCTOR.energyCooldownDays)
   if (left > 0) return `能源井今天已经抽过一份，还要等 ${left} 天。`
 
+  const actionDay = game.day
   advanceTurns(1)
   if (game.dead) return ''
 
   if (addItem(game.inventory, DOCTOR.energyId, 1) > 0) {
     return '能源井吐出一份纯净能源，可你的背包塞不下。'
   }
-  game.cooldowns[DOCTOR.energyCooldownKey] = game.day
+  game.cooldowns[DOCTOR.energyCooldownKey] = actionDay
   const have = countItem(game.inventory, DOCTOR.energyId)
   return `能源井抽出 1 份纯净能源（${have} / ${DOCTOR.energyCount}）。${DOCTOR.quest2Line}`
 }
@@ -2073,6 +2094,7 @@ export function mercenaryTraining() {
   const price = DAWN_SERVICE.training.price
   if (game.dawnCoins < price) return `曙光币不足，训练需要 ${price} 枚。`
 
+  const actionDay = game.day
   advanceTurns(1)
   if (game.dead) return ''
   adjustStats({
@@ -2080,7 +2102,7 @@ export function mercenaryTraining() {
     sanity: DAWN_SERVICE.training.sanity,
   })
   game.dawnCoins -= price
-  game.cooldowns['dawn-training'] = game.day
+  game.cooldowns['dawn-training'] = actionDay
   return `薇尔陪你练了一轮：体力 +${DAWN_SERVICE.training.stamina}，理智 +${DAWN_SERVICE.training.sanity}，花费 ${price} 曙光币。`
 }
 
@@ -2091,6 +2113,7 @@ export function tendExperimentField() {
     return '苗苗说今天的田已经浇过水了，明天再来。'
   }
 
+  const actionDay = game.day
   advanceTurns(DAWN_SERVICE.tend.turns)
   if (game.dead) return ''
 
@@ -2105,7 +2128,7 @@ export function tendExperimentField() {
         : `苗苗摘了一个${def?.name ?? '水果'}给你。`
   }
 
-  game.cooldowns['field-tend'] = game.day
+  game.cooldowns['field-tend'] = actionDay
   const progress = (Number(game.flags.fieldProgress) || 0) + 1
   game.flags.fieldProgress = progress
 
@@ -2886,12 +2909,13 @@ export function airshipBanquet() {
   if (identityRank(game.identity) < hall.rank) return hall.blockedRankLine
   if (cooldownLeft(hall.cooldownKey, hall.cooldownDays) > 0) return hall.cooldownLine
 
+  const actionDay = game.day
   advanceTurns(hall.turns, { decay: false })
   if (game.dead) return ''
 
   applyStatChanges(hall.effects)
   game.flags.airshipBanquetUsed = true
-  game.cooldowns[hall.cooldownKey] = game.day
+  game.cooldowns[hall.cooldownKey] = actionDay
   const summary = Object.entries(hall.effects)
     .map(([key, value]) => `${STAT_LABELS[key] ?? key} +${value}`)
     .join('，')
@@ -2905,12 +2929,13 @@ export function airshipSpeech() {
   const speech = AIRSHIP.speech
   if (cooldownLeft(speech.cooldownKey, speech.cooldownDays) > 0) return speech.cooldownLine
 
+  const actionDay = game.day
   advanceTurns(speech.turns)
   if (game.dead) return ''
 
   game.reputation += speech.reputation
   game.flags.airshipSpoke = true
-  game.cooldowns[speech.cooldownKey] = game.day
+  game.cooldowns[speech.cooldownKey] = actionDay
   if (typeof window !== 'undefined') notify(`声望 +${speech.reputation} · 当前 ${game.reputation}`, 3200)
   return `${speech.doneLine}（声望 +${speech.reputation}，当前 ${game.reputation}）`
 }
@@ -2962,6 +2987,8 @@ function practiceOnce(kind) {
 
   const practice = AIRSHIP.practice
   const detail = practice[kind]
+  const actionDay = game.day
+  const actionState = practiceDayState()
   advanceTurns(practice.turns)
   if (game.dead) return ''
 
@@ -3010,8 +3037,11 @@ function practiceOnce(kind) {
     if (typeof window !== 'undefined') notify(`天赋提升 · ${title}`, 3400)
   }
 
-  const state = practiceDayState()
-  const next = { day: game.day, melee: state.melee, ranged: state.ranged }
+  const next = {
+    day: actionDay,
+    melee: actionState.melee,
+    ranged: actionState.ranged,
+  }
   next[kind] += 1
   game.flags[practice.flag] = next
 
@@ -3074,12 +3104,13 @@ export function airshipPartyCommission() {
     return `${party.missingLine}今天需要 ${wine?.name ?? '酒'} ×1。`
   }
 
+  const actionDay = game.day
   removeItem(game.inventory, wineId, 1)
   advanceTurns(party.turns, { decay: false })
   if (game.dead) return ''
 
   game.reputation += party.reputation
-  game.cooldowns[party.cooldownKey] = game.day
+  game.cooldowns[party.cooldownKey] = actionDay
   return `${party.doneLine}（上交 ${wine?.name ?? '酒'} ×1，声望 +${party.reputation}，当前 ${game.reputation}）`
 }
 
@@ -3089,6 +3120,7 @@ export function airshipChoreCommission() {
   const chore = AIRSHIP.commission.chore
   if (cooldownLeft(chore.cooldownKey, chore.cooldownDays) > 0) return chore.cooldownLine
 
+  const actionDay = game.day
   const stamina = commissionForDay(game.day).stamina
   advanceTurns(chore.turns, { decay: false })
   if (game.dead) return ''
@@ -3097,7 +3129,7 @@ export function airshipChoreCommission() {
   if (game.dead) return ''
 
   game.reputation += chore.reputation
-  game.cooldowns[chore.cooldownKey] = game.day
+  game.cooldowns[chore.cooldownKey] = actionDay
   return `${chore.doneLine}（体力 -${stamina}，声望 +${chore.reputation}，当前 ${game.reputation}）`
 }
 
@@ -3144,9 +3176,12 @@ export function buyAirshipGasoline(quantity) {
 /* ===== 投资中心 ===== */
 
 function clampStockPrice(value, fallback) {
-  const price = Number(value)
+  const price = value === null || value === undefined || value === '' ? NaN : Number(value)
   if (!Number.isFinite(price)) return fallback
-  return Math.max(STOCK_PRICE_MIN, Math.min(STOCK_PRICE_MAX, Math.round(price)))
+  return Math.max(
+    STOCK_PRICE_MIN,
+    Math.min(STOCK_PRICE_MAX, roundToCents(price)),
+  )
 }
 
 function createStockMarket(day) {
@@ -3160,6 +3195,7 @@ function createStockMarket(day) {
     prev: { ...prices },
     holdings: {},
     realized: 0,
+    realizedRaw: 0,
   }
 }
 
@@ -3181,12 +3217,18 @@ function normalizeStockMarket(raw) {
     if (shares > 0) holdings[stock.id] = { shares, cost }
   }
 
+  const realized = roundToCents(Number(raw.realized) || 0)
+  const realizedRaw = Number.isFinite(Number(raw.realizedRaw))
+    ? Number(raw.realizedRaw)
+    : realized
+
   return {
     day: Math.max(0, Math.floor(Number(raw.day) || 0)),
     prices,
     prev,
     holdings,
-    realized: Math.round(Number(raw.realized) || 0),
+    realized,
+    realizedRaw,
   }
 }
 
@@ -3202,6 +3244,7 @@ function cloneStockMarket(market) {
     prev: { ...market.prev },
     holdings,
     realized: market.realized,
+    realizedRaw: market.realizedRaw ?? market.realized,
   }
 }
 
@@ -3245,22 +3288,22 @@ export function buyAirshipStock(stockId, quantity) {
   ensureStockMarketDay()
 
   const price = game.market.prices[stockId]
-  const gross = price * qty
+  const gross = roundToCents(price * qty)
   const fee = stockTradeFee(gross)
-  const total = gross + fee
+  const total = roundToCents(gross + fee)
   if (game.coins < total) {
-    return `末日币不足，买入需要 ${total} 枚（含 ${fee} 手续费）。`
+    return `末日币不足，买入需要 ${formatMoney(total)} 枚（含 ${formatMoney(fee)} 手续费）。`
   }
 
   const holding = game.market.holdings[stockId] ?? { shares: 0, cost: 0 }
   holding.shares += qty
-  holding.cost += total
+  holding.cost = roundToCents(holding.cost + total)
   game.market.holdings[stockId] = holding
-  game.coins -= total
-  return `买入 ${stock.name} ${qty} 股，单价 ${price}，手续费 ${fee}，共 ${total} 末日币。`
+  game.coins = roundToCents(game.coins - total)
+  return `买入 ${stock.name} ${qty} 股，单价 ${formatMoney(price)}，手续费 ${formatMoney(fee)}，共 ${formatMoney(total)} 末日币。`
 }
 
-/** 卖出股票：按平均成本结转，盈利向下取整，亏损向上取整 */
+/** 卖出股票：按平均成本结转，按累计盈亏取整，避免多次卖出产生 1 币误差 */
 export function sellAirshipStock(stockId, quantity) {
   if (game.dead) return ''
   if (game.location !== AIRSHIP.mapId) return '投资中心在末日飞行船上。'
@@ -3277,11 +3320,22 @@ export function sellAirshipStock(stockId, quantity) {
   }
 
   const price = game.market.prices[stockId]
-  const gross = price * qty
+  const gross = roundToCents(price * qty)
   const fee = stockTradeFee(gross)
-  const proceeds = gross - fee
+  const proceeds = roundToCents(gross - fee)
+  if (proceeds < 0) {
+    return `当前价格过低，卖出 ${qty} 股所得不足以支付 ${formatMoney(fee)} 手续费。`
+  }
   const cost = holding.cost * (qty / holding.shares)
-  const realized = stockProfitRounded(proceeds - cost)
+  const rawPnl = proceeds - cost
+
+  const previousRaw = Number.isFinite(Number(game.market.realizedRaw))
+    ? Number(game.market.realizedRaw)
+    : Number(game.market.realized) || 0
+  const previousRounded = Number(game.market.realized) || 0
+  const rawTotal = Math.round((previousRaw + rawPnl) * 1e6) / 1e6
+  const roundedTotal = stockProfitRounded(rawTotal)
+  const realized = roundedTotal - previousRounded
 
   holding.shares -= qty
   holding.cost -= cost
@@ -3290,9 +3344,10 @@ export function sellAirshipStock(stockId, quantity) {
     holding.cost = 0
   }
   game.market.holdings[stockId] = holding
-  game.coins += proceeds
-  game.market.realized += realized
+  game.coins = roundToCents(game.coins + proceeds)
+  game.market.realized = roundedTotal
+  game.market.realizedRaw = rawTotal
 
-  const pnlText = realized > 0 ? `+${realized}` : `${realized}`
-  return `卖出 ${stock.name} ${qty} 股，单价 ${price}，手续费 ${fee}，到账 ${proceeds} 末日币。本次盈亏 ${pnlText}。`
+  const pnlText = realized > 0 ? `+${formatMoney(realized)}` : formatMoney(realized)
+  return `卖出 ${stock.name} ${qty} 股，单价 ${formatMoney(price)}，手续费 ${formatMoney(fee)}，到账 ${formatMoney(proceeds)} 末日币。本次盈亏 ${pnlText}。`
 }

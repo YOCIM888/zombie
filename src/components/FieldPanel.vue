@@ -364,13 +364,6 @@ function closePanel() {
       <StatusHud />
     </template>
 
-    <div class="status">
-      <span class="status__item">末日币 <b>{{ game.coins }}</b></span>
-      <span class="status__item">曙光币 <b>{{ game.dawnCoins }}</b></span>
-      <span class="status__item">击杀 <b>{{ game.zombieKills }}</b></span>
-      <span class="status__risk">{{ map.difficulty }}</span>
-    </div>
-
     <section v-if="battle.active || battle.finished" class="pane">
       <header class="pane__head">
         <h3 class="pane__title">遭遇战</h3>
@@ -861,6 +854,7 @@ function closePanel() {
           </p>
           <div v-if="garageUnlocked && !garageDeparted" class="chips">
             <span>汽油 {{ gasolineCount }} / {{ GARAGE.gasolineCount }}</span>
+            <span v-if="garageOpened">每 2 回合 +1 桶</span>
             <span v-if="!garageKeyFound">车钥匙 未找到</span>
             <span v-if="!garageOpened && !hasCrowbar">需要装备撬棍</span>
           </div>
@@ -888,7 +882,7 @@ function closePanel() {
               class="btn btn--primary extra__action"
               @click="run(stealGarageGasoline)"
             >
-              偷取汽油 · 1 回合
+              偷取汽油 · 2 回合
             </button>
             <button
               v-else
@@ -1157,37 +1151,6 @@ function closePanel() {
 </template>
 
 <style scoped>
-.status {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--line);
-}
-
-.status__item {
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
-  color: var(--text-mute);
-}
-
-.status__item b {
-  font-family: var(--font-mono);
-  font-weight: 500;
-  color: var(--bone);
-}
-
-.status__risk {
-  margin-left: auto;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  color: var(--rust-soft);
-  border: 1px solid rgba(193, 74, 50, 0.5);
-  padding: 2px 7px;
-}
-
 .pane {
   display: flex;
   flex-direction: column;

@@ -1,5 +1,6 @@
 // 末日飞行船：隐藏地图、直升机入口、招待会所、高台政变、练习与高价商店
 import { ITEMS } from './items'
+import { ceilToCents, floorToCents, roundToCents } from './money'
 import { ZOMBIE_TYPES } from './zombies'
 
 /** 隐藏地图：只能通过荒废警局的老旧直升机前往 */
@@ -120,6 +121,7 @@ export const AIRSHIP = {
       staminaMin: 10,
       staminaMax: 25,
       desc: '搬箱子、修护栏、清理甲板缝里的旧血。没人愿意干的活，总会轮到你。',
+      warningLine: '建议体力高于 25 再接下这份活；体力归零会触发「过劳」结局。',
       cooldownLine: '今天的杂物委托已经做完了。',
       doneLine: '你把手上的灰拍掉。活不算体面，但管事的记了你的名字。',
     },
@@ -239,40 +241,52 @@ export const AIRSHIP_STOCKS = [
   },
 ]
 
-export const STOCK_PRICE_MIN = 10
-export const STOCK_PRICE_MAX = 200
+export const STOCK_PRICE_MIN = 0.01
+export const STOCK_PRICE_MAX = 300
 export const STOCK_FEE_RATE = 0.01
 export const STOCK_FEE_MIN = 1
 
-/** 交易手续费：成交额的 1%，不足 1 币按 1 币计 */
-export function stockTradeFee(amount) {
-  return Math.max(STOCK_FEE_MIN, Math.ceil((Number(amount) || 0) * STOCK_FEE_RATE))
+function normalizeStockPrice(value, fallback) {
+  const amount = value === null || value === undefined || value === '' ? NaN : Number(value)
+  const price = Number.isFinite(amount) ? amount : Number(fallback) || STOCK_PRICE_MIN
+  return Math.max(
+    STOCK_PRICE_MIN,
+    Math.min(STOCK_PRICE_MAX, roundToCents(price)),
+  )
 }
 
-/** 盈亏取整：盈利向下取整，亏损向上取整 */
+/** 交易手续费：成交额的 1%，向上取整到分，最低 1 币 */
+export function stockTradeFee(amount) {
+  return Math.max(
+    STOCK_FEE_MIN,
+    ceilToCents((Number(amount) || 0) * STOCK_FEE_RATE),
+  )
+}
+
+/** 盈亏取整：盈利截断到分，亏损向上补到分 */
 export function stockProfitRounded(value) {
   const amount = Number(value) || 0
-  return amount >= 0 ? Math.floor(amount) : -Math.ceil(-amount)
+  return amount >= 0 ? floorToCents(amount) : -ceilToCents(-amount)
 }
 
-/** 每日行情：按股票与日期生成 5%-15% 的涨跌，价格限制在 10-200 */
+/** 每日行情：按股票与日期生成 5%-15% 的涨跌，价格限制在 0.01-300 */
 export function rollStockPrices(prices, day) {
   const next = {}
   AIRSHIP_STOCKS.forEach((stock, index) => {
-    const current = Math.max(
-      STOCK_PRICE_MIN,
-      Math.min(
-        STOCK_PRICE_MAX,
-        Math.round(Number(prices?.[stock.id]) || stock.basePrice),
-      ),
-    )
+    const current = normalizeStockPrice(prices?.[stock.id], stock.basePrice)
     const percent = 5 + (dayHash(day, 50 + index) % 11)
-    const up = dayHash(day, 60 + index) % 2 === 0
+    let up = dayHash(day, 60 + index) % 2 === 0
+
+    // 触底必涨、封顶必跌，保证每天都有变化
+    if (current <= STOCK_PRICE_MIN) up = true
+    else if (current >= STOCK_PRICE_MAX) up = false
+
     const raw = current * (1 + (up ? 1 : -1) * percent / 100)
-    next[stock.id] = Math.max(
-      STOCK_PRICE_MIN,
-      Math.min(STOCK_PRICE_MAX, Math.round(raw)),
-    )
+    let price = normalizeStockPrice(raw, current)
+    if (price === current) {
+      price = normalizeStockPrice(current + (up ? 0.01 : -0.01), current)
+    }
+    next[stock.id] = price
   })
   return next
 }

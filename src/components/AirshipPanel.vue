@@ -7,6 +7,8 @@ import {
   AIRSHIP_SHOPS,
   AIRSHIP_STOCKS,
   HELICOPTER,
+  formatMoney,
+  roundToCents,
   stockProfitRounded,
   stockTradeFee,
   PRACTICE_TALENTS,
@@ -202,22 +204,26 @@ const selectedStock = computed(
 const selectedHolding = computed(() => selectedStock.value?.holding ?? { shares: 0, cost: 0 })
 const stockBuyCount = computed(() => Math.max(0, Math.floor(Number(stockBuyQty.value) || 0)))
 const stockSellCount = computed(() => Math.max(0, Math.floor(Number(stockSellQty.value) || 0)))
-const stockBuyGross = computed(() => stockBuyCount.value * (selectedStock.value?.price ?? 0))
-const stockSellGross = computed(() => stockSellCount.value * (selectedStock.value?.price ?? 0))
+const stockBuyGross = computed(() =>
+  roundToCents(stockBuyCount.value * (selectedStock.value?.price ?? 0)),
+)
+const stockSellGross = computed(() =>
+  roundToCents(stockSellCount.value * (selectedStock.value?.price ?? 0)),
+)
 const stockBuyFee = computed(() =>
   stockBuyCount.value > 0 ? stockTradeFee(stockBuyGross.value) : 0,
 )
 const stockSellFee = computed(() =>
   stockSellCount.value > 0 ? stockTradeFee(stockSellGross.value) : 0,
 )
-const stockBuyTotal = computed(() => stockBuyGross.value + stockBuyFee.value)
-const stockSellNet = computed(() => stockSellGross.value - stockSellFee.value)
-const stockMarketValue = computed(
-  () => (selectedStock.value?.price ?? 0) * selectedHolding.value.shares,
+const stockBuyTotal = computed(() => roundToCents(stockBuyGross.value + stockBuyFee.value))
+const stockSellNet = computed(() => roundToCents(stockSellGross.value - stockSellFee.value))
+const stockMarketValue = computed(() =>
+  roundToCents((selectedStock.value?.price ?? 0) * selectedHolding.value.shares),
 )
 const stockAvgCostText = computed(() =>
   selectedHolding.value.shares > 0
-    ? (selectedHolding.value.cost / selectedHolding.value.shares).toFixed(1)
+    ? formatMoney(selectedHolding.value.cost / selectedHolding.value.shares)
     : '—',
 )
 const stockUnrealized = computed(() =>
@@ -321,7 +327,7 @@ function buyGas() {
 
 function profitText(value) {
   const amount = stockProfitRounded(value)
-  return amount > 0 ? `+${amount}` : `${amount}`
+  return amount > 0 ? `+${formatMoney(amount)}` : formatMoney(amount)
 }
 
 function changeText(value) {
@@ -405,14 +411,6 @@ function closePanel() {
       <StatusHud />
     </template>
 
-    <div class="status">
-      <span class="status__item">末日币 <b>{{ game.coins }}</b></span>
-      <span class="status__item">声望 <b>{{ game.reputation }}</b></span>
-      <span class="status__item">当前身份 <b>{{ game.identity ?? '平民' }}</b></span>
-      <span class="status__item">身份上限 <b>{{ game.maxIdentity ?? '无' }}</b></span>
-      <span class="status__risk">{{ map.difficulty }}</span>
-    </div>
-
     <section v-if="activeBattle" class="pane">
       <header class="pane__head">
         <h3 class="pane__title">
@@ -484,6 +482,7 @@ function closePanel() {
             <div class="chips">
               <span>{{ AIRSHIP.cargo.enemyName }}</span>
               <span v-if="cargoEnemy">生命 {{ cargoEnemy.hp }} · 攻击 {{ cargoEnemy.attack }}</span>
+              <span>消耗 1 回合</span>
               <span>击败后回来提交任务</span>
             </div>
             <button
@@ -719,7 +718,7 @@ function closePanel() {
         <article class="extra">
           <header class="extra__head">
             <h4 class="extra__title">战斗委托</h4>
-            <span class="extra__tag">{{ battleLeft > 0 ? '今日已完成' : '每日一次' }}</span>
+            <span class="extra__tag">{{ battleLeft > 0 ? '今日已接取' : '每日一次' }}</span>
           </header>
           <p class="extra__desc">{{ AIRSHIP.commission.battle.desc }}</p>
           <div class="chips">
@@ -735,7 +734,7 @@ function closePanel() {
             :disabled="game.dead || battleLeft > 0 || battle.active"
             @click="run(startAirshipCommissionBattle)"
           >
-            {{ battleLeft > 0 ? `还要等 ${battleLeft} 天` : '接受战斗委托 · 1 回合' }}
+            {{ battleLeft > 0 ? '今日已接取' : '接受战斗委托 · 1 回合' }}
           </button>
         </article>
 
@@ -778,6 +777,7 @@ function closePanel() {
             <span>消耗 1 回合 · 无衰减</span>
             <span>声望 +{{ AIRSHIP.commission.chore.reputation }}</span>
           </div>
+          <p class="extra__warn">{{ AIRSHIP.commission.chore.warningLine }}</p>
           <button
             type="button"
             class="btn btn--primary extra__action"
@@ -802,7 +802,7 @@ function closePanel() {
           <p class="extra__desc">{{ AIRSHIP.oil.desc }}</p>
           <div class="chips">
             <span>持有汽油 {{ gasolineCount }} 桶</span>
-            <span>末日币 {{ game.coins }}</span>
+            <span>末日币 {{ formatMoney(game.coins) }}</span>
           </div>
           <div class="deal">
             <span class="deal__label">提交数量</span>
@@ -836,7 +836,7 @@ function closePanel() {
             价格每天浮动。铁皮桶按桶卖，不赊账，也不讲价。
           </p>
           <div class="chips">
-            <span>末日币 {{ game.coins }}</span>
+            <span>末日币 {{ formatMoney(game.coins) }}</span>
             <span>单价 {{ oilPrice }} 末日币 / 桶</span>
             <span>每日价格刷新</span>
           </div>
@@ -851,8 +851,8 @@ function closePanel() {
               step="1"
             />
             <span class="deal__hint">
-              合计 {{ buyTotal }} 末日币<template v-if="game.coins < buyTotal">
-                · 还差 {{ buyTotal - game.coins }}</template>
+              合计 {{ formatMoney(buyTotal) }} 末日币<template v-if="game.coins < buyTotal">
+                · 还差 {{ formatMoney(buyTotal - game.coins) }}</template>
             </span>
           </div>
           <button
@@ -869,10 +869,10 @@ function closePanel() {
       <div v-else-if="view === 'investment'" class="market">
         <header class="market__head">
           <h3 class="pane__title">投资中心 · 云上行情终端</h3>
-          <span class="tag">第 {{ game.day }} 天 · 末日币 {{ game.coins }}</span>
+          <span class="tag">第 {{ game.day }} 天 · 末日币 {{ formatMoney(game.coins) }}</span>
         </header>
         <p class="pane__desc">
-          六支股票每日刷新，价格 10-200 末日币。买入卖出各收 1% 手续费，最低 1 币。
+          六支股票每日刷新，价格 0.01-300 末日币，最多两位小数。买入卖出各收 1% 手续费，最低 1 币。
         </p>
 
         <div class="market__grid">
@@ -889,7 +889,7 @@ function closePanel() {
                 <b class="stock__name">{{ row.name }}</b>
                 <em class="stock__sector">{{ row.sector }}</em>
               </span>
-              <span class="stock__price">{{ row.price }}</span>
+              <span class="stock__price">{{ formatMoney(row.price) }}</span>
               <span
                 class="stock__change"
                 :class="{ 'is-up': row.change > 0, 'is-down': row.change < 0 }"
@@ -910,11 +910,11 @@ function closePanel() {
                 </h4>
                 <p class="good__note">{{ selectedStock.desc }}</p>
               </div>
-              <span class="market__price">{{ selectedStock.price }} 币</span>
+              <span class="market__price">{{ formatMoney(selectedStock.price) }} 币</span>
             </header>
 
             <div class="chips">
-              <span>昨日 {{ selectedStock.prev }}</span>
+              <span>昨日 {{ formatMoney(selectedStock.prev) }}</span>
               <span
                 :class="{
                   'is-up': selectedStock.change > 0,
@@ -925,7 +925,7 @@ function closePanel() {
               </span>
               <span>持有 {{ selectedHolding.shares }} 股</span>
               <span>成本均价 {{ stockAvgCostText }}</span>
-              <span>持仓市值 {{ stockMarketValue }}</span>
+              <span>持仓市值 {{ formatMoney(stockMarketValue) }}</span>
               <span>浮动盈亏 {{ profitText(stockUnrealized) }}</span>
             </div>
 
@@ -940,8 +940,8 @@ function closePanel() {
                 step="1"
               />
               <span class="deal__hint">
-                {{ stockBuyCount }} 股 · {{ stockBuyGross }} + 手续费
-                {{ stockBuyFee }} = {{ stockBuyTotal }}
+                {{ stockBuyCount }} 股 · {{ formatMoney(stockBuyGross) }} + 手续费
+                {{ formatMoney(stockBuyFee) }} = {{ formatMoney(stockBuyTotal) }}
               </span>
             </div>
             <button
@@ -950,7 +950,7 @@ function closePanel() {
               :disabled="game.dead || stockBuyCount <= 0 || game.coins < stockBuyTotal"
               @click="buyStockNow"
             >
-              买入 · {{ stockBuyTotal }} 末日币
+              买入 · {{ formatMoney(stockBuyTotal) }} 末日币
             </button>
 
             <div class="deal">
@@ -965,29 +965,36 @@ function closePanel() {
                 :max="selectedHolding.shares"
               />
               <span class="deal__hint">
-                {{ stockSellCount }} 股 · {{ stockSellGross }} - 手续费
-                {{ stockSellFee }} = {{ stockSellNet }}
+                {{ stockSellCount }} 股 · {{ formatMoney(stockSellGross) }} - 手续费
+                {{ formatMoney(stockSellFee) }} = {{ formatMoney(stockSellNet) }}
               </span>
             </div>
             <button
               type="button"
               class="btn extra__action"
               :disabled="
-                game.dead || stockSellCount <= 0 || selectedHolding.shares < stockSellCount
+                game.dead ||
+                stockSellCount <= 0 ||
+                selectedHolding.shares < stockSellCount ||
+                stockSellNet < 0
               "
               @click="sellStockNow"
             >
-              卖出 · 到账 {{ stockSellNet }} 末日币
+              {{
+                stockSellNet < 0
+                  ? '价格过低，无法卖出'
+                  : `卖出 · 到账 ${formatMoney(stockSellNet)} 末日币`
+              }}
             </button>
 
             <p class="extra__desc">
-              盈利小数向下取整，亏损小数向上取整；同一天价格不变，跨天刷新。
+              盈亏按分取整：盈利截断，亏损向上补齐；同一天价格不变，跨天刷新。
             </p>
           </section>
         </div>
 
         <footer class="market__foot">
-          <span>总持仓市值 <b>{{ stockPortfolioValue }}</b> 末日币</span>
+          <span>总持仓市值 <b>{{ formatMoney(stockPortfolioValue) }}</b> 末日币</span>
           <span>已实现盈亏 <b>{{ profitText(stockRealized) }}</b></span>
         </footer>
       </div>
@@ -1052,7 +1059,7 @@ function closePanel() {
                 : !treasure
                   ? '今日无货'
                   : game.coins < treasure.price
-                    ? `还差 ${treasure.price - game.coins} 末日币`
+                    ? `还差 ${formatMoney(treasure.price - game.coins)} 末日币`
                     : `买下今日珍宝 · ${treasure.price} 末日币`
             }}
           </button>
@@ -1068,37 +1075,6 @@ function closePanel() {
 </template>
 
 <style scoped>
-.status {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--line);
-}
-
-.status__item {
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
-  color: var(--text-mute);
-}
-
-.status__item b {
-  font-family: var(--font-mono);
-  font-weight: 500;
-  color: var(--bone);
-}
-
-.status__risk {
-  margin-left: auto;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  color: var(--rust-soft);
-  border: 1px solid rgba(193, 74, 50, 0.5);
-  padding: 2px 7px;
-}
-
 .pane {
   display: flex;
   flex-direction: column;
@@ -1200,6 +1176,16 @@ function closePanel() {
   font-size: 10.5px;
   line-height: 1.75;
   color: var(--text-mute);
+}
+
+.extra__warn {
+  margin: 0;
+  padding: 7px 9px;
+  font-size: 10px;
+  line-height: 1.7;
+  color: var(--rust-soft);
+  border: 1px solid rgba(193, 74, 50, 0.4);
+  background: rgba(193, 74, 50, 0.08);
 }
 
 .extra__action {

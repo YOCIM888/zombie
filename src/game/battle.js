@@ -210,6 +210,9 @@ export function startAirshipCargoBattle() {
     description: AIRSHIP.cargo.enemyDescription,
   }
 
+  advanceTurns(1)
+  if (game.dead) return ''
+
   resetBattle(enemy, 'airship-cargo', AIRSHIP.mapId)
   battle.active = true
   pushLog(AIRSHIP.cargo.intro)
@@ -231,10 +234,11 @@ export function startAirshipCommissionBattle() {
   const target = commissionForDay(game.day).zombie
   if (!target) return ''
 
+  const actionDay = game.day
   advanceTurns(commission.turns, { decay: false })
   if (game.dead) return ''
 
-  game.cooldowns[commission.cooldownKey] = game.day
+  game.cooldowns[commission.cooldownKey] = actionDay
   resetBattle(target, 'airship-commission', AIRSHIP.mapId)
   battle.active = true
   pushLog(commission.desc)
@@ -717,12 +721,23 @@ function companionAssist() {
   pushLog(`嫣然从侧后方补了一下，造成 ${COMPANIONS.yanran.assistDamage} 点伤害。`)
 }
 
+/** 普通丧尸胜利的通用结算：死亡自爆、露露回血、击杀计数 */
+function resolveZombieVictory() {
+  if (deathThroes()) return false
+
+  battle.result = 'victory'
+  luluHeal()
+  game.zombieKills += 1
+  pushLog(`${battle.zombie.name}终于不动了。`)
+  return true
+}
+
 function winBattle() {
   battle.active = false
   battle.finished = true
 
   if (battle.kind === 'airship-cargo') {
-    battle.result = 'victory'
+    if (!resolveZombieVictory()) return
     game.flags.airshipCargoCleared = true
     battle.summary = `${AIRSHIP.cargo.clearedLine}\n\n${AIRSHIP.cargo.clearedNote}`
     pushLog(battle.summary)
@@ -730,7 +745,7 @@ function winBattle() {
   }
 
   if (battle.kind === 'airship-commission') {
-    battle.result = 'victory'
+    if (!resolveZombieVictory()) return
     const commission = AIRSHIP.commission.battle
     game.reputation += commission.reputation
     battle.summary = `${commission.doneLine}（声望 +${commission.reputation}，当前 ${game.reputation}）`

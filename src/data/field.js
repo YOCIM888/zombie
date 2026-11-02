@@ -387,8 +387,6 @@ export const GARAGE = {
   gasolineId: 'gasoline',
   gasolineCount: 10,
   keyChance: 0.45,
-  fuelMin: 1,
-  fuelMax: 3,
   finale: '私奔',
   lockedLine: '卷帘门从里面锁死了。你先得认识一个愿意带你走的人。',
   intro: '商场负一层的卷帘门锈死了一半，门后是几排积灰的车位。',

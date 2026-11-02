@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { BACKGROUND_IMAGE, DEFAULT_CHARACTER_NAME, STAT_DEFS, STAT_MAX } from '../game/config'
-import { AIRSHIP, FINALES, fieldMapById } from '../data'
+import { AIRSHIP, FINALES, fieldMapById, formatMoney } from '../data'
 import {
   currentPhase,
   currentPlaytime,
@@ -140,7 +140,8 @@ function percentOf(key) {
             </div>
             <p class="identity__meta">
               第 {{ game.day }} 天 · {{ currentPhase }} · 本次游玩
-              {{ formatDuration(currentPlaytime, { withSeconds: false }) }}
+              {{ formatDuration(currentPlaytime, { withSeconds: false }) }} · 累计击杀
+              {{ game.zombieKills }} 丧尸
             </p>
           </div>
 
@@ -171,7 +172,7 @@ function percentOf(key) {
           <div class="gauge gauge--coin gauge--doom">
             <div class="gauge__head">
               <span class="gauge__label">末日币</span>
-              <span class="gauge__value">{{ game.coins }}</span>
+              <span class="gauge__value">{{ formatMoney(game.coins) }}</span>
             </div>
             <div class="gauge__track gauge__track--coin" />
           </div>
@@ -179,7 +180,7 @@ function percentOf(key) {
           <div class="gauge gauge--coin gauge--dawn">
             <div class="gauge__head">
               <span class="gauge__label">曙光币</span>
-              <span class="gauge__value">{{ game.dawnCoins }}</span>
+              <span class="gauge__value">{{ formatMoney(game.dawnCoins) }}</span>
             </div>
             <div class="gauge__track gauge__track--coin" />
           </div>

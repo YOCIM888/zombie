@@ -13,6 +13,7 @@ import {
   REPAIR_PERCENT_PER_COIN,
   SHOP_GOODS,
   TREATMENT_TIERS,
+  formatMoney,
   identityInfo,
   identityRank,
   getItem,
@@ -57,6 +58,9 @@ import AssassinationCard from './AssassinationCard.vue'
 import BattleView from './BattleView.vue'
 import ModalShell from './ModalShell.vue'
 import QuestLinePanel from './QuestLinePanel.vue'
+import StatusHud from './StatusHud.vue'
+
+const emit = defineEmits(['close'])
 
 const MENU = [
   { id: 'explore', no: '01', name: '在此探索', desc: '花 1 回合搜刮废墟，可能找到食物或饮品。' },
@@ -90,7 +94,6 @@ const tradeCoins = ref(2)
 const tradeDawn = ref(2)
 
 const identity = computed(() => identityInfo(game.identity))
-const coins = computed(() => game.coins)
 const loanDaysLeft = computed(() => (game.loan ? game.loan.dueDay - game.day : 0))
 const loanOverdueDays = computed(() => (game.loan ? Math.max(0, game.day - game.loan.dueDay) : 0))
 const loanTier = computed(() => loanTierFor(game.identity))
@@ -250,7 +253,7 @@ function closePanel() {
     return
   }
   if (battle.finished) resetBattle()
-  $emit('close')
+  emit('close')
 }
 </script>
 
@@ -261,16 +264,9 @@ function closePanel() {
     wide
     @close="closePanel"
   >
-    <div class="status">
-      <span class="status__item">末日币 <b>{{ coins }}</b></span>
-      <span class="status__item">身份 <b>{{ game.identity ?? '无' }}</b></span>
-      <span class="status__item">历史最高 <b>{{ game.maxIdentity ?? '无' }}</b></span>
-      <span class="status__item">感染 <b>{{ game.stats.infection }}</b></span>
-      <span class="status__item status__item--loan" v-if="game.loan">
-        欠款 <b>{{ game.loan.due }}</b> · {{ loanRemainText(true) }}
-      </span>
-      <span class="status__risk">{{ map.difficulty }}</span>
-    </div>
+    <template #hud>
+      <StatusHud />
+    </template>
 
     <section v-if="view === 'menu'" class="menu">
       <article v-for="item in MENU" :key="item.id" class="card" @click="go(item.id)">
@@ -700,7 +696,9 @@ function closePanel() {
           <span class="deal__tag">2 : 1</span>
         </header>
         <p class="deal__desc">{{ BANKER.exchangeLine }}</p>
-        <p class="deal__hint">持有：末日币 {{ game.coins }} · 曙光币 {{ game.dawnCoins }}</p>
+        <p class="deal__hint">
+          持有：末日币 {{ formatMoney(game.coins) }} · 曙光币 {{ formatMoney(game.dawnCoins) }}
+        </p>
 
         <div class="trade">
           <label for="trade-coins">末日币 → 曙光币</label>
@@ -873,38 +871,6 @@ function closePanel() {
 </template>
 
 <style scoped>
-.status {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-  padding: 10px 14px;
-  border: 1px solid var(--line);
-  background: rgba(0, 0, 0, 0.28);
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  color: var(--text-mute);
-}
-
-.status b {
-  font-family: var(--font-mono);
-  font-weight: 500;
-  color: var(--bone);
-}
-
-.status__item--loan b {
-  color: var(--rust-soft);
-}
-
-.status__risk {
-  margin-left: auto;
-  color: var(--sick);
-  border: 1px solid rgba(124, 152, 64, 0.45);
-  padding: 2px 8px;
-  font-size: 10px;
-  letter-spacing: 0.12em;
-}
-
 .menu {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
