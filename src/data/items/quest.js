@@ -16,6 +16,7 @@ const QUEST_LIST = [
     'rotten-seed',
     '腐烂种子',
     '一枚发黑的果核，表皮已经烂穿，裂口里却顶出一点白。',
+    { image: '/image/任务道具/腐烂种子.webp' },
   ),
   questItem('car-key', '车钥匙', '钥匙圈上挂着半截褪色的商场停车牌，齿口还很新。'),
   questItem('gasoline', '汽油', '铁皮桶里晃荡着半桶刺鼻的液体。', {
@@ -34,6 +35,12 @@ const QUEST_LIST = [
     stackable: true,
     maxStack: 99,
   }),
+  questItem(
+    'high-explosive',
+    '高能炸药',
+    '军用炸药重新压成的方块，外壳上刻着编号，引线短得几乎贴着掌心。',
+    { image: '/image/任务道具/高能炸药.webp', stackable: true, maxStack: 99 },
+  ),
 ]
 
 export const QUEST_ITEMS = Object.fromEntries(QUEST_LIST.map((item) => [item.id, item]))

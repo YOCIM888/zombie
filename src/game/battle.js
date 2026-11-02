@@ -1,8 +1,10 @@
 // 手动回合制战斗：近战连击、远程闪避、丧尸技能、逃跑与击杀掉落
 import { reactive } from 'vue'
 import {
+  AIRSHIP,
   CLEANLINESS_MAX,
   COMPANIONS,
+  BANKER,
   DAWN_FLEE_CHANCE,
   DAWN_LEADER,
   DAWN_ZOMBIE,
@@ -13,20 +15,29 @@ import {
   addItem,
   cleanlinessJamChance,
   cleanlinessMultiplier,
+  commissionForDay,
   getItem,
+  identityRank,
+  mafeiQuestForTarget,
+  npcById,
   pickDawnLoot,
   pickZombieLoot,
+  talentBonus,
+  zombieById,
 } from '../data'
 import {
   advanceTurns,
   applyStatChanges,
   consumeMeleeDurability,
   consumeRangedCleanliness,
+  cooldownLeft,
   devState,
   game,
   questStatus,
   useItem,
+  waiveLoanInterest,
 } from './store'
+import { playWeaponSfx } from './sfx'
 
 /** 丧尸技能数值：参考一代，按二代 100 血 / 手动回合制缩放 */
 const ABILITY = {
@@ -54,6 +65,8 @@ export const battle = reactive({
   round: 0,
   kind: 'zombie',
   mapId: null,
+  npcId: null,
+  questId: null,
   mode: 'melee',
   summary: '',
   log: [],
@@ -62,6 +75,8 @@ export const battle = reactive({
   blinded: false,
   frozen: false,
   summoned: false,
+  coupStage: 0,
+  coupNext: false,
 })
 
 let logSeq = 0
@@ -80,6 +95,8 @@ export function resetBattle(enemy = DAWN_ZOMBIE, kind = 'zombie', mapId = null) 
   battle.round = 0
   battle.kind = kind
   battle.mapId = mapId
+  battle.npcId = null
+  battle.questId = null
   battle.mode = 'melee'
   battle.summary = ''
   battle.log = []
@@ -87,12 +104,28 @@ export function resetBattle(enemy = DAWN_ZOMBIE, kind = 'zombie', mapId = null) 
   battle.blinded = false
   battle.frozen = false
   battle.summoned = false
+  battle.coupStage = 0
+  battle.coupNext = false
   battle.zombie = {
     ...enemy,
     abilities: Array.isArray(enemy.abilities) ? [...enemy.abilities] : [],
     dodge: Number(enemy.dodge) || 0,
     maxHp: enemy.hp,
   }
+}
+
+/** 敌人血量下限：行长这类对手会锁血，不会被打死 */
+function enemyFloor() {
+  return Number.isFinite(battle.zombie.hpFloor) ? battle.zombie.hpFloor : 0
+}
+
+/** 是否已经打到认输/死亡的血量下限 */
+function enemyDefeated() {
+  return battle.zombie.hp <= enemyFloor()
+}
+
+function damageEnemy(amount) {
+  battle.zombie.hp = Math.max(enemyFloor(), battle.zombie.hp - Math.max(1, amount))
 }
 
 /**
@@ -136,6 +169,150 @@ export function startLeaderCombat() {
   resetBattle(DAWN_LEADER, 'leader')
   battle.active = true
   pushLog('哨塔顶层的门没有锁。羿阳背对着你，手按在刀柄上。')
+  return ''
+}
+
+/**
+ * 都城银行行长：化债战斗
+ * 行长生命 250、攻击 30，但血量锁在 1；把他逼到 1 点血即认账
+ */
+export function startBankerCombat() {
+  if (game.dead || battle.active) return ''
+  if (!game.loan) return BANKER.noLoanLine
+  if (game.loan.interestWaived) return BANKER.waivedLine
+
+  advanceTurns(1)
+  if (game.dead) return ''
+
+  const npc = npcById(BANKER.npcId)
+  if (!npc) return ''
+  resetBattle({ ...npc, hpFloor: BANKER.hpFloor }, 'banker', npc.mapId)
+  battle.active = true
+  pushLog(`${npc.name}合上账本，从柜台后走了出来。你听见他指节按得咔咔作响。`)
+  return ''
+}
+
+/**
+ * 末日飞行船：努比任务「货舱异响」
+ * 接取 nubi-2 后可下到货舱清理一只铁甲尸
+ */
+export function startAirshipCargoBattle() {
+  if (game.dead || battle.active) return ''
+  if (game.location !== AIRSHIP.mapId) return '货舱在末日飞行船上。'
+  if (game.flags.airshipCargoCleared) return AIRSHIP.cargo.alreadyLine
+  if (questStatus('nubi-2') !== 'active') return AIRSHIP.cargo.lockedLine
+
+  const base = zombieById('armored')
+  if (!base) return ''
+  const enemy = {
+    ...base,
+    name: AIRSHIP.cargo.enemyName,
+    description: AIRSHIP.cargo.enemyDescription,
+  }
+
+  resetBattle(enemy, 'airship-cargo', AIRSHIP.mapId)
+  battle.active = true
+  pushLog(AIRSHIP.cargo.intro)
+  return ''
+}
+
+/**
+ * 末日飞行船：居民战斗委托
+ * 每天一次，无衰减消耗 1 回合，目标从全部丧尸中按天抽取
+ */
+export function startAirshipCommissionBattle() {
+  if (game.dead || battle.active) return ''
+  if (game.location !== AIRSHIP.mapId) return '居民委托在末日飞行船上。'
+  const commission = AIRSHIP.commission.battle
+  if (cooldownLeft(commission.cooldownKey, commission.cooldownDays) > 0) {
+    return commission.cooldownLine
+  }
+
+  const target = commissionForDay(game.day).zombie
+  if (!target) return ''
+
+  advanceTurns(commission.turns, { decay: false })
+  if (game.dead) return ''
+
+  game.cooldowns[commission.cooldownKey] = game.day
+  resetBattle(target, 'airship-commission', AIRSHIP.mapId)
+  battle.active = true
+  pushLog(commission.desc)
+  pushLog(`${target.name}从居民区的门后走了出来。`)
+  return ''
+}
+
+/**
+ * 末日飞行船：高台政变
+ * 需要公爵身份、声望 60，连续击败三位贵族；中途不回复
+ */
+export function startAirshipCoupBattle() {
+  if (game.dead || battle.active) return ''
+  if (game.location !== AIRSHIP.mapId) return '高台在末日飞行船上。'
+  if (game.flags.airshipCoupDone) return AIRSHIP.coup.doneLine
+  if (identityRank(game.identity) < AIRSHIP.coup.rank) return AIRSHIP.coup.rankLine
+  if (game.reputation < AIRSHIP.coup.reputation) return AIRSHIP.coup.reputationLine
+
+  advanceTurns(1)
+  if (game.dead) return ''
+
+  game.flags.airshipCoupStep = 0
+  game.flags.airshipCoupDone = false
+  if (!startCoupStage(0)) return ''
+  return ''
+}
+
+/** 按顺序开始第 index 场政变战斗 */
+function startCoupStage(index) {
+  const coup = AIRSHIP.coup
+  const npc = npcById(coup.enemyIds[index])
+  if (!npc) return false
+
+  resetBattle(npc, 'airship-coup', AIRSHIP.mapId)
+  battle.coupStage = index
+  battle.coupNext = false
+  battle.active = true
+  if (index === 0) {
+    pushLog(coup.startLine)
+  } else {
+    pushLog(`高台下没有人鼓掌。${npc.name}已经站到了你的面前。`)
+  }
+  pushLog(npc.description)
+  return true
+}
+
+/** 战胜一位对手后，无缝进入下一场 */
+export function continueAirshipCoup() {
+  if (game.dead) return false
+  if (game.location !== AIRSHIP.mapId) return false
+  if (game.flags.airshipCoupDone) return false
+  const nextIndex = Number(game.flags.airshipCoupStep) || 0
+  if (nextIndex <= 0 || nextIndex >= AIRSHIP.coup.enemyIds.length) return false
+  return startCoupStage(nextIndex)
+}
+
+/**
+ * 马斐委托：刺杀指定 NPC
+ * 需要对应委托处于进行中、目标还活着，并且玩家就在目标所在地
+ */
+export function startAssassination(npcId) {
+  if (game.dead || battle.active) return ''
+  const npc = npcById(npcId)
+  if (!npc) return ''
+  if (game.location !== npc.mapId) return '你不在这里。'
+  if (game.flags[npc.deathFlag]) return `${npc.name}已经不在了。`
+
+  const quest = mafeiQuestForTarget(npcId)
+  if (!quest || questStatus(quest.id) !== 'active') return '你还没有接到这条委托。'
+
+  advanceTurns(1)
+  if (game.dead) return ''
+
+  resetBattle(npc, 'assassination', npc.mapId)
+  battle.npcId = npcId
+  battle.questId = quest.id
+  battle.active = true
+  pushLog(`你走近${npc.name}。对方似乎察觉到了什么。`)
   return ''
 }
 
@@ -207,6 +384,7 @@ function deathThroes() {
 export function meleeAttack() {
   if (!battle.active || game.dead) return
   battle.mode = 'melee'
+  playWeaponSfx(currentMelee().def)
 
   if (attackBlocked()) {
     zombieTurn()
@@ -242,15 +420,16 @@ export function meleeAttack() {
     hits += 1
     total += damage
     if (crit) crits += 1
-    battle.zombie.hp = Math.max(0, battle.zombie.hp - damage)
+    damageEnemy(damage)
 
     const result = consumeMeleeDurability()
-    if (battle.zombie.hp <= 0) break
+    if (enemyDefeated()) break
     if (result.broken) {
       broken = result.name
       break
     }
-    if (Math.random() >= (weapon.combo ?? 0)) break
+    const comboChance = Math.min(1, (weapon.combo ?? 0) + talentBonus('melee', game.talents.melee))
+    if (Math.random() >= comboChance) break
   }
 
   if (armored) pushLog('铁皮挡住了大半力道，你的伤害被压了下去。')
@@ -263,7 +442,7 @@ export function meleeAttack() {
   if (broken) pushLog(`${broken}在最后一次挥砍中断成了两截。`)
   companionAssist()
 
-  if (battle.zombie.hp <= 0) {
+  if (enemyDefeated()) {
     winBattle()
     return
   }
@@ -284,6 +463,7 @@ export function rangedAttack() {
   const weapon = def.weapon
   const cleanliness = Number.isFinite(equipped.cleanliness) ? equipped.cleanliness : CLEANLINESS_MAX
   battle.mode = 'ranged'
+  playWeaponSfx(def)
 
   if (cleanliness <= 0) {
     pushLog(`${def.name}的枪膛积满了油垢，需要保养后才能开火。`)
@@ -312,7 +492,8 @@ export function rangedAttack() {
     return
   }
 
-  const crit = Math.random() < (weapon.crit ?? 0) && (weapon.critDamage ?? 0) >= 1
+  const critChance = Math.min(1, (weapon.crit ?? 0) + talentBonus('ranged', game.talents.ranged))
+  const crit = Math.random() < critChance && (weapon.critDamage ?? 0) >= 1
   const frozen = battle.frozen
   if (frozen) battle.frozen = false
   let multiplier = (crit ? weapon.critDamage : 1) * cleanlinessMultiplier(cleanliness)
@@ -322,19 +503,19 @@ export function rangedAttack() {
     ? battle.zombie.hp
     : Math.max(1, Math.round((weapon.attack ?? 0) * multiplier))
 
-  battle.zombie.hp = Math.max(0, battle.zombie.hp - damage)
+  damageEnemy(damage)
 
   const dry = cleanlinessMultiplier(cleanliness) < 0.8 ? '（枪身发涩，威力下降）' : ''
   pushLog(`你用${def.name}${crit ? '命中要害' : '命中'}，造成 ${damage} 点伤害。${dry}`)
   if (hasAbility('armor')) pushLog('子弹打在它的铁甲上，威力削弱了一半。')
   if (frozen) pushLog('寒气让你的手抖了一下，这一枪威力减半。')
   const condition = consumeRangedCleanliness()
-  if (condition.empty && battle.zombie.hp > 0) {
+  if (condition.empty && !enemyDefeated()) {
     pushLog('清洁度归零，需要保养后才能继续开火。')
   }
   companionAssist()
 
-  if (battle.zombie.hp <= 0) {
+  if (enemyDefeated()) {
     winBattle()
     return
   }
@@ -350,6 +531,19 @@ export function rangedAttack() {
 export function fleeBattle() {
   if (!battle.active || game.dead) return
 
+  // 政变中逃跑必定成功，但算政变失败并清空声望
+  if (battle.kind === 'airship-coup') {
+    battle.active = false
+    battle.finished = true
+    battle.result = 'flee'
+    battle.coupNext = false
+    game.reputation = 0
+    game.flags.airshipCoupStep = 0
+    battle.summary = AIRSHIP.coup.fleeLine
+    pushLog('你从高台边沿翻了下去，身后的喧哗很快被风盖住。')
+    return
+  }
+
   if (Math.random() < DAWN_FLEE_CHANCE) {
     battle.active = false
     battle.finished = true
@@ -358,13 +552,17 @@ export function fleeBattle() {
     battle.summary =
       battle.kind === 'yanran'
         ? '你退出了商场深处，身后那声嘶吼没有追上来。'
-        : battle.kind === 'puppet'
-          ? GIANT_PUPPET.fleeLine
-          : battle.kind === 'field'
-            ? '你从地图深处退了出来，这一趟什么也没带回去。'
-            : battle.kind === 'npc'
-              ? '你退出了烧烤摊，阿三没有追出来。'
-              : '你活着离开了废墟，但这一趟什么也没带回去。'
+        : battle.kind === 'banker'
+          ? BANKER.fleeLine
+          : battle.kind === 'puppet'
+            ? GIANT_PUPPET.fleeLine
+            : battle.kind === 'assassination'
+              ? '你退开了几步，杀意还没来得及落下。'
+              : battle.kind === 'field'
+                ? '你从地图深处退了出来，这一趟什么也没带回去。'
+                : battle.kind === 'npc'
+                  ? '你退出了烧烤摊，阿三没有追出来。'
+                  : '你活着离开了废墟，但这一趟什么也没带回去。'
     return
   }
 
@@ -494,7 +692,12 @@ function markPlayerDead() {
   battle.summary =
     battle.kind === 'field'
       ? '你倒在了野外的尘土里，没有等到下一次天亮。'
-      : '伤口太深了，你没能撑到哨塔的灯下。'
+      : battle.kind === 'banker'
+        ? '你倒在了银行大厅的大理石地面上，账本上的数字还没抹掉。'
+        : battle.kind === 'airship-coup'
+          ? AIRSHIP.coup.defeatedLine
+          : '伤口太深了，你没能撑到哨塔的灯下。'
+  if (battle.kind === 'airship-coup') game.flags.airshipCoupStep = 0
   pushLog('你倒下了，眼前的废墟慢慢变黑。')
 }
 
@@ -508,15 +711,65 @@ function luluHeal() {
 /** 嫣然战斗辅助：有一定概率从侧后方补一刀 */
 function companionAssist() {
   if (!game.flags.yanranRescued) return
-  if (battle.zombie.hp <= 0) return
+  if (enemyDefeated()) return
   if (Math.random() >= COMPANIONS.yanran.assistRate) return
-  battle.zombie.hp = Math.max(0, battle.zombie.hp - COMPANIONS.yanran.assistDamage)
+  damageEnemy(COMPANIONS.yanran.assistDamage)
   pushLog(`嫣然从侧后方补了一下，造成 ${COMPANIONS.yanran.assistDamage} 点伤害。`)
 }
 
 function winBattle() {
   battle.active = false
   battle.finished = true
+
+  if (battle.kind === 'airship-cargo') {
+    battle.result = 'victory'
+    game.flags.airshipCargoCleared = true
+    battle.summary = `${AIRSHIP.cargo.clearedLine}\n\n${AIRSHIP.cargo.clearedNote}`
+    pushLog(battle.summary)
+    return
+  }
+
+  if (battle.kind === 'airship-commission') {
+    battle.result = 'victory'
+    const commission = AIRSHIP.commission.battle
+    game.reputation += commission.reputation
+    battle.summary = `${commission.doneLine}（声望 +${commission.reputation}，当前 ${game.reputation}）`
+    pushLog(battle.summary)
+    return
+  }
+
+  if (battle.kind === 'airship-coup') {
+    const coup = AIRSHIP.coup
+    const npc = npcById(battle.zombie.id)
+    battle.result = 'victory'
+    const nextIndex = battle.coupStage + 1
+
+    if (nextIndex < coup.enemyIds.length) {
+      battle.coupNext = true
+      game.flags.airshipCoupStep = nextIndex
+      battle.summary = `${npc?.deathLine ?? '对手倒下了。'}\n\n高台下没有掌声。下一位对手已经站了起来。`
+      pushLog(battle.summary)
+      return
+    }
+
+    battle.coupNext = false
+    game.flags.airshipCoupDone = true
+    game.flags.airshipCoupStep = 0
+    game.finale = coup.finale
+    battle.summary = `${coup.doneLine}\n\n结局达成 · ${coup.finale}`
+    pushLog(battle.summary)
+    return
+  }
+
+  if (battle.kind === 'assassination') {
+    const npc = npcById(battle.npcId)
+    battle.result = 'victory'
+    if (npc) game.flags[npc.deathFlag] = true
+    luluHeal()
+    battle.summary = npc?.deathLine ?? '目标倒下了。'
+    pushLog(battle.summary)
+    return
+  }
 
   if (battle.kind === 'leader') {
     battle.result = 'victory'
@@ -559,6 +812,13 @@ function winBattle() {
     battle.summary = leftover
       ? `${GIANT_PUPPET.victoryLine} 可你的背包已经塞满，只能先把它留在残骸里。`
       : GIANT_PUPPET.victoryLine
+    pushLog(battle.summary)
+    return
+  }
+
+  if (battle.kind === 'banker') {
+    battle.result = 'victory'
+    battle.summary = waiveLoanInterest()
     pushLog(battle.summary)
     return
   }

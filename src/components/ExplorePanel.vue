@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { MAPS } from '../game/config'
 import { enterMap } from '../game/store'
 import { ENTRY_COST } from '../data'
@@ -7,6 +7,7 @@ import ModalShell from './ModalShell.vue'
 
 const emit = defineEmits(['close', 'enter'])
 const displayed = ref('')
+const visibleMaps = computed(() => MAPS.filter((item) => !item.hidden))
 
 function enter(map) {
   if (!map.open) {
@@ -20,7 +21,12 @@ function enter(map) {
 <template>
   <ModalShell title="外出探索" sub="选择一个区域，离开安全屋" @close="$emit('close')">
     <div class="maps">
-      <article v-for="map in MAPS" :key="map.id" class="map" :class="{ 'map--locked': !map.open }">
+      <article
+        v-for="map in visibleMaps"
+        :key="map.id"
+        class="map"
+        :class="{ 'map--locked': !map.open }"
+      >
         <header class="map__head">
           <span class="map__level">{{ map.level }}</span>
           <span class="map__difficulty" :class="`risk-${map.risk}`">{{ map.difficulty }}</span>

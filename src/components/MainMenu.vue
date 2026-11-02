@@ -56,7 +56,7 @@ function closePanel() {
         </div>
         <div class="topbar__right">
           <span class="topbar__status"><i />幸存者频道 · 静默</span>
-          <span class="topbar__ver">v 0.1.0</span>
+          <span class="topbar__ver">v 0.1.1</span>
         </div>
       </header>
 

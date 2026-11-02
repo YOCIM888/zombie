@@ -36,6 +36,26 @@ export const QUEST_OWNERS = {
     intro:
       '苗苗蹲在田埂边，指尖沾着泥。她抬头看你，笑得有点不好意思：「田里缺人手……你要是有空，能不能帮帮我？」',
   },
+  mafei: {
+    name: '马斐',
+    intro:
+      '马斐坐在营房门口擦枪，脚边堆着一排空弹壳。他说话时从不看你的眼睛。',
+  },
+  schika: {
+    name: '伯爵·席卡',
+    intro:
+      '席卡站在长桌边，餐巾叠得一丝不苟。他先看你的鞋，再看你的爵位，最后才看你的脸。',
+  },
+  nubi: {
+    name: '伯爵·努比',
+    intro:
+      '努比把机务册摊在油桶上，指尖沾着机油。他不在乎你从哪儿来，只在乎你带了多少桶油。',
+  },
+  moran: {
+    name: '公爵·漠然',
+    intro:
+      '漠然坐在觐见厅最里面的位置，手边只有一杯没动过的酒。他等你先开口，也等你先低头。',
+  },
 }
 
 /** 国王任务：严格顺序，骑士以上才会开口 */
@@ -425,6 +445,259 @@ export const AGRONOMIST_QUESTS = [
   },
 ]
 
+/** 马斐任务：十二道委托，前十一份是别人的命，最后一份是自己的 */
+export const MAFEI_QUESTS = [
+  {
+    id: 'mafei-1',
+    owner: 'mafei',
+    no: '01',
+    name: '营养师·苏涵',
+    desc: '「她在汤里下东西。」马斐把枪栓拉了一下，「喝完汤的人，第二天都没再醒过来。」',
+    hint: '接取后到曙光阵地，在苏涵的页面动手。',
+    require: { npc: 'nutritionist' },
+    reward: { coins: 44, dawnCoins: 44 },
+  },
+  {
+    id: 'mafei-2',
+    owner: 'mafei',
+    no: '02',
+    name: '机械师·莉莉',
+    desc: '「她修的枪，膛线都少了一截。」他说，「拿这种枪上战场的人，一个也没回来。」',
+    hint: '接取后到曙光阵地，在莉莉的页面动手。',
+    require: { npc: 'mechanic' },
+    reward: { coins: 44, dawnCoins: 44 },
+  },
+  {
+    id: 'mafei-3',
+    owner: 'mafei',
+    no: '03',
+    name: '雇佣兵·薇尔',
+    desc: '「她卖过一整支巡逻队的位置。」马斐压低声音，「那些人到现在还挂在铁丝网上。」',
+    hint: '接取后到曙光阵地，在薇尔的页面动手。',
+    require: { npc: 'mercenary' },
+    reward: { coins: 44, dawnCoins: 44 },
+  },
+  {
+    id: 'mafei-4',
+    owner: 'mafei',
+    no: '04',
+    name: '农学家·苗苗',
+    desc: '「你以为她的田里只埋种子？」他笑了一下，「挖开看看，土是黑的。」',
+    hint: '接取后到曙光阵地，在苗苗的页面动手。',
+    require: { npc: 'agronomist' },
+    reward: { coins: 44, dawnCoins: 44 },
+  },
+  {
+    id: 'mafei-5',
+    owner: 'mafei',
+    no: '05',
+    name: '首领·羿阳',
+    desc: '「他把活人推出哨塔，替自己挡尸群。」马斐说，「你替他办过事，他记你的好，也记你的命。」',
+    hint: '接取后到曙光阵地，在羿阳的页面动手。',
+    require: { npc: 'dawn-leader' },
+    reward: { coins: 44, dawnCoins: 44 },
+  },
+  {
+    id: 'mafei-6',
+    owner: 'mafei',
+    no: '06',
+    name: '皇后·米娅',
+    desc: '「她每天往国王的药里加一点东西。」他把擦枪布叠好，「一天一点，谁也看不出来。」',
+    hint: '接取后进都城王宫，在皇后的页面动手。',
+    require: { npc: 'queen' },
+    reward: { coins: 44, dawnCoins: 44 },
+  },
+  {
+    id: 'mafei-7',
+    owner: 'mafei',
+    no: '07',
+    name: '国王·艾伦',
+    desc: '「一道命令，避难所的铁门就再没开过。」马斐说，「里面的人，是他亲手锁死的。」',
+    hint: '接取后进都城王宫，在国王的页面动手。',
+    require: { npc: 'king' },
+    reward: { coins: 44, dawnCoins: 44 },
+  },
+  {
+    id: 'mafei-8',
+    owner: 'mafei',
+    no: '08',
+    name: '冷面阿三',
+    desc: '「你吃过他的烧烤。」他盯着你看了一会儿，「你该知道那是什么肉。」',
+    hint: '接取后到露营山区，在阿三的摊子前动手。',
+    require: { npc: 'ma-san' },
+    reward: { coins: 44, dawnCoins: 44 },
+  },
+  {
+    id: 'mafei-9',
+    owner: 'mafei',
+    no: '09',
+    name: '人鱼公主',
+    desc: '「她不是人鱼。那条尾巴是缝上去的。」马斐说，「水族箱底下埋着三个孩子。」',
+    hint: '接取后到郊区卖场，在水族箱边动手。',
+    require: { npc: 'mermaid' },
+    reward: { coins: 44, dawnCoins: 44 },
+  },
+  {
+    id: 'mafei-10',
+    owner: 'mafei',
+    no: '10',
+    name: '陈博士',
+    desc: '「培养槽里的东西，是他自己造出来的。」马斐终于看了你一眼，「他说那是意外。你信吗？」',
+    hint: '接取后到 X研究所，在陈博士的培养区动手。',
+    require: { npc: 'doctor' },
+    reward: { coins: 44, dawnCoins: 44 },
+  },
+  {
+    id: 'mafei-11',
+    owner: 'mafei',
+    no: '11',
+    name: '爆破航天基地',
+    desc: '「还有一枚火箭。」他把一盒炸药推到你脚边，「炸了它。谁都别想从那上面逃走。」',
+    hint: '先在山地军营合成高能炸药（16 回合），再前往航天基地把它装进发射架。',
+    require: { flag: 'spaceportBlown', label: '爆破航天基地' },
+    reward: { coins: 144, dawnCoins: 144 },
+  },
+  {
+    id: 'mafei-12',
+    owner: 'mafei',
+    no: '12',
+    name: '最后一件事',
+    desc: '「名单上还剩一个人。」马斐把枪放在两人之间的桌上。',
+    hint: '这一份委托是最后的了。',
+    require: { betrayal: true },
+    reward: {coins: 444, dawnCoins: 444},
+  },
+]
+
+/** 席卡任务：永不散席，云上宴会线 */
+export const SCHIKA_QUESTS = [
+  {
+    id: 'schika-1',
+    owner: 'schika',
+    no: '01',
+    name: '开胃酒',
+    desc: '席卡要为今晚的晚宴试酒。白兰地、金酒、威士忌各两瓶，先摆到他的桌上。',
+    require: {
+      items: [
+        { id: 'brandy', qty: 2 },
+        { id: 'gin', qty: 2 },
+        { id: 'whiskey', qty: 2 },
+      ],
+    },
+    reward: { coins: 30, reputation: 2 },
+  },
+  {
+    id: 'schika-2',
+    owner: 'schika',
+    no: '02',
+    name: '云上宴席',
+    desc: '酒只是前戏。席卡要你真正在长桌边坐一次，让他看看你能不能端稳那杯酒。',
+    hint: '需要伯爵爵位；在招待会所入席一次（无衰减跳过 4 回合）。',
+    require: { flag: 'airshipBanquetUsed', label: '在招待会所入席一次' },
+    reward: { coins: 40, reputation: 3 },
+  },
+  {
+    id: 'schika-3',
+    owner: 'schika',
+    no: '03',
+    name: '毒酒',
+    desc: '宴席上有人捂着喉咙倒了下去。席卡不想惊动公爵，只要你找三支万能灵药，再拿两瓶伏特加压住味道。',
+    hint: '万能灵药不在飞行船出售，需要从废墟带上来。',
+    require: {
+      items: [
+        { id: 'panacea', qty: 3 },
+        { id: 'vodka', qty: 2 },
+      ],
+    },
+    reward: {
+      items: [{ id: 'butterfly-silver', qty: 1 }],
+      coins: 60,
+      reputation: 5,
+      note: '席卡把蝴蝶刀-银蝶放进你手里：「宴会还要继续，刀你留着。下一次，别让杯子离开视线。」',
+    },
+  },
+]
+
+/** 努比任务：云上机务，燃油与货舱线 */
+export const NUBI_QUESTS = [
+  {
+    id: 'nubi-1',
+    owner: 'nubi',
+    no: '01',
+    name: '引擎口粮',
+    desc: '努比不关心你从哪儿弄来的油，只关心桶数够不够。先交十桶，引擎才有下一次点火。',
+    require: { items: [{ id: 'gasoline', qty: 10 }] },
+    reward: { coins: 40, reputation: 2 },
+  },
+  {
+    id: 'nubi-2',
+    owner: 'nubi',
+    no: '02',
+    name: '货舱异响',
+    desc: '货舱底下有东西在撞钢板。努比要你下去看看，别让它在船底凿出一个洞。',
+    hint: '接取后，在努比的页面选择「下到货舱」。',
+    require: { flag: 'airshipCargoCleared', label: '清理货舱' },
+    reward: { coins: 50, reputation: 3 },
+  },
+  {
+    id: 'nubi-3',
+    owner: 'nubi',
+    no: '03',
+    name: '迫降航线',
+    desc: '努比要留一条迫降航线。二十桶汽油，少一桶都飞不到备降点。',
+    require: { items: [{ id: 'gasoline', qty: 20 }] },
+    reward: {
+      items: [{ id: 'mp5', qty: 1 }],
+      coins: 80,
+      reputation: 5,
+      note: '努比把一把保养好的 MP5 推过来：「船上的枪都归我管。这把，算你运气好。」',
+    },
+  },
+]
+
+/** 漠然任务：云上秩序，觐见与权谋线 */
+export const MORAN_QUESTS = [
+  {
+    id: 'moran-1',
+    owner: 'moran',
+    no: '01',
+    name: '觐见',
+    desc: '漠然不喝劣酒。威士忌与白兰地各两瓶，摆到觐见厅的桌上，他才愿意先听你说完一句话。',
+    require: {
+      items: [
+        { id: 'whiskey', qty: 2 },
+        { id: 'brandy', qty: 2 },
+      ],
+    },
+    reward: { coins: 50, reputation: 3 },
+  },
+  {
+    id: 'moran-2',
+    owner: 'moran',
+    no: '02',
+    name: '高台的声音',
+    desc: '光有爵位不够。漠然要听见你在高台上说话。去演讲一次，让甲板上的人记住你的声音。',
+    hint: '高台每天可演讲一次，消耗 2 回合。',
+    require: { flag: 'airshipSpoke', label: '完成一次高台演讲' },
+    reward: { coins: 60, reputation: 5 },
+  },
+  {
+    id: 'moran-3',
+    owner: 'moran',
+    no: '03',
+    name: '秩序之外',
+    desc: '漠然把一张废墟的地图推给你。船上的秩序靠人维持，船下的秩序靠血维持。清掉三十只行尸，再上来见他。',
+    hint: '接取后开始计算击杀，在任何区域清理 30 只行尸。',
+    require: { kills: 30 },
+    reward: {
+      items: [{ id: 'desert-eagle', qty: 1 }],
+      coins: 100,
+      reputation: 8,
+      note: '漠然把沙漠之鹰推到桌沿：「船上不需要会用刀的人。会用枪的人，才配站在甲板上。」',
+    },
+  },
+]
+
 export const QUEST_LINES = {
   king: KING_QUESTS,
   queen: QUEEN_QUESTS,
@@ -433,6 +706,10 @@ export const QUEST_LINES = {
   mechanic: MECHANIC_QUESTS,
   mercenary: MERCENARY_QUESTS,
   agronomist: AGRONOMIST_QUESTS,
+  mafei: MAFEI_QUESTS,
+  schika: SCHIKA_QUESTS,
+  nubi: NUBI_QUESTS,
+  moran: MORAN_QUESTS,
 }
 
 export const QUESTS = Object.fromEntries(
@@ -449,8 +726,18 @@ export function questLine(owner) {
   return QUEST_LINES[owner] ?? []
 }
 
+/** 马斐委托中针对某个 NPC 的那一条 */
+export function mafeiQuestForTarget(npcId) {
+  return MAFEI_QUESTS.find((quest) => quest.require?.npc === npcId) ?? null
+}
+
 /** 非死亡结局文案 */
 export const FINALES = {
+  恶魔: {
+    title: '恶魔',
+    text:
+      '马斐把枪口抬起来的时候，你还在想第十二份委托的报酬。\n\n枪声很轻，像有人在你耳边合上了一本书。\n\n他蹲下来，从你手里抽出那张写满名字的纸，用拇指把你的名字划掉，然后补在最下面。\n\n「名单总要有人往下写。」他说。\n\n——你成了他名单上的最后一行，也成了这座军营里新的传说。',
+  },
   权力游戏: {
     title: '权力游戏',
     text:
@@ -493,5 +780,10 @@ export const FINALES = {
     terminal: true,
     text:
       '你站在舷梯下，看着陈博士、嫣然和露露一个个走上去。嫣然回头看了你一眼，没说话，只把围巾往上拉了拉。\n\n舱门关闭。倒计时开始。\n\n你转身走出发射中心，火箭的轰鸣在身后越来越响。你抬头望去，一道刺目的白光撕裂了灰蒙蒙的天空，像一颗逆行的流星。\n\n他们带着希望走了。你选择留下。\n\n你握紧了手中的武器。这世界还没完，你还要继续战斗。\n\n——只要还有一口气在，故事就不会结束。',
+  },
+  飞行船主宰: {
+    title: '飞行船主宰',
+    text:
+      '席卡先倒下去，然后是努比。高台下的贵族们没有一个人离席，他们只是把手里的酒杯慢慢放下。\n\n漠然站起身，又坐了回去。他终于开口，声音很轻：「这艘船，是你的了。」\n\n舷窗外的灰云被风吹开一道口子。整座废墟都在脚下，灯火却第一次为你亮着。\n\n——从此以后，末日飞行船上只有一个声音。',
   },
 }

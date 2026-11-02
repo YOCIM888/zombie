@@ -14,6 +14,7 @@ import {
   ROTTEN_SEED,
   dawnInfo,
   getItem,
+  npcById,
   repairCoinCost,
 } from '../data'
 import { MAPS } from '../game/config'
@@ -24,6 +25,7 @@ import {
   currentPhase,
   game,
   buyDawnGood,
+  isNpcDead,
   joinDawn,
   lilyBrewMedicine,
   mercenaryTraining,
@@ -42,9 +44,11 @@ import {
   weaponRecyclables,
 } from '../game/store'
 import { battle, resetBattle, startDawnCombat, startLeaderCombat } from '../game/battle'
+import AssassinationCard from './AssassinationCard.vue'
 import BattleView from './BattleView.vue'
 import ModalShell from './ModalShell.vue'
 import QuestLinePanel from './QuestLinePanel.vue'
+import StatusHud from './StatusHud.vue'
 
 const MENU = [
   { id: 'fight', no: '01', name: '清理丧尸', desc: '消耗 1 回合（有衰减），进入手动回合制战斗。' },
@@ -80,6 +84,10 @@ const promotionText = computed(() => {
 })
 const canAssassinate = computed(() => questStatus('king-6') === 'active')
 const leaderIntro = computed(() => QUEST_OWNERS.yiyang.intro)
+const nutritionistDead = computed(() => isNpcDead('nutritionist'))
+const mechanicDead = computed(() => isNpcDead('mechanic'))
+const mercenaryDead = computed(() => isNpcDead('mercenary'))
+const agronomistDead = computed(() => isNpcDead('agronomist'))
 const mealLeft = computed(() => cooldownLeft('dawn-meal', 1))
 const brewLeft = computed(() => cooldownLeft('dawn-brew', 1))
 const trainingLeft = computed(() => cooldownLeft('dawn-training', 1))
@@ -156,11 +164,17 @@ function battleDone() {
 }
 
 function leaderDone() {
+  const wasAssassination = battle.kind === 'assassination'
+  const summary = battle.summary
   resetBattle()
+  view.value = 'leader'
+  if (wasAssassination) {
+    feed.value = summary || '你把他留在了那把椅子上。'
+    return
+  }
   feed.value = game.flags.dawnLeaderKilled
     ? '哨塔顶层安静下来。你把他留在了那把椅子上。'
     : '你退回了楼梯口，门在身后重新合上。'
-  view.value = 'leader'
 }
 
 function closePanel() {
@@ -180,12 +194,15 @@ function closePanel() {
     wide
     @close="closePanel"
   >
+    <template #hud>
+      <StatusHud />
+    </template>
+
     <div class="status">
       <span class="status__item">曙光币 <b>{{ game.dawnCoins }}</b></span>
       <span class="status__item">身份 <b>{{ game.dawnIdentity ?? '无' }}</b></span>
       <span class="status__item">历史最高 <b>{{ game.maxDawnIdentity ?? '无' }}</b></span>
       <span class="status__item">击杀 <b>{{ game.zombieKills }} / {{ DAWN_JOIN_KILLS }}</b></span>
-      <span class="status__item">感染 <b>{{ game.stats.infection }}</b></span>
       <span class="status__risk">{{ map.difficulty }}</span>
     </div>
 
@@ -445,6 +462,8 @@ function closePanel() {
             动手
           </button>
         </div>
+
+        <AssassinationCard npc-id="dawn-leader" @feedback="feed = $event" />
       </template>
     </section>
 
@@ -453,9 +472,11 @@ function closePanel() {
         <h3 class="pane__title">营养师·苏涵</h3>
         <button type="button" class="link" @click="backToMenu">← 返回选项</button>
       </header>
-      <p class="pane__desc">{{ QUEST_OWNERS.nutritionist.intro }}</p>
+      <p class="pane__desc">
+        {{ nutritionistDead ? npcById('nutritionist').deathLine : QUEST_OWNERS.nutritionist.intro }}
+      </p>
 
-      <div class="service">
+      <div v-if="!nutritionistDead" class="service">
         <h4 class="service__title">每日配餐</h4>
         <p class="service__desc">
           苏涵会在配餐台上留一份热食。食物和饮品随机，酒不算在配餐里。
@@ -475,7 +496,8 @@ function closePanel() {
         </button>
       </div>
 
-      <QuestLinePanel owner="nutritionist" @feedback="feed = $event" />
+      <QuestLinePanel v-if="!nutritionistDead" owner="nutritionist" @feedback="feed = $event" />
+      <AssassinationCard npc-id="nutritionist" @feedback="feed = $event" />
     </section>
 
     <section v-else-if="view === 'mechanic'" class="pane">
@@ -483,9 +505,11 @@ function closePanel() {
         <h3 class="pane__title">机械师·莉莉</h3>
         <button type="button" class="link" @click="backToMenu">← 返回选项</button>
       </header>
-      <p class="pane__desc">{{ QUEST_OWNERS.mechanic.intro }}</p>
+      <p class="pane__desc">
+        {{ mechanicDead ? npcById('mechanic').deathLine : QUEST_OWNERS.mechanic.intro }}
+      </p>
 
-      <div class="service">
+      <div v-if="!mechanicDead" class="service">
         <h4 class="service__title">药剂调配</h4>
         <p class="service__desc">
           莉莉会熬一支清除感染的药剂。当前感染：{{ game.stats.infection }}。
@@ -505,7 +529,7 @@ function closePanel() {
         </button>
       </div>
 
-      <div class="service">
+      <div v-if="!mechanicDead" class="service">
         <h4 class="service__title">远程武器回收</h4>
         <p class="service__desc">
           背包里的远程武器可以拆成零件，按品质结算曙光币。装备中的武器不收。
@@ -532,7 +556,8 @@ function closePanel() {
         <p v-else class="pane__note">背包里没有可回收的远程武器。</p>
       </div>
 
-      <QuestLinePanel owner="mechanic" @feedback="feed = $event" />
+      <QuestLinePanel v-if="!mechanicDead" owner="mechanic" @feedback="feed = $event" />
+      <AssassinationCard npc-id="mechanic" @feedback="feed = $event" />
     </section>
 
     <section v-else-if="view === 'mercenary'" class="pane">
@@ -540,9 +565,11 @@ function closePanel() {
         <h3 class="pane__title">雇佣兵·薇尔</h3>
         <button type="button" class="link" @click="backToMenu">← 返回选项</button>
       </header>
-      <p class="pane__desc">{{ QUEST_OWNERS.mercenary.intro }}</p>
+      <p class="pane__desc">
+        {{ mercenaryDead ? npcById('mercenary').deathLine : QUEST_OWNERS.mercenary.intro }}
+      </p>
 
-      <div class="service">
+      <div v-if="!mercenaryDead" class="service">
         <h4 class="service__title">训练</h4>
         <p class="service__desc">薇尔会带你练一轮。消耗 1 回合，体力与理智回升。</p>
         <div class="chips">
@@ -561,7 +588,8 @@ function closePanel() {
         </button>
       </div>
 
-      <QuestLinePanel owner="mercenary" @feedback="feed = $event" />
+      <QuestLinePanel v-if="!mercenaryDead" owner="mercenary" @feedback="feed = $event" />
+      <AssassinationCard npc-id="mercenary" @feedback="feed = $event" />
     </section>
 
     <section v-else-if="view === 'agronomist'" class="pane">
@@ -569,9 +597,11 @@ function closePanel() {
         <h3 class="pane__title">农学家·苗苗</h3>
         <button type="button" class="link" @click="backToMenu">← 返回选项</button>
       </header>
-      <p class="pane__desc">{{ QUEST_OWNERS.agronomist.intro }}</p>
+      <p class="pane__desc">
+        {{ agronomistDead ? npcById('agronomist').deathLine : QUEST_OWNERS.agronomist.intro }}
+      </p>
 
-      <div class="service">
+      <div v-if="!agronomistDead" class="service">
         <h4 class="service__title">照看实验田</h4>
         <p class="service__desc">
           翻开土、浇两桶水。田里会结出随机水果，进度攒满后她会告诉你一个秘密。
@@ -592,7 +622,7 @@ function closePanel() {
         </button>
       </div>
 
-      <div v-if="seedFound" class="service service--seed">
+      <div v-if="!agronomistDead && seedFound" class="service service--seed">
         <h4 class="service__title">腐烂的种子</h4>
         <template v-if="seedPlanted">
           <p class="service__desc">
@@ -639,7 +669,7 @@ function closePanel() {
         </template>
       </div>
 
-      <div v-if="fieldReady" class="service service--secret">
+      <div v-if="!agronomistDead && fieldReady" class="service service--secret">
         <h4 class="service__title">她有个秘密</h4>
         <p class="service__desc">
           {{
@@ -658,7 +688,8 @@ function closePanel() {
         </button>
       </div>
 
-      <QuestLinePanel owner="agronomist" @feedback="feed = $event" />
+      <QuestLinePanel v-if="!agronomistDead" owner="agronomist" @feedback="feed = $event" />
+      <AssassinationCard npc-id="agronomist" @feedback="feed = $event" />
     </section>
 
     <section v-else class="pane">

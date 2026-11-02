@@ -5,8 +5,10 @@ import {
   DOCTOR,
   GARAGE,
   GIANT_PUPPET,
+  HELICOPTER,
   LULU,
   MA_SAN,
+  MAFEI,
   MERMAID,
   ORCHARD,
   ROCKET,
@@ -18,6 +20,7 @@ import {
   fieldMapById,
   getItem,
   lootCategoryText,
+  npcById,
   rarityText,
   zombiePool,
 } from '../data'
@@ -32,11 +35,14 @@ import {
   countDoctorBadges,
   countFruits,
   countGasoline,
+  countHighExplosive,
   countSpirits,
+  craftHighExplosive,
   currentPhase,
   deliverMaSanBeer,
   deliverMaSanFruit,
   deliverMaSanSpirit,
+  detonateSpaceport,
   doctorSupplyCounts,
   doctorTrade,
   eatStrangeBarbecue,
@@ -45,13 +51,18 @@ import {
   extractEnergy,
   expandBackpack,
   feedLulu,
+  flyToAirship,
   game,
+  isNpcDead,
+  isQuestDone,
   launchRocket,
   mermaidCurrent as readMermaidCurrent,
   mermaidStage as readMermaidStage,
   notify,
   openGarageDoor,
   pickOrchard,
+  questStatus,
+  repairHelicopter,
   rescueYanran,
   searchGarageKey,
   stealGarageGasoline,
@@ -65,10 +76,13 @@ import {
   yanranDaysLeft,
 } from '../game/store'
 import { battle, resetBattle, startFieldCombat } from '../game/battle'
+import AssassinationCard from './AssassinationCard.vue'
 import BattleView from './BattleView.vue'
 import ModalShell from './ModalShell.vue'
+import QuestLinePanel from './QuestLinePanel.vue'
+import StatusHud from './StatusHud.vue'
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'travel'])
 const feed = ref('')
 
 const map = computed(() => fieldMapById(game.location))
@@ -77,6 +91,10 @@ const encounterPercent = computed(() => Math.round((map.value?.encounterRate ?? 
 const lootText = computed(() => lootCategoryText(map.value?.lootTable))
 const rarityLabel = computed(() => rarityText(map.value?.rarityWeights))
 
+const isPolice = computed(() => map.value?.id === HELICOPTER.mapId)
+const helicopterRepaired = computed(() => Boolean(game.flags[HELICOPTER.repairedFlag]))
+const helicopterGasoline = computed(() => countGasoline())
+
 const isVillage = computed(() => map.value?.id === ORCHARD.mapId)
 const isCamp = computed(() => map.value?.id === STRANGE_BARBECUE.mapId)
 const isMarket = computed(() => map.value?.id === MERMAID.mapId)
@@ -84,6 +102,14 @@ const isCore = computed(() => map.value?.id === YANRAN.mapId || map.value?.id ==
 const isHospital = computed(() => map.value?.id === LULU.mapId)
 const isLab = computed(() => map.value?.id === DOCTOR.mapId)
 const isSpaceport = computed(() => map.value?.id === ROCKET.mapId)
+const isBarracks = computed(() => map.value?.id === MAFEI.mapId)
+const mafeiKilled = computed(() => Boolean(game.flags.mafeiKilled))
+const mafeiQuest10Done = computed(() => isQuestDone('mafei-10'))
+const mafeiQuest11Active = computed(() => questStatus('mafei-11') === 'active')
+const explosiveCount = computed(() => countHighExplosive())
+const spaceportBlown = computed(() => Boolean(game.flags.spaceportBlown))
+const mermaidDead = computed(() => isNpcDead('mermaid'))
+const doctorDead = computed(() => isNpcDead('doctor'))
 const orchardLeft = computed(() => cooldownLeft(ORCHARD.cooldownKey, ORCHARD.cooldownDays))
 const barbecueLeft = computed(() =>
   cooldownLeft(STRANGE_BARBECUE.cooldownKey, STRANGE_BARBECUE.cooldownDays),
@@ -188,6 +214,7 @@ const suppliesReady = computed(
     supplies.value.drink >= DOCTOR.supply.drink,
 )
 const doctorTag = computed(() => {
+  if (doctorDead.value) return '已死亡'
   if (doctorReady.value) return '火箭就绪'
   if (doctorQuest2Done.value) return '任务③物资'
   if (doctorQuest1Done.value) return `任务②能源 ${energyCount.value}/${DOCTOR.energyCount}`
@@ -202,6 +229,7 @@ const rocketCompanionsReady = computed(() => {
   return ROCKET.companionFlags.every((flag) => Boolean(game.flags[flag]))
 })
 const rocketTag = computed(() => {
+  if (spaceportBlown.value) return '已爆破'
   if (!puppetDefeated.value) return '傀儡堵门'
   if (rocketBadges.value < ROCKET.badgeIds.length) return '维修中'
   return '已就绪'
@@ -231,6 +259,16 @@ function run(action) {
   const line = action()
   if (game.dead) {
     feed.value = game.deathReason
+    return
+  }
+  if (line) feed.value = line
+}
+
+function travelToAirship() {
+  const line = flyToAirship()
+  if (game.location !== HELICOPTER.mapId) {
+    feed.value = line
+    emit('travel')
     return
   }
   if (line) feed.value = line
@@ -276,9 +314,15 @@ function battleDone() {
   const wasMaSan = battle.kind === 'npc'
   const wasYanran = battle.kind === 'yanran'
   const wasPuppet = battle.kind === 'puppet'
+  const wasAssassination = battle.kind === 'assassination'
+  const assassinationSummary = battle.summary
   const yanranKilled = Boolean(game.flags.yanranKilled)
   const puppetKilled = Boolean(game.flags.giantPuppetDefeated)
   resetBattle()
+  if (wasAssassination) {
+    feed.value = assassinationSummary || '目标倒下了。'
+    return
+  }
   if (wasMaSan && game.flags.maSanKilled) {
     feed.value = '烧烤摊安静下来。你在砧板旁站了一会儿，把 AKM 收进背包。'
     return
@@ -316,9 +360,11 @@ function closePanel() {
     wide
     @close="closePanel"
   >
+    <template #hud>
+      <StatusHud />
+    </template>
+
     <div class="status">
-      <span class="status__item">生命 <b>{{ game.stats.hp }}</b></span>
-      <span class="status__item">感染 <b>{{ game.stats.infection }}</b></span>
       <span class="status__item">末日币 <b>{{ game.coins }}</b></span>
       <span class="status__item">曙光币 <b>{{ game.dawnCoins }}</b></span>
       <span class="status__item">击杀 <b>{{ game.zombieKills }}</b></span>
@@ -342,7 +388,51 @@ function closePanel() {
         <span>{{ map.lootNote }}</span>
       </div>
 
-      <div v-if="isVillage" class="extras">
+      <div v-if="isPolice" class="extras">
+        <article class="extra extra--wide">
+          <header class="extra__head">
+            <h4 class="extra__title">老旧直升机</h4>
+            <span class="extra__tag">{{ helicopterRepaired ? '已修复' : '未修复' }}</span>
+          </header>
+          <p class="extra__desc">
+            {{ helicopterRepaired ? HELICOPTER.repairedLine : HELICOPTER.desc }}
+          </p>
+          <div class="chips">
+            <span>汽油 {{ helicopterGasoline }} / {{ HELICOPTER.repairGasoline }}</span>
+            <span>修复 消耗 {{ HELICOPTER.repairGasoline }} 汽油</span>
+            <span>前往 消耗 {{ HELICOPTER.travelGasoline }} 汽油</span>
+            <span>目的地：末日飞行船</span>
+          </div>
+          <div class="extra__actions">
+            <button
+              type="button"
+              class="btn btn--primary"
+              :disabled="helicopterRepaired || helicopterGasoline < HELICOPTER.repairGasoline"
+              @click="run(repairHelicopter)"
+            >
+              {{
+                helicopterRepaired
+                  ? '直升机已修复'
+                  : `修复 · ${HELICOPTER.repairGasoline} 汽油`
+              }}
+            </button>
+            <button
+              type="button"
+              class="btn"
+              :disabled="!helicopterRepaired || helicopterGasoline < HELICOPTER.travelGasoline"
+              @click="travelToAirship"
+            >
+              {{
+                !helicopterRepaired
+                  ? '修复后才能前往'
+                  : `前往末日飞行船 · ${HELICOPTER.travelGasoline} 汽油`
+              }}
+            </button>
+          </div>
+        </article>
+      </div>
+
+      <div v-else-if="isVillage" class="extras">
         <article class="extra">
           <header class="extra__head">
             <h4 class="extra__title">果园采摘</h4>
@@ -509,6 +599,53 @@ function closePanel() {
               拒绝，动手
             </button>
           </div>
+
+          <AssassinationCard npc-id="ma-san" @feedback="feed = $event" />
+        </article>
+      </div>
+
+      <div v-else-if="isBarracks" class="extras">
+        <article class="extra">
+          <header class="extra__head">
+            <h4 class="extra__title">马斐</h4>
+            <span class="extra__tag">{{ mafeiKilled ? '已死亡' : '名单' }}</span>
+          </header>
+          <p class="extra__desc">
+            {{ mafeiKilled ? MAFEI.killedLine : MAFEI.intro }}
+            <q v-if="!mafeiKilled">{{ MAFEI.whisperLine }}</q>
+          </p>
+          <div v-if="!mafeiKilled" class="chips">
+            <span>高能炸药 {{ explosiveCount }} 块</span>
+            <span>任务十{{ mafeiQuest10Done ? '已完成' : '未完成' }}</span>
+          </div>
+          <QuestLinePanel v-if="!mafeiKilled" owner="mafei" @feedback="feed = $event" />
+        </article>
+
+        <article class="extra">
+          <header class="extra__head">
+            <h4 class="extra__title">合成炸药</h4>
+            <span class="extra__tag">
+              {{ mafeiKilled ? '已停止' : mafeiQuest10Done ? '可合成' : '未解锁' }}
+            </span>
+          </header>
+          <p class="extra__desc">{{ MAFEI.craftLine }}</p>
+          <div class="chips">
+            <span>{{ MAFEI.craftTurns }} 回合 / 块</span>
+            <span>回合正常衰减</span>
+            <span>高能炸药 {{ explosiveCount }}</span>
+          </div>
+          <button
+            type="button"
+            class="btn btn--primary extra__action"
+            :disabled="!mafeiQuest10Done || mafeiKilled"
+            @click="run(craftHighExplosive)"
+          >
+            {{
+              mafeiQuest10Done
+                ? `合成 1 块 · ${MAFEI.craftTurns} 回合`
+                : '完成马斐任务十后解锁'
+            }}
+          </button>
         </article>
       </div>
 
@@ -518,22 +655,25 @@ function closePanel() {
             <h4 class="extra__title">人鱼公主</h4>
             <span class="extra__tag">
               {{
-                mermaidDone
-                  ? '已愈合'
-                  : mermaidStage === 0
-                    ? '未愈合'
-                    : `第 ${mermaidStage + 1} / ${mermaidStageCount} 段`
+                mermaidDead
+                  ? '已死亡'
+                  : mermaidDone
+                    ? '已愈合'
+                    : mermaidStage === 0
+                      ? '未愈合'
+                      : `第 ${mermaidStage + 1} / ${mermaidStageCount} 段`
               }}
             </span>
           </header>
           <p class="extra__desc">
-            <template v-if="mermaidDone">她只留下一道水痕，和那柄三叉戟。</template>
+            <template v-if="mermaidDead">水族箱里已经没有动静，只剩一层发白的盐霜。</template>
+            <template v-else-if="mermaidDone">她只留下一道水痕，和那柄三叉戟。</template>
             <template v-else>
               {{ MERMAID.intro }}
               <q v-if="mermaidHint">{{ mermaidHint }}</q>
             </template>
           </p>
-          <div class="chips">
+          <div v-if="!mermaidDead" class="chips">
             <template v-if="mermaidDone">
               <span>已获得 {{ mermaidRewardName }}</span>
             </template>
@@ -543,7 +683,7 @@ function closePanel() {
             </template>
           </div>
           <button
-            v-if="!mermaidDone"
+            v-if="!mermaidDone && !mermaidDead"
             type="button"
             class="btn btn--primary extra__action"
             :disabled="mermaidOwned < mermaidNeedCount"
@@ -551,6 +691,8 @@ function closePanel() {
           >
             提交 {{ mermaidCurrentName }} ×{{ mermaidNeedCount }}
           </button>
+
+          <AssassinationCard npc-id="mermaid" @feedback="feed = $event" />
         </article>
 
         <article class="extra">
@@ -793,7 +935,8 @@ function closePanel() {
             <span class="extra__tag">{{ doctorTag }}</span>
           </header>
           <p class="extra__desc">
-            <template v-if="doctorReady">{{ DOCTOR.readyLine }}</template>
+            <template v-if="doctorDead">{{ npcById('doctor').deathLine }}</template>
+            <template v-else-if="doctorReady">{{ DOCTOR.readyLine }}</template>
             <template v-else-if="!doctorTradeDone">{{ DOCTOR.intro }}</template>
             <template v-else-if="!puppetDefeated">{{ DOCTOR.needPuppetLine }}</template>
             <template v-else-if="!doctorQuest1Done">{{ DOCTOR.quest1Line }}</template>
@@ -801,6 +944,7 @@ function closePanel() {
             <template v-else>{{ DOCTOR.quest3Line }}</template>
           </p>
 
+          <template v-if="!doctorDead">
           <div class="chips">
             <template v-if="doctorReady">
               <span v-for="id in DOCTOR.badges" :key="id">{{ getItem(id)?.name }}</span>
@@ -868,6 +1012,9 @@ function closePanel() {
           >
             上交生存物资 · 生存徽章
           </button>
+          </template>
+
+          <AssassinationCard npc-id="doctor" @feedback="feed = $event" />
         </article>
       </div>
 
@@ -918,7 +1065,14 @@ function closePanel() {
           >
             拾取小核能发电机
           </button>
-          <div v-else-if="rocketBadges >= ROCKET.badgeIds.length" class="extra__actions">
+          <div v-else-if="spaceportBlown" class="chips">
+            <span>发射架已坍塌</span>
+            <span>火箭无法发射</span>
+          </div>
+          <div
+            v-else-if="rocketBadges >= ROCKET.badgeIds.length"
+            class="extra__actions"
+          >
             <button
               type="button"
               class="btn btn--primary"
@@ -937,6 +1091,34 @@ function closePanel() {
               留下
             </button>
           </div>
+        </article>
+
+        <article v-if="mafeiQuest11Active || spaceportBlown" class="extra">
+          <header class="extra__head">
+            <h4 class="extra__title">爆破发射架</h4>
+            <span class="extra__tag">{{ spaceportBlown ? '已爆破' : '等待引爆' }}</span>
+          </header>
+          <p class="extra__desc">
+            <template v-if="spaceportBlown">
+              发射架只剩一段歪斜的钢架，箭体散落在发射台下。火箭再也飞不起来了。
+            </template>
+            <template v-else>
+              马斐要你把火箭炸掉。高能炸药的引线很短，贴上承力环之后就没有回头路。
+            </template>
+          </p>
+          <div v-if="!spaceportBlown" class="chips">
+            <span>高能炸药 {{ explosiveCount }} / 1</span>
+            <span>消耗 1 回合</span>
+          </div>
+          <button
+            v-if="!spaceportBlown"
+            type="button"
+            class="btn extra__deadly extra__action"
+            :disabled="explosiveCount < 1"
+            @click="run(detonateSpaceport)"
+          >
+            安放炸药 · 1 回合
+          </button>
         </article>
       </div>
 
@@ -1145,6 +1327,10 @@ function closePanel() {
   gap: 8px;
   padding: 12px;
   background: #0d0f10;
+}
+
+.extra--wide {
+  grid-column: 1 / -1;
 }
 
 .extra__head {

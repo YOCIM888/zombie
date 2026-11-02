@@ -78,7 +78,14 @@ const abilityLabels = computed(() =>
   (battle.zombie.abilities ?? []).map((key) => ZOMBIE_ABILITY_LABELS[key] ?? key),
 )
 
-const finishLabel = computed(() => (battle.kind === 'field' ? '继续探索' : '返回阵地'))
+const finishLabel = computed(() => {
+  if (battle.kind === 'banker') return '返回银行'
+  if (battle.kind === 'field') return '继续探索'
+  if (battle.kind === 'airship-coup') return battle.coupNext ? '迎战下一位' : '返回高台'
+  if (battle.kind === 'airship-commission') return '返回委托板'
+  if (battle.kind === 'airship-cargo') return '返回机务舱'
+  return '返回阵地'
+})
 
 function effectText(def) {
   return Object.entries(def.effects)
@@ -113,14 +120,13 @@ function finish() {
       <div class="meta">
         <span>攻击 {{ battle.zombie.attack }}</span>
         <span v-if="battle.zombie.infection > 0">命中感染 +{{ battle.zombie.infection }}%</span>
+        <span v-if="battle.zombie.hpFloor" class="meta__ability">锁血 {{ battle.zombie.hpFloor }}</span>
         <span v-for="label in abilityLabels" :key="label" class="meta__ability">{{ label }}</span>
         <span>回合 {{ battle.round }}</span>
       </div>
     </section>
 
     <section class="player">
-      <span>生命 <b>{{ game.stats.hp }}</b></span>
-      <span>感染 <b>{{ game.stats.infection }}</b></span>
       <span>近战 <b>{{ melee.name }}</b></span>
       <span>连击 <b>{{ formatPercent(melee.weapon.combo) }}</b></span>
       <span>远程 <b>{{ ranged.name }}</b></span>
@@ -157,7 +163,9 @@ function finish() {
       </button>
       <button type="button" class="btn" @click="fleeBattle">
         逃跑
-        <span class="actions__hint">{{ formatPercent(DAWN_FLEE_CHANCE) }}</span>
+        <span class="actions__hint">
+          {{ battle.kind === 'airship-coup' ? '100%' : formatPercent(DAWN_FLEE_CHANCE) }}
+        </span>
       </button>
     </section>
 

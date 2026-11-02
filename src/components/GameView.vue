@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { BACKGROUND_IMAGE, DEFAULT_CHARACTER_NAME, STAT_DEFS, STAT_MAX } from '../game/config'
-import { FINALES, fieldMapById } from '../data'
+import { AIRSHIP, FINALES, fieldMapById } from '../data'
 import {
   currentPhase,
   currentPlaytime,
@@ -20,10 +20,13 @@ import ExplorePanel from './ExplorePanel.vue'
 import CityPanel from './CityPanel.vue'
 import DawnPanel from './DawnPanel.vue'
 import FieldPanel from './FieldPanel.vue'
+import AirshipPanel from './AirshipPanel.vue'
 import CompanionPanel from './CompanionPanel.vue'
+import NotebookPanel from './NotebookPanel.vue'
 import InventoryPanel from './InventoryPanel.vue'
 import SavePanel from './SavePanel.vue'
 import SleepPanel from './SleepPanel.vue'
+import SurvivalAlerts from './SurvivalAlerts.vue'
 import DevConsole from './DevConsole.vue'
 
 const panel = ref('')
@@ -72,6 +75,8 @@ function openRegion() {
     panel.value = 'dawn'
   } else if (game.location === 'ruined-city') {
     panel.value = 'city'
+  } else if (game.location === AIRSHIP.mapId) {
+    panel.value = 'airship'
   } else if (fieldMapById(game.location)) {
     panel.value = 'field'
   } else {
@@ -130,8 +135,6 @@ function percentOf(key) {
               <h1 class="identity__name">{{ game.character }}</h1>
               <button type="button" class="identity__rename" @click="openRename">改名</button>
               <span class="identity__tag">存档 {{ slotLabel }}</span>
-              <span class="identity__tag">末日币 {{ game.coins }}</span>
-              <span class="identity__tag">曙光币 {{ game.dawnCoins }}</span>
               <span v-if="game.identity" class="identity__tag">身份 · {{ game.identity }}</span>
               <span v-if="game.dawnIdentity" class="identity__tag">曙光 · {{ game.dawnIdentity }}</span>
             </div>
@@ -164,6 +167,22 @@ function percentOf(key) {
               />
             </div>
           </div>
+
+          <div class="gauge gauge--coin gauge--doom">
+            <div class="gauge__head">
+              <span class="gauge__label">末日币</span>
+              <span class="gauge__value">{{ game.coins }}</span>
+            </div>
+            <div class="gauge__track gauge__track--coin" />
+          </div>
+
+          <div class="gauge gauge--coin gauge--dawn">
+            <div class="gauge__head">
+              <span class="gauge__label">曙光币</span>
+              <span class="gauge__value">{{ game.dawnCoins }}</span>
+            </div>
+            <div class="gauge__track gauge__track--coin" />
+          </div>
         </div>
       </header>
 
@@ -191,9 +210,11 @@ function percentOf(key) {
             </div>
 
             <div class="scene__note">
-              <span class="eyebrow">框架说明</span>
+              <span class="eyebrow">游戏向导</span>
               <p>
-                属性面板、回合计数、背包、存档与地图入口均已接入。区域事件与战斗将在下一阶段开发。
+                觉得游戏太难可以去【郊区卖场】地图寻找开发者领取一次性奖励,但游戏硬核度将会下降。
+                <br />
+                备忘录有空就看看，里有所有交互的冷却与剩余次数，帮助你规划你的行动。
               </p>
             </div>
           </div>
@@ -245,6 +266,15 @@ function percentOf(key) {
           </span>
           <span class="action__arrow">→</span>
         </button>
+
+        <button type="button" class="action" @click="panel = 'notebook'">
+          <span class="action__no">06</span>
+          <span class="action__main">
+            <span class="action__label">备忘录</span>
+            <span class="action__desc">所有交互的冷却与剩余次数</span>
+          </span>
+          <span class="action__arrow">→</span>
+        </button>
       </footer>
     </div>
 
@@ -255,11 +285,15 @@ function percentOf(key) {
     />
     <CityPanel v-else-if="panel === 'city'" @close="closeCity" />
     <DawnPanel v-else-if="panel === 'dawn'" @close="closeCity" />
-    <FieldPanel v-else-if="panel === 'field'" @close="closeCity" />
+    <FieldPanel v-else-if="panel === 'field'" @close="closeCity" @travel="panel = 'airship'" />
+    <AirshipPanel v-else-if="panel === 'airship'" @close="closeCity" />
     <CompanionPanel v-else-if="panel === 'companion'" @close="panel = ''" />
+    <NotebookPanel v-else-if="panel === 'notebook'" @close="panel = ''" />
     <SleepPanel v-else-if="panel === 'sleep'" @close="panel = ''" />
     <InventoryPanel v-else-if="panel === 'inventory'" @close="panel = ''" />
     <SavePanel v-else-if="panel === 'save'" @close="panel = ''" />
+
+    <SurvivalAlerts />
 
     <div v-if="game.dead" class="death">
       <div class="death__card">
@@ -511,7 +545,7 @@ function percentOf(key) {
 
 .gauges {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 18px;
   padding-top: 16px;
 }
@@ -552,6 +586,26 @@ function percentOf(key) {
   height: 100%;
   transition: width 0.45s ease;
   box-shadow: 0 0 10px rgba(255, 255, 255, 0.12);
+}
+
+.gauge--coin .gauge__value {
+  font-weight: 600;
+}
+
+.gauge--doom .gauge__value {
+  color: #d6b15b;
+}
+
+.gauge--dawn .gauge__value {
+  color: #6fbfa5;
+}
+
+.gauge__track--coin {
+  background: linear-gradient(90deg, rgba(214, 177, 91, 0.55), transparent);
+}
+
+.gauge--dawn .gauge__track--coin {
+  background: linear-gradient(90deg, rgba(111, 191, 165, 0.55), transparent);
 }
 
 /* ===== 场景 ===== */
@@ -674,7 +728,7 @@ function percentOf(key) {
 
 .actions {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
 }
 

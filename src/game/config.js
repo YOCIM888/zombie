@@ -1,6 +1,7 @@
 // 游戏静态配置：属性、地图、成就
 
 import { FIELD_MAPS } from '../data/field'
+import { AIRSHIP_MAP } from '../data/airship'
 
 export const BACKGROUND_IMAGE = '/image/背景图/背景.webp'
 
@@ -14,8 +15,8 @@ export const STAT_DEFS = [
   { key: 'hunger', label: '饱食度', color: '#c9923f', danger: false },
   { key: 'thirst', label: '口渴值', color: '#4b87b8', danger: false },
   { key: 'sanity', label: '理智值', color: '#8b74b8', danger: false },
-  { key: 'infection', label: '感染值', color: '#7c9840', danger: true },
   { key: 'stamina', label: '体力值', color: '#4b9c8a', danger: false },
+  { key: 'infection', label: '感染值', color: '#7c9840', danger: true },
 ]
 
 export const STAT_MAX = 100
@@ -104,6 +105,7 @@ export const MAPS = [
     open: true,
   },
   ...FIELD_MAPS,
+  AIRSHIP_MAP,
 ]
 
 export const ACHIEVEMENTS = [
@@ -129,6 +131,27 @@ export const ACHIEVEMENTS = [
   { id: 'garage', name: '远走高飞', desc: '和嫣然一起从地下车库离开。' },
   { id: 'rocket', name: '升空', desc: '修好火箭并达成任意一个发射结局。' },
   { id: 'loan-paid', name: '两清', desc: '还清在都城银行借下的贷款。' },
+  { id: 'survivor-60', name: '长冬', desc: '在末日里存活整整六十天。' },
+  { id: 'slayer-100', name: '尸潮', desc: '累计击杀 100 只丧尸。' },
+  { id: 'field-explorer', name: '走出安全屋', desc: '第一次进入野外地图探索。' },
+  { id: 'field-veteran', name: '踏遍废墟', desc: '探索过 5 张不同的野外地图。' },
+  { id: 'fully-armed', name: '全副武装', desc: '同时装备近战与远程武器。' },
+  { id: 'legendary', name: '传说在手', desc: '拥有一件传说或神话品质的武器。' },
+  { id: 'city-knight', name: '封骑士', desc: '在末日都城获得骑士或更高身份。' },
+  { id: 'city-heir', name: '王座之前', desc: '在末日都城获得储君身份。' },
+  { id: 'dawn-command', name: '曙光指挥', desc: '在曙光阵地晋升到指挥。' },
+  { id: 'dawn-deputy', name: '曙光副首', desc: '在曙光阵地晋升到副首。' },
+  { id: 'coin-tycoon', name: '富甲一方', desc: '手头攒下 200 枚末日币。' },
+  { id: 'dawn-wealth', name: '曙光之富', desc: '手头攒下 300 枚曙光币。' },
+  { id: 'ma-san', name: '掀了烧烤摊', desc: '拒绝冷面阿三的邀请，并把他打倒。' },
+  { id: 'death-list', name: '死亡名单', desc: '接过马斐的第十二份委托，成为他名单上的最后一行。' },
+  { id: 'seed-life', name: '生机', desc: '把腐烂种子种成一片果苗。' },
+  { id: 'doctor-badges', name: '三枚徽章', desc: '集齐陈博士的三枚发射徽章。' },
+  { id: 'rocket-crew', name: '一个都不少', desc: '带着嫣然和露露一起升空。' },
+  { id: 'rocket-solo', name: '独行者', desc: '独自飞离这片废墟。' },
+  { id: 'rocket-send', name: '送别', desc: '让他们上火箭，自己留在废墟。' },
+  { id: 'playtime-1h', name: '一小时', desc: '累计游玩 1 小时。' },
+  { id: 'playtime-10h', name: '长夜未央', desc: '累计游玩 10 小时。' },
 ]
 
 export const INVENTORY_CATEGORIES = [

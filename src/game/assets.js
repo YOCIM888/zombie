@@ -1,6 +1,11 @@
 import imageAssets from 'virtual:asset-manifest'
+import { WEAPON_SFX_SOURCES } from './sfx'
 
-export const MUSIC_SRC = '/audio/backmusic.mp3'
+/** 可选背景音乐；id 会写入本地设置 */
+export const MUSIC_TRACKS = [
+  { id: 'backmusic', name: '废墟低语', hint: '默认曲目', src: '/audio/backmusic.mp3' },
+  { id: 'background', name: '余烬晨光', hint: '新增曲目', src: '/audio/Background.mp3' },
+]
 
 export const allImageAssets = imageAssets
 
@@ -19,7 +24,9 @@ function loadImage(src) {
  * @param {(ratio: number) => void} onProgress 0 ~ 1
  */
 export async function preloadAssets(onProgress, { concurrency = 8 } = {}) {
-  const tasks = [...imageAssets, MUSIC_SRC]
+  const musicSources = MUSIC_TRACKS.map((track) => track.src)
+  const audioSources = new Set([...musicSources, ...WEAPON_SFX_SOURCES])
+  const tasks = [...imageAssets, ...musicSources, ...WEAPON_SFX_SOURCES]
   const total = tasks.length
   let done = 0
   let cursor = 0
@@ -29,7 +36,7 @@ export async function preloadAssets(onProgress, { concurrency = 8 } = {}) {
   async function worker() {
     while (cursor < tasks.length) {
       const url = tasks[cursor++]
-      if (url === MUSIC_SRC) {
+      if (audioSources.has(url)) {
         await fetch(url).catch(() => {})
       } else {
         await loadImage(url)

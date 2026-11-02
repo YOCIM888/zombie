@@ -1,5 +1,6 @@
 // 野外地图：威胁度、遭遇率、掉落类别与武器品质权重
 import { ITEMS } from './items'
+import { NPCS } from './npcs'
 
 const CATEGORY_LABELS = {
   food: '食物',
@@ -309,16 +310,7 @@ export const MA_SAN = {
   killedLine: '砧板上的刀已经卷了刃，烧烤摊不会再开张。',
   acceptReason:
     '阿三把最后一勺汤盛进你碗里，笑着说，这道菜要趁热。\n\n你尝不出肉是什么做的，只觉得眼皮越来越沉。\n\n灶上的火还亮着，铁锅咕嘟咕嘟，像是有什么东西还在动。',
-  enemy: {
-    id: 'ma-san',
-    name: '冷面阿三',
-    hp: 110,
-    attack: 18,
-    dodge: 0.12,
-    infection: 0,
-    abilities: [],
-    description: '围裙上全是洗不掉的深色污渍，砧板边靠着一支 AKM。',
-  },
+  enemy: NPCS.maSan,
 }
 
 /** 背包里的任意水果计数前的判定 */
@@ -329,6 +321,23 @@ export function isFruitItem(itemId) {
 /** 是否为阿三认的烈酒 */
 export function isSpiritItem(itemId) {
   return MA_SAN.spiritIds.includes(itemId)
+}
+
+/** 山地军营·马斐：连续十二道委托，最后一道是背叛 */
+export const MAFEI = {
+  mapId: 'mountain-barracks',
+  id: 'mafei',
+  name: '马斐',
+  explosiveItemId: 'high-explosive',
+  craftTurns: 16,
+  intro:
+    '营房门口坐着个擦枪的男人，脚边堆着一排空弹壳。他说话时从不看你的眼睛，只把枪口慢慢抬高一点。',
+  killedLine: '马斐的营房空了。擦枪布还搭在椅背上，枪油没干。',
+  whisperLine:
+    '「你知道他们背着你都干了什么吗？」他的声音压得很低，「我不是要你信我，我是要你自己去看。」',
+  craftLine: '「炸药我会配。」他拍了拍脚边的铁盒，「按我的方子，16 个回合出一块。」',
+  betrayalReason:
+    '马斐把枪轻轻放在桌上，枪口对着你。「名单上最后一个人，」他说，「是你。」\n\n你还没来得及站起来，枪声就在营房里炸开。铁皮屋顶上落下一层薄灰，慢悠悠地飘在你们之间。\n\n他蹲下来，用拇指把你的名字划掉，补写在名单最下面。',
 }
 
 /** 郊区卖场·人鱼公主：四种饮品分四段愈合 */
@@ -361,16 +370,7 @@ export const YANRAN = {
   deadlineDays: 30,
   serumId: 'anti-infection-shot',
   serumCount: 5,
-  enemy: {
-    id: 'yanran',
-    name: '半感染者·嫣然',
-    hp: 95,
-    attack: 17,
-    infection: 2,
-    dodge: 0.1,
-    abilities: ['infect'],
-    description: '她的半张脸还是人的样子，另外半张已经烂到了骨头。',
-  },
+  enemy: NPCS.yanran,
   intro: '她靠在商场中庭的柱子后面，半张脸埋在围巾里。听见脚步，她抬起了眼。',
   rescuedLine:
     '五支抗感染针推下去，她剧烈地咳了几声，溃烂的地方开始慢慢收口。\n\n「我叫嫣然。」她抓住你的袖子，「你要是不嫌弃，我跟你走。我能帮你找东西。」',
@@ -437,7 +437,7 @@ export const COMPANIONS = {
 export const DOCTOR = {
   mapId: 'x-lab',
   serumId: 'anti-infection-shot',
-  serumCount: 30,
+  serumCount: 20,
   rewardItemId: 'm700',
   generatorId: 'small-nuclear-generator',
   energyId: 'pure-energy',
@@ -471,16 +471,7 @@ export const GIANT_PUPPET = {
   victoryLine:
     '傀儡跪下去的时候，金属框架一节节散开。你在它胸腔里找到一台还在运转的小核能发电机。',
   fleeLine: '你退出了发射中心。身后的金属拖地声停在门口，没有追出来。',
-  enemy: {
-    id: 'giant-puppet',
-    name: '巨型丧尸傀儡',
-    hp: 260,
-    attack: 28,
-    infection: 0,
-    dodge: 0.12,
-    abilities: [],
-    description: '三倍于常人的体型，四肢被金属框架固定，身上的管线还亮着暗红色的光。',
-  },
+  enemy: NPCS.giantPuppet,
 }
 
 /** 航天基地·发射中心：三枚徽章修好火箭后的四种选择 */

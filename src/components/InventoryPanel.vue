@@ -4,11 +4,14 @@ import { INVENTORY_CATEGORIES, STAT_DEFS } from '../game/config'
 import {
   CLEANLINESS_MAX,
   MELEE_TIER_COLORS,
+  PRACTICE_TALENTS,
   STACK_LIMIT,
   categoryLabel,
   cleanlinessMultiplier,
   countUsedSlots,
   getItem,
+  talentBonus,
+  talentTitle,
 } from '../data'
 import { formatCritDamage, formatPercent } from '../game/format'
 import {
@@ -16,11 +19,19 @@ import {
   equipMelee,
   equipRanged,
   game,
+  organizeBackpack,
   useItem,
 } from '../game/store'
 import ModalShell from './ModalShell.vue'
 import LoadoutPanel from './LoadoutPanel.vue'
 
+const VIEWS = [
+  { id: 'bag', name: '背包' },
+  { id: 'panel', name: '面板' },
+  { id: 'talent', name: '天赋' },
+]
+
+const activeView = ref('bag')
 const activeCategory = ref('all')
 const selectedIndex = ref(null)
 const pendingDiscard = ref(null)
@@ -28,6 +39,32 @@ const pendingDiscard = ref(null)
 const STAT_LABELS = Object.fromEntries(STAT_DEFS.map((stat) => [stat.key, stat.label]))
 
 const usedSlots = computed(() => countUsedSlots(game.inventory))
+const equippedCount = computed(
+  () => Number(Boolean(game.equipment.melee)) + Number(Boolean(game.equipment.ranged)),
+)
+const talentLevels = computed(
+  () => Number(game.talents.melee || 0) + Number(game.talents.ranged || 0),
+)
+const talentCards = computed(() =>
+  ['melee', 'ranged'].map((kind) => {
+    const config = PRACTICE_TALENTS[kind]
+    const level = Math.max(0, Math.min(3, Number(game.talents[kind]) || 0))
+    const full = level >= 3
+    const progress = full ? 100 : Math.max(0, Math.min(99, Number(game.training[kind]) || 0))
+    return {
+      key: kind,
+      label: config.label,
+      titles: config.titles,
+      bonuses: config.bonuses,
+      stat: config.stat,
+      level,
+      full,
+      progress,
+      title: talentTitle(kind, level) || '暂无天赋',
+      bonus: level ? `+${Math.round(talentBonus(kind, level) * 100)}%` : '—',
+    }
+  }),
+)
 
 const tabs = computed(() =>
   INVENTORY_CATEGORIES.map((category) => ({
@@ -115,6 +152,13 @@ function selectSlot(slot) {
   selectedIndex.value = slot.index
 }
 
+function handleOrganize() {
+  if (!organizeBackpack()) return
+  activeCategory.value = 'all'
+  selectedIndex.value = firstInCategory('all')
+  pendingDiscard.value = null
+}
+
 function handleUse() {
   if (!selectedEntry.value) return
   useItem(selectedIndex.value)
@@ -161,23 +205,52 @@ function weaponLine(weapon) {
 <template>
   <ModalShell
     title="背包"
-    sub="物品栏 · 初始 20 格容量，点击物品查看详情"
+    sub="物品栏 · 支持整理、分类与装备详情"
     wide
     @close="$emit('close')"
   >
-    <div class="bag">
-      <section class="inventory">
-        <div class="tabs">
-          <button
-            v-for="tab in tabs"
-            :key="tab.id"
-            type="button"
-            class="tab"
-            :class="{ 'tab--active': activeCategory === tab.id }"
-            @click="activeCategory = tab.id"
-          >
-            {{ tab.name }}
-            <span>{{ tab.count }}</span>
+    <div class="view-switch" role="tablist" aria-label="背包视图">
+      <button
+        v-for="view in VIEWS"
+        :key="view.id"
+        type="button"
+        class="view-switch__btn"
+        :class="{ 'is-active': activeView === view.id }"
+        role="tab"
+        :aria-selected="activeView === view.id"
+        @click="activeView = view.id"
+      >
+        {{ view.name }}
+        <span>
+          {{
+            view.id === 'bag'
+              ? `${usedSlots}/${game.inventory.length}`
+              : view.id === 'panel'
+                ? equippedCount
+                : talentLevels
+          }}
+        </span>
+      </button>
+    </div>
+
+    <div v-if="activeView === 'bag'" class="bag-view">
+      <section class="bag-main">
+        <div class="bag-bar">
+          <div class="tabs">
+            <button
+              v-for="tab in tabs"
+              :key="tab.id"
+              type="button"
+              class="tab"
+              :class="{ 'tab--active': activeCategory === tab.id }"
+              @click="activeCategory = tab.id"
+            >
+              {{ tab.name }}
+              <span>{{ tab.count }}</span>
+            </button>
+          </div>
+          <button type="button" class="btn bag-bar__organize" @click="handleOrganize">
+            整理背包
           </button>
         </div>
 
@@ -207,7 +280,9 @@ function weaponLine(weapon) {
             <span v-else class="cell__plus">+</span>
           </button>
         </div>
+      </section>
 
+      <aside class="bag-detail">
         <section v-if="selectedDef" class="detail">
           <div class="detail__thumb">
             <img v-if="selectedDef.image" :src="selectedDef.image" :alt="selectedDef.name" />
@@ -251,17 +326,61 @@ function weaponLine(weapon) {
         <section v-else class="detail detail--empty">
           选择一件物品查看详情 · 食物、饮品、药品可使用，武器可装备
         </section>
-      </section>
+      </aside>
+    </div>
 
-      <LoadoutPanel />
+    <div v-else-if="activeView === 'panel'" class="panel-view">
+      <LoadoutPanel wide />
+    </div>
+
+    <div v-else class="talent-view">
+      <article v-for="card in talentCards" :key="card.key" class="talent-card">
+        <header class="talent-card__head">
+          <div>
+            <span class="talent-card__label">{{ card.label }}</span>
+            <h3 class="talent-card__title">{{ card.title }}</h3>
+          </div>
+          <span class="talent-card__level">Lv.{{ card.level }} / 3</span>
+        </header>
+
+        <div class="talent-card__rows">
+          <span>{{ card.stat }} <b>{{ card.bonus }}</b></span>
+          <span>
+            熟练度
+            <b>{{ card.full ? '已满级' : `${card.progress} / 100` }}</b>
+          </span>
+        </div>
+
+        <div class="track">
+          <div class="track__fill" :style="{ width: card.progress + '%' }" />
+        </div>
+
+        <div class="talent-card__tiers">
+          <span
+            v-for="(title, index) in card.titles"
+            :key="title"
+            :class="{ 'is-on': card.level > index }"
+          >
+            Lv.{{ index + 1 }} · {{ title }} +{{ Math.round(card.bonuses[index] * 100) }}%
+          </span>
+        </div>
+      </article>
+
+      <p v-if="talentLevels === 0" class="talent-empty">
+        还没有任何天赋。去末日飞行船的木桩或靶场练习，熟练度满 100% 会提升一级天赋。
+      </p>
     </div>
 
     <template #footer>
-      <span class="foot-note">
-        背包 {{ usedSlots }} / {{ game.inventory.length }} 格 · 食物 / 饮品 / 药品可堆叠，上限
+      <span v-if="activeView === 'bag'" class="foot-note">
+        背包 {{ usedSlots }} / {{ game.inventory.length }} 格 · 单格堆叠上限
         {{ STACK_LIMIT }}
       </span>
-      <div v-if="selectedDef" class="foot-actions">
+      <span v-else-if="activeView === 'panel'" class="foot-note">
+        装备面板 · 近战与远程武器详情
+      </span>
+      <span v-else class="foot-note">天赋 · 熟练度与加成，取最高等级且不叠加</span>
+      <div v-if="activeView === 'bag' && selectedDef" class="foot-actions">
         <span class="foot-item">{{ selectedDef.name }} ×{{ selectedEntry.qty }}</span>
         <button
           v-if="canEquipMelee"
@@ -291,24 +410,85 @@ function weaponLine(weapon) {
           {{ discardLabel }}
         </button>
       </div>
-      <span v-else class="mode">BACKPACK</span>
+      <span v-else class="mode">
+        {{ activeView === 'bag' ? 'BACKPACK' : activeView === 'panel' ? 'PANEL' : 'TALENTS' }}
+      </span>
     </template>
   </ModalShell>
 </template>
 
 <style scoped>
-.bag {
+.view-switch {
+  display: inline-flex;
+  gap: 1px;
+  margin-bottom: 16px;
+  padding: 1px;
+  border: 1px solid var(--line);
+  background: var(--line);
+}
+
+.view-switch__btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 22px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  color: var(--text-mute);
+  background: #0d0f10;
+  transition:
+    color 0.2s,
+    background 0.2s;
+}
+
+.view-switch__btn span {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--text-mute);
+}
+
+.view-switch__btn:hover {
+  color: var(--text);
+}
+
+.view-switch__btn.is-active {
+  color: var(--bone);
+  background: rgba(193, 74, 50, 0.12);
+  box-shadow: inset 0 -1px 0 var(--rust);
+}
+
+.bag-view {
   display: grid;
   grid-template-columns: minmax(0, 1.55fr) minmax(300px, 0.9fr);
-  gap: 24px;
+  gap: 22px;
   align-items: start;
 }
 
+.bag-main {
+  min-width: 0;
+}
+
+.bag-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
 .tabs {
+  flex: 1;
   display: flex;
   flex-wrap: wrap;
   gap: 2px;
   border-bottom: 1px solid var(--line);
+}
+
+.bag-bar__organize {
+  flex: none;
+  height: 30px;
+  margin-bottom: 7px;
+  padding: 0 14px;
+  font-size: 11px;
 }
 
 .tab {
@@ -347,7 +527,7 @@ function weaponLine(weapon) {
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 8px;
   margin-top: 14px;
 }
@@ -431,15 +611,18 @@ function weaponLine(weapon) {
   color: rgba(214, 208, 191, 0.14);
 }
 
+.bag-detail {
+  min-width: 0;
+}
+
 .detail {
   display: flex;
   align-items: stretch;
   gap: 14px;
-  margin-top: 14px;
   padding: 13px;
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.022);
-  min-height: 116px;
+  min-height: 180px;
 }
 
 .detail--empty {
@@ -543,6 +726,112 @@ function weaponLine(weapon) {
   color: var(--text-mute);
 }
 
+.panel-view {
+  width: 100%;
+}
+
+.talent-view {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.talent-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.022);
+}
+
+.talent-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.talent-card__label {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  color: var(--text-mute);
+}
+
+.talent-card__title {
+  margin: 6px 0 0;
+  font-family: var(--font-title);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--text);
+}
+
+.talent-card__level {
+  flex: none;
+  padding: 3px 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--rust-soft);
+  border: 1px solid rgba(193, 74, 50, 0.45);
+}
+
+.talent-card__rows {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-mute);
+}
+
+.talent-card__rows b {
+  font-weight: 500;
+  color: var(--bone);
+}
+
+.track {
+  height: 4px;
+  background: rgba(214, 208, 191, 0.12);
+  overflow: hidden;
+}
+
+.track__fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--rust), var(--rust-soft));
+  transition: width 0.4s ease;
+}
+
+.talent-card__tiers {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 2px;
+}
+
+.talent-card__tiers span {
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+  color: rgba(214, 208, 191, 0.34);
+}
+
+.talent-card__tiers span.is-on {
+  color: var(--bone);
+}
+
+.talent-empty {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 18px;
+  font-size: 11.5px;
+  line-height: 1.8;
+  letter-spacing: 0.04em;
+  color: var(--text-mute);
+  border: 1px dashed var(--line-strong);
+  text-align: center;
+}
+
 .foot-note {
   font-size: 11.5px;
   letter-spacing: 0.06em;
@@ -581,18 +870,24 @@ function weaponLine(weapon) {
 }
 
 @media (max-width: 900px) {
-  .bag {
+  .bag-view {
     grid-template-columns: 1fr;
   }
 
   .grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 560px) {
   .grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .detail {

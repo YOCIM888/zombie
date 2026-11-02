@@ -5,6 +5,7 @@ import { startMusic } from './music'
 import {
   BACKPACK_MAX_SIZE,
   BACKPACK_SIZE,
+  BANKER,
   CLEANLINESS_MAX,
   CLEANLINESS_PER_SHOT,
   COMPANIONS,
@@ -19,12 +20,25 @@ import {
   GARAGE,
   GARDEN,
   GIANT_PUPPET,
+  HELICOPTER,
+  AIRSHIP,
+  AIRSHIP_SHOP_GOODS,
+  AIRSHIP_STOCKS,
+  PRACTICE_TALENTS,
+  STOCK_PRICE_MAX,
+  STOCK_PRICE_MIN,
+  commissionForDay,
+  oilPriceForDay,
+  rollStockPrices,
+  stockProfitRounded,
+  stockTradeFee,
   ITEMS,
   KNIGHT_COST,
   LABOR_TIERS,
   LOAN_TERM_DAYS,
   LULU,
   MA_SAN,
+  MAFEI,
   MERMAID,
   ORCHARD,
   PALACE_COOLDOWN,
@@ -57,6 +71,8 @@ import {
   loanInterest,
   loanTierByRank,
   loanTierFor,
+  npcById,
+  organizeInventory,
   pickCityLoot,
   pickCompanionLoot,
   pickDawnFruit,
@@ -69,8 +85,18 @@ import {
   questLine,
   removeItem,
   repairCoinCost,
+  talentBonus,
+  talentTitle,
+  treasureForDay,
 } from '../data'
-import { addPlaytime, flushGlobalStats, getSlot, unlockAchievement, writeSlot } from './save'
+import {
+  addPlaytime,
+  flushGlobalStats,
+  getSlot,
+  globalStats,
+  unlockAchievement,
+  writeSlot,
+} from './save'
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -112,6 +138,10 @@ export const game = reactive({
   quests: {},
   flags: {},
   finale: '',
+  reputation: 0,
+  talents: { melee: 0, ranged: 0 },
+  training: { melee: 0, ranged: 0 },
+  market: null,
   playtimeBase: 0,
   sessionSeconds: 0,
   toast: '',
@@ -138,6 +168,18 @@ export function notify(text, duration = 2400) {
 
 const ACHIEVEMENT_NAMES = Object.fromEntries(ACHIEVEMENTS.map((item) => [item.id, item.name]))
 
+const HIGH_TIER_NAMES = ['传说', '神话']
+
+/** 背包或已装备武器中是否拥有高品阶武器 */
+function ownsHighTierWeapon() {
+  const defs = [
+    ...game.inventory.filter(Boolean).map((entry) => getItem(entry.id)),
+    game.equipment.melee ? getItem(game.equipment.melee.id) : null,
+    game.equipment.ranged ? getItem(game.equipment.ranged.id) : null,
+  ]
+  return defs.some((def) => HIGH_TIER_NAMES.includes(def?.tier))
+}
+
 /** 可自动判定的成就条件：读取当前存档状态即可 */
 const ACHIEVEMENT_CHECKS = {
   'first-night': () => game.day >= 2,
@@ -160,6 +202,28 @@ const ACHIEVEMENT_CHECKS = {
   rocket: () =>
     [ROCKET.finaleAll, ROCKET.finaleSolo, ROCKET.finaleSend].includes(game.finale),
   'loan-paid': () => Boolean(game.flags.loanRepaid),
+  'survivor-60': () => game.day >= 60,
+  'slayer-100': () => game.zombieKills >= 100,
+  'field-explorer': () =>
+    Array.isArray(game.flags.visitedMaps) && game.flags.visitedMaps.length >= 1,
+  'field-veteran': () =>
+    Array.isArray(game.flags.visitedMaps) && game.flags.visitedMaps.length >= 5,
+  'fully-armed': () => Boolean(game.equipment.melee && game.equipment.ranged),
+  legendary: () => ownsHighTierWeapon(),
+  'city-knight': () => identityRank(game.maxIdentity) >= 1,
+  'city-heir': () => identityRank(game.maxIdentity) >= 7,
+  'dawn-command': () => dawnRank(game.maxDawnIdentity) >= 2,
+  'dawn-deputy': () => dawnRank(game.maxDawnIdentity) >= 3,
+  'coin-tycoon': () => game.coins >= 200,
+  'dawn-wealth': () => game.dawnCoins >= 300,
+  'ma-san': () => Boolean(game.flags.maSanKilled),
+  'seed-life': () => Boolean(game.flags.rottenSeedPlanted),
+  'doctor-badges': () => Boolean(game.flags.doctorQuest3Done),
+  'rocket-crew': () => game.finale === ROCKET.finaleAll,
+  'rocket-solo': () => game.finale === ROCKET.finaleSolo,
+  'rocket-send': () => game.finale === ROCKET.finaleSend,
+  'playtime-1h': () => globalStats.totalPlaytime >= 3600,
+  'playtime-10h': () => globalStats.totalPlaytime >= 36000,
 }
 
 let achievementGuard = false
@@ -223,6 +287,7 @@ function cloneLoan(source) {
   if (typeof loan.graceUsed !== 'boolean') loan.graceUsed = false
   if (typeof loan.confiscated !== 'boolean') loan.confiscated = false
   if (typeof loan.defaulted !== 'boolean') loan.defaulted = false
+  if (typeof loan.interestWaived !== 'boolean') loan.interestWaived = false
   return loan
 }
 
@@ -247,7 +312,7 @@ function migrateLegacyItemIds() {
 
 function makeSavePayload() {
   return {
-    version: 6,
+    version: 8,
     name: game.character,
     stats: { ...game.stats },
     inventory: game.inventory.map((entry) => (entry ? { ...entry } : null)),
@@ -265,6 +330,10 @@ function makeSavePayload() {
     cooldowns: { ...game.cooldowns },
     quests: cloneQuests(game.quests),
     flags: { ...game.flags },
+    reputation: game.reputation,
+    talents: { ...game.talents },
+    training: { ...game.training },
+    market: cloneStockMarket(game.market),
     playtime: currentPlaytime.value,
     savedAt: Date.now(),
   }
@@ -289,6 +358,16 @@ function applySlot(slot) {
   game.cooldowns = slot.cooldowns ? { ...slot.cooldowns } : {}
   game.quests = cloneQuests(slot.quests)
   game.flags = slot.flags && typeof slot.flags === 'object' ? { ...slot.flags } : {}
+  game.reputation = Math.max(0, Number(slot.reputation) || 0)
+  game.talents = {
+    melee: Math.max(0, Math.min(3, Math.round(Number(slot.talents?.melee) || 0))),
+    ranged: Math.max(0, Math.min(3, Math.round(Number(slot.talents?.ranged) || 0))),
+  }
+  game.training = {
+    melee: Math.max(0, Math.min(99, Math.round(Number(slot.training?.melee) || 0))),
+    ranged: Math.max(0, Math.min(99, Math.round(Number(slot.training?.ranged) || 0))),
+  }
+  game.market = normalizeStockMarket(slot.market) ?? createStockMarket(game.day)
   game.location = null
   game.dead = false
   game.deathReason = ''
@@ -354,6 +433,10 @@ export async function enterGame(slotIndex, { isNew = false, name = '' } = {}) {
     game.quests = {}
     game.flags = {}
     game.finale = ''
+    game.reputation = 0
+    game.talents = { melee: 0, ranged: 0 }
+    game.training = { melee: 0, ranged: 0 }
+    game.market = createStockMarket(1)
     game.playtimeBase = 0
     game.sessionSeconds = 0
   } else {
@@ -504,6 +587,9 @@ function die(reason, ending = '') {
   game.dead = true
   game.deathReason = reason
   game.ending = ending
+  if (ending === '恶魔' && unlockAchievement('death-list')) {
+    notify('成就解锁 · 死亡名单')
+  }
 }
 
 /** 身份以背包里的身份牌为准：两个阵营各取等级最高的一枚 */
@@ -586,6 +672,7 @@ export function advanceTurns(count, { decay = true } = {}) {
     }
     checkLoanDue()
   }
+  if (game.market) ensureStockMarketDay()
   checkAchievements()
 }
 
@@ -617,6 +704,10 @@ export function enterMap(mapId) {
     notify(`「${map.name}」尚未开放`)
     return false
   }
+  if (map.hidden) {
+    notify(`「${map.name}」不在这条路上，得另找入口`, 3200)
+    return false
+  }
   if (mapId === 'dawn-post' && game.identity) {
     notify(`你带着「${game.identity}」的都城徽章，曙光哨兵不会放你进去`, 3200)
     return false
@@ -633,6 +724,11 @@ export function enterMap(mapId) {
 
   adjustStats(ENTRY_COST)
   game.location = mapId
+  if (fieldMapById(mapId)) {
+    const visited = Array.isArray(game.flags.visitedMaps) ? game.flags.visitedMaps : []
+    if (!visited.includes(mapId)) visited.push(mapId)
+    game.flags.visitedMaps = visited
+  }
   if (mapId === 'dawn-post') {
     const unlocked = unlockAchievement('dawn-seen')
     notify(
@@ -936,6 +1032,60 @@ export function acceptMaSanInvite() {
 
   die(MA_SAN.acceptReason, '食人魔')
   return ''
+}
+
+/* ===== 山地军营 · 马斐 ===== */
+
+/** NPC 是否已被马斐的委托处决 */
+export function isNpcDead(npcId) {
+  const npc = npcById(npcId)
+  return Boolean(npc && game.flags[npc.deathFlag])
+}
+
+/** 背包里的高能炸药数量 */
+export function countHighExplosive() {
+  return countItem(game.inventory, MAFEI.explosiveItemId)
+}
+
+/** 合成高能炸药：完成马斐任务十后解锁，16 回合一块，正常衰减 */
+export function craftHighExplosive() {
+  if (game.dead) return ''
+  if (game.location !== MAFEI.mapId) return '炸药台架在山地军营的营房后面。'
+  if (game.flags.mafeiKilled) return MAFEI.killedLine
+  if (!isQuestDone('mafei-10')) return '马斐把方子压在枪下面：「先把名单办完。」'
+
+  if (!canStoreItems(game.inventory, [{ id: MAFEI.explosiveItemId, qty: 1 }])) {
+    return '背包已满，配好的炸药无处安放。'
+  }
+
+  advanceTurns(MAFEI.craftTurns)
+  if (game.dead) return ''
+
+  addItem(game.inventory, MAFEI.explosiveItemId, 1)
+  return `你按马斐的方子守了 ${MAFEI.craftTurns} 个回合，一块高能炸药压成了型（现有 ${countHighExplosive()} 块）。`
+}
+
+/** 航天基地：把高能炸药装进发射架，炸毁火箭 */
+export function detonateSpaceport() {
+  if (game.dead) return ''
+  if (game.location !== ROCKET.mapId) return '发射架在航天基地最深处。'
+  if (!isQuestActive('mafei-11')) return '你还没有接到爆破火箭的命令。'
+  if (game.flags.spaceportBlown) return '发射架已经塌了，只剩下扭曲的钢架。'
+  if (countHighExplosive() < 1) return '你手里没有高能炸药。先回山地军营合成一块。'
+
+  removeItem(game.inventory, MAFEI.explosiveItemId, 1)
+  advanceTurns(1)
+  if (game.dead) return ''
+
+  game.flags.spaceportBlown = true
+  return '你把炸药贴在箭体的承力环上，引线短得来不及跑远。爆炸声过后，发射架上只剩一段歪斜的钢架。'
+}
+
+/** 马斐任务十二：接取即被灭口，达成死亡结局「恶魔」 */
+export function acceptMafeiFinalQuest() {
+  if (game.dead) return ''
+  if (game.location !== MAFEI.mapId) return '马斐在山地军营等你。'
+  return acceptQuest('mafei-12')
 }
 
 /* ===== 郊区卖场 · 人鱼公主 ===== */
@@ -1274,7 +1424,7 @@ function consumeCategory(inventory, category, qty) {
   return qty - remaining
 }
 
-/** 交付 30 支抗感染针，换一把 M700 */
+/** 交付 20 支抗感染针，换一把 M700 */
 export function doctorTrade() {
   const blocked = doctorGuard()
   if (blocked !== null) return blocked
@@ -1693,6 +1843,7 @@ export function borrowCoins(amount) {
     graceUsed: false,
     confiscated: false,
     defaulted: false,
+    interestWaived: false,
   }
   return `借入 ${value} 末日币：利息 ${interest}，${LOAN_TERM_DAYS} 天内需还 ${value + interest}（第 ${game.loan.dueDay} 天为最后还款日）。`
 }
@@ -1726,6 +1877,46 @@ export function repayLoan() {
   return `已还清 ${paid} 末日币，贷款结清。`
 }
 
+/* ===== 都城银行 · 行长金钱堡 ===== */
+
+/** 化债成功：免掉全部利息，只还本金，到期日再宽限 30 天 */
+export function waiveLoanInterest() {
+  if (!game.loan) return BANKER.noLoanLine
+  if (game.loan.interestWaived) return BANKER.waivedLine
+
+  const waived = Math.max(0, Number(game.loan.interest) || 0)
+  game.loan.interest = 0
+  game.loan.due = game.loan.principal
+  game.loan.dueDay = Math.max(game.loan.dueDay, game.day) + BANKER.graceDays
+  game.loan.interestWaived = true
+  return `行长免去了 ${waived} 币利息：现在只还本金 ${game.loan.principal} 币，到期日顺延至第 ${game.loan.dueDay} 天。`
+}
+
+/** 货币互换：双向都是每 2 枚换 1 枚，零头留在手里 */
+export function exchangeCurrency(direction, amount) {
+  if (game.dead) return ''
+  const rate = BANKER.exchangeRate
+  const value = Math.floor(Number(amount))
+  if (!Number.isFinite(value) || value < rate) return `至少需要 ${rate} 枚才能互换。`
+
+  const gain = Math.floor(value / rate)
+  const spent = gain * rate
+  const odd = value - spent
+  const tail = odd > 0 ? `零头 ${odd} 币留在手里。` : ''
+
+  if (direction === 'dawn') {
+    if (game.dawnCoins < spent) return `曙光币不足：换 ${gain} 末日币需要 ${spent} 枚曙光币。`
+    game.dawnCoins -= spent
+    game.coins += gain
+    return `用 ${spent} 曙光币换到 ${gain} 末日币。${tail}`
+  }
+
+  if (game.coins < spent) return `末日币不足：换 ${gain} 曙光币需要 ${spent} 枚末日币。`
+  game.coins -= spent
+  game.dawnCoins += gain
+  return `用 ${spent} 末日币换到 ${gain} 曙光币。${tail}`
+}
+
 export function buyGood(goodId) {
   if (game.dead) return ''
   const good = SHOP_GOODS.find((item) => item.id === goodId)
@@ -1743,7 +1934,7 @@ function dawnReady() {
   return !game.dead && game.location === 'dawn-post'
 }
 
-/** 领取救济：每天一次，随机一个水果，不消耗回合 */
+/** 领取救济：每天一次，随机一种水果 ×2，不消耗回合 */
 export function claimDawnRelief() {
   if (!dawnReady()) return ''
   if (cooldownLeft('dawn-relief', PALACE_COOLDOWN.daily) > 0) return '今天的救济已经领过了，明天再来。'
@@ -1751,11 +1942,12 @@ export function claimDawnRelief() {
   if (!itemId) return '救济处今天没有水果可发。'
 
   const def = getItem(itemId)
-  if (addItem(game.inventory, itemId, 1) > 0) {
-    return `背包已满，${def?.name ?? '水果'}留在了物资箱里，今天的水果还不算领走`
+  if (!canStoreItems(game.inventory, [{ id: itemId, qty: 2 }])) {
+    return `背包空间不足，${def?.name ?? '水果'} ×2 装不下，救济还不算领走`
   }
+  addItem(game.inventory, itemId, 2)
   game.cooldowns['dawn-relief'] = game.day
-  return `你从物资箱里领到一份救济：获得 ${def?.name ?? itemId} ×1`
+  return `你从物资箱里领到一份救济：获得 ${def?.name ?? itemId} ×2`
 }
 
 /** 曙光市场：全部用曙光币结算 */
@@ -2096,6 +2288,14 @@ export function visitGarden() {
 
 /* ===== 背包操作 ===== */
 
+/** 背包整理入口：纯排序逻辑在 data/inventory.js */
+export function organizeBackpack() {
+  if (game.dead) return false
+  organizeInventory(game.inventory)
+  notify('背包已整理')
+  return true
+}
+
 export function useItem(slotIndex) {
   const entry = game.inventory[slotIndex]
   if (!entry) return
@@ -2337,6 +2537,10 @@ export function consumeMeleeDurability() {
 const DAWN_NPC_OWNERS = ['nutritionist', 'mechanic', 'mercenary', 'agronomist']
 
 function questOwnerReady(owner) {
+  if (owner === 'mafei') return !game.dead && game.location === MAFEI.mapId
+  if (['schika', 'nubi', 'moran'].includes(owner)) {
+    return !game.dead && game.location === AIRSHIP.mapId
+  }
   return owner === 'king' || owner === 'queen' ? palaceReady() : dawnReady()
 }
 
@@ -2366,6 +2570,7 @@ export function questKillProgress(id) {
 /** 整条任务线的对话门槛：返回空字符串表示可以对话 */
 export function questLineLocked(owner) {
   if (owner === 'king') {
+    if (game.flags.kingKilled) return '国王艾伦已经不在了。'
     if (identityRank(game.identity) < identityRank('骑士')) {
       return '国王艾伦没有看你。至少需要「骑士」身份，他才愿意开口。'
     }
@@ -2373,6 +2578,7 @@ export function questLineLocked(owner) {
   }
 
   if (owner === 'queen') {
+    if (game.flags.queenKilled) return '皇后米娅已经不在了。'
     if (identityRank(game.identity) < identityRank('骑士')) {
       return '皇后米娅没有看你。至少需要「骑士」身份，王宫的门才会为你打开。'
     }
@@ -2387,10 +2593,31 @@ export function questLineLocked(owner) {
     return ''
   }
 
+  if (owner === 'mafei') {
+    return game.flags.mafeiKilled ? '马斐已经不在了。' : ''
+  }
+
+  if (['schika', 'nubi', 'moran'].includes(owner)) {
+    if (game.flags.airshipCoupDone) {
+      return '飞行船已经换了主人，这位贵族不再交办任务。'
+    }
+    if (owner === 'schika' && identityRank(game.identity) < identityRank('骑士')) {
+      return '席卡只和有爵位的人说话。至少需要「骑士」身份。'
+    }
+    if (owner === 'moran' && identityRank(game.identity) < identityRank('伯爵')) {
+      return '漠然的觐见厅只对伯爵以上开放。'
+    }
+    return ''
+  }
+
   if (owner === 'yiyang' && game.flags.dawnLeaderKilled) return '羿阳已经不在了。'
 
-  if (DAWN_NPC_OWNERS.includes(owner) && !game.dawnIdentity) {
-    return '哨塔里的人还不认识你。先联系管事加入曙光。'
+  if (DAWN_NPC_OWNERS.includes(owner)) {
+    const npc = npcById(owner)
+    if (npc && game.flags[npc.deathFlag]) return `${npc.name}已经不在了。`
+    if (!game.dawnIdentity) {
+      return '哨塔里的人还不认识你。先联系管事加入曙光。'
+    }
   }
   return ''
 }
@@ -2437,6 +2664,12 @@ export function acceptQuest(id) {
   const reason = questLockReason(id)
   if (reason) return reason
 
+  if (quest.require?.betrayal) {
+    game.quests[id] = { status: 'done' }
+    die(MAFEI.betrayalReason, '恶魔')
+    return ''
+  }
+
   game.quests[id] = { status: 'active', baseline: game.zombieKills }
   return quest.require?.kills
     ? `已接取「${quest.name}」，从现在开始计算击杀。`
@@ -2446,6 +2679,9 @@ export function acceptQuest(id) {
 function questClaimBlocker(quest) {
   const state = game.quests[quest.id]
   if (!state || state.status !== 'active') return '这个任务现在不能提交。'
+  if (['schika', 'nubi', 'moran'].includes(quest.owner) && game.flags.airshipCoupDone) {
+    return '政变之后，这位贵族不再承认这份委托。'
+  }
 
   for (const item of quest.require?.items ?? []) {
     const have = countItem(game.inventory, item.id)
@@ -2464,6 +2700,15 @@ function questClaimBlocker(quest) {
 
   if (quest.require?.boss === 'dawn-leader' && !game.flags.dawnLeaderKilled) {
     return '羿阳还活着。'
+  }
+
+  if (quest.require?.npc) {
+    const npc = npcById(quest.require.npc)
+    if (npc && !game.flags[npc.deathFlag]) return `${npc.name}还活着。`
+  }
+
+  if (quest.require?.flag && !game.flags[quest.require.flag]) {
+    return quest.require.label ? `还没有完成「${quest.require.label}」。` : '条件还没有达成。'
   }
 
   return ''
@@ -2513,6 +2758,7 @@ function grantQuestRewards(quest) {
   if (reward.dawnIdentity) grantDawnIdentity(reward.dawnIdentity)
   if (reward.coins) game.coins += reward.coins
   if (reward.dawnCoins) game.dawnCoins += reward.dawnCoins
+  if (reward.reputation) game.reputation += reward.reputation
   for (const item of reward.items ?? []) addItem(game.inventory, item.id, item.qty ?? 1)
   if (reward.flag && typeof reward.flag === 'object') Object.assign(game.flags, reward.flag)
   if (reward.finale) game.finale = reward.finale
@@ -2525,6 +2771,7 @@ function questRewardText(quest) {
   if (reward.dawnIdentity) parts.push(`曙光「${reward.dawnIdentity}」徽章`)
   if (reward.coins) parts.push(`${reward.coins} 末日币`)
   if (reward.dawnCoins) parts.push(`${reward.dawnCoins} 曙光币`)
+  if (reward.reputation) parts.push(`${reward.reputation} 声望`)
   for (const item of reward.items ?? []) {
     parts.push(`${getItem(item.id)?.name ?? item.id} ×${item.qty ?? 1}`)
   }
@@ -2578,4 +2825,474 @@ export function promoteDawnIdentity() {
 
   if (!grantDawnIdentity(promotion.to)) return '背包已满，晋升徽章无处安放。'
   return `管事在名册上划掉旧名字：你晋升为曙光「${promotion.to}」。`
+}
+
+/* ===== 荒废警局 · 老旧直升机 ===== */
+
+function helicopterReady() {
+  return !game.dead && game.location === HELICOPTER.mapId
+}
+
+export function helicopterGasoline() {
+  return countItem(game.inventory, HELICOPTER.gasolineId)
+}
+
+/** 修复直升机：消耗 20 汽油，不消耗回合 */
+export function repairHelicopter() {
+  if (game.dead) return ''
+  if (game.location !== HELICOPTER.mapId) return '直升机停在荒废警局的天台。'
+  if (game.flags[HELICOPTER.repairedFlag]) return HELICOPTER.repairedLine
+
+  const have = helicopterGasoline()
+  if (have < HELICOPTER.repairGasoline) {
+    return `${HELICOPTER.noGasolineLine}修复需要 ${HELICOPTER.repairGasoline} 桶汽油（当前 ${have} 桶）。`
+  }
+
+  removeItem(game.inventory, HELICOPTER.gasolineId, HELICOPTER.repairGasoline)
+  game.flags[HELICOPTER.repairedFlag] = true
+  if (typeof window !== 'undefined') notify('直升机修复完成', 3200)
+  return HELICOPTER.repairLine
+}
+
+/** 乘直升机前往飞行船：消耗 1 汽油，不额外消耗回合与属性 */
+export function flyToAirship() {
+  if (!helicopterReady()) return '直升机停在荒废警局的天台。'
+  if (!game.flags[HELICOPTER.repairedFlag]) return HELICOPTER.notRepairedLine
+
+  const have = helicopterGasoline()
+  if (have < HELICOPTER.travelGasoline) {
+    return `${HELICOPTER.noGasolineLine}前往末日飞行船需要 ${HELICOPTER.travelGasoline} 桶汽油（当前 ${have} 桶）。`
+  }
+
+  removeItem(game.inventory, HELICOPTER.gasolineId, HELICOPTER.travelGasoline)
+  game.location = AIRSHIP.mapId
+  const visited = Array.isArray(game.flags.visitedMaps) ? game.flags.visitedMaps : []
+  if (!visited.includes(AIRSHIP.mapId)) visited.push(AIRSHIP.mapId)
+  game.flags.visitedMaps = visited
+  if (typeof window !== 'undefined') notify('抵达 · 末日飞行船', 3200)
+  return HELICOPTER.travelLine
+}
+
+/* ===== 末日飞行船 ===== */
+
+function airshipReady() {
+  return !game.dead && game.location === AIRSHIP.mapId
+}
+
+/** 招待会所：伯爵以上、每天一次，无衰减跳过 4 回合并恢复五项属性 */
+export function airshipBanquet() {
+  if (!airshipReady()) return '招待会所在末日飞行船上。'
+  const hall = AIRSHIP.hall
+  if (identityRank(game.identity) < hall.rank) return hall.blockedRankLine
+  if (cooldownLeft(hall.cooldownKey, hall.cooldownDays) > 0) return hall.cooldownLine
+
+  advanceTurns(hall.turns, { decay: false })
+  if (game.dead) return ''
+
+  applyStatChanges(hall.effects)
+  game.flags.airshipBanquetUsed = true
+  game.cooldowns[hall.cooldownKey] = game.day
+  const summary = Object.entries(hall.effects)
+    .map(([key, value]) => `${STAT_LABELS[key] ?? key} +${value}`)
+    .join('，')
+  if (typeof window !== 'undefined') notify(`招待会所 · ${summary}`, 3400)
+  return `${hall.doneLine}\n\n跳过 ${hall.turns} 回合（无衰减）· ${summary}`
+}
+
+/** 高台演讲：每天一次，消耗 2 回合，声望 +1 */
+export function airshipSpeech() {
+  if (!airshipReady()) return '高台在末日飞行船上。'
+  const speech = AIRSHIP.speech
+  if (cooldownLeft(speech.cooldownKey, speech.cooldownDays) > 0) return speech.cooldownLine
+
+  advanceTurns(speech.turns)
+  if (game.dead) return ''
+
+  game.reputation += speech.reputation
+  game.flags.airshipSpoke = true
+  game.cooldowns[speech.cooldownKey] = game.day
+  if (typeof window !== 'undefined') notify(`声望 +${speech.reputation} · 当前 ${game.reputation}`, 3200)
+  return `${speech.doneLine}（声望 +${speech.reputation}，当前 ${game.reputation}）`
+}
+
+/** 今日练习记录：跨天自动归零 */
+function practiceDayState() {
+  const state = game.flags[AIRSHIP.practice.flag]
+  if (!state || state.day !== game.day) return { day: game.day, melee: 0, ranged: 0 }
+  return {
+    day: game.day,
+    melee: Number(state.melee) || 0,
+    ranged: Number(state.ranged) || 0,
+  }
+}
+
+/** 今日剩余的练习次数 */
+export function practiceLeft(kind) {
+  const practice = AIRSHIP.practice
+  const state = practiceDayState()
+  return Math.max(0, practice.dailyLimit - (Number(state[kind]) || 0))
+}
+
+function practiceGuard(kind) {
+  if (!airshipReady()) return '练习场在末日飞行船上。'
+  const practice = AIRSHIP.practice
+  const detail = practice[kind]
+  if (game.talents[kind] >= practice.maxLevel) return detail.maxedLine
+  if (practiceLeft(kind) <= 0) return practice.dailyLine
+
+  if (kind === 'melee') {
+    const equipped = game.equipment.melee
+    if (!equipped) return detail.needWeapon
+    const def = getItem(equipped.id)
+    const max = def?.weapon?.durability
+    const current = Number.isFinite(equipped.durability) ? equipped.durability : max
+    if (!Number.isFinite(max) || current < practice.cost) return detail.tooWorn
+  } else {
+    const equipped = game.equipment.ranged
+    if (!equipped) return detail.needWeapon
+    const current = Number.isFinite(equipped.cleanliness) ? equipped.cleanliness : CLEANLINESS_MAX
+    if (current < practice.cost) return detail.tooWorn
+  }
+  return ''
+}
+
+function practiceOnce(kind) {
+  const blocked = practiceGuard(kind)
+  if (blocked) return blocked
+
+  const practice = AIRSHIP.practice
+  const detail = practice[kind]
+  advanceTurns(practice.turns)
+  if (game.dead) return ''
+
+  const notes = []
+  if (kind === 'melee') {
+    const equipped = game.equipment.melee
+    const def = getItem(equipped.id)
+    const max = def?.weapon?.durability
+    const current = Number.isFinite(equipped.durability) ? equipped.durability : max
+    equipped.durability = Math.max(0, current - practice.cost)
+    if (equipped.durability <= 0) {
+      game.equipment.melee = null
+      const line = practice.brokenLine.replace('{name}', def?.name ?? '近战武器')
+      notes.push(line)
+      if (typeof window !== 'undefined') notify(line, 3200)
+    }
+  } else {
+    const equipped = game.equipment.ranged
+    const def = getItem(equipped.id)
+    const current = Number.isFinite(equipped.cleanliness) ? equipped.cleanliness : CLEANLINESS_MAX
+    equipped.cleanliness = Math.max(0, current - practice.cost)
+    if (equipped.cleanliness <= 0) {
+      const line = practice.dirtyLine.replace('{name}', def?.name ?? '远程武器')
+      notes.push(line)
+      if (typeof window !== 'undefined') notify(line, 3200)
+    }
+  }
+
+  const gain =
+    practice.progressMin +
+    Math.floor(Math.random() * (practice.progressMax - practice.progressMin + 1))
+  let level = game.talents[kind]
+  let progress = game.training[kind] + gain
+  while (level < practice.maxLevel && progress >= practice.levelSize) {
+    level += 1
+    progress -= practice.levelSize
+  }
+  if (level >= practice.maxLevel) progress = 0
+
+  const before = game.talents[kind]
+  game.talents[kind] = level
+  game.training[kind] = progress
+  if (level > before) {
+    const title = talentTitle(kind, level)
+    notes.push(`天赋提升 · ${title}（${PRACTICE_TALENTS[kind].stat} +${Math.round(talentBonus(kind, level) * 100)}%）`)
+    if (typeof window !== 'undefined') notify(`天赋提升 · ${title}`, 3400)
+  }
+
+  const state = practiceDayState()
+  const next = { day: game.day, melee: state.melee, ranged: state.ranged }
+  next[kind] += 1
+  game.flags[practice.flag] = next
+
+  const progressText = level >= practice.maxLevel ? '已满级' : `${progress}%`
+  notes.unshift(`${detail.doneLine}熟练度 +${gain}，当前 ${progressText}。`)
+  const left = practiceLeft(kind)
+  if (left <= 0) notes.push('今天的练习次数已用完。')
+  return notes.join('\n')
+}
+
+/** 木桩练习：消耗 1 回合与 10 点近战耐久 */
+export function practiceMeleeDummy() {
+  return practiceOnce('melee')
+}
+
+/** 打靶练习：消耗 1 回合与 10 点远程清洁度 */
+export function practiceRangedTarget() {
+  return practiceOnce('ranged')
+}
+
+/** 飞行船商店：全天用末日币结算 */
+export function buyFlightGood(kind, goodId) {
+  if (!airshipReady()) return '飞行船商店不在这里。'
+  const list = AIRSHIP_SHOP_GOODS[kind]
+  const good = Array.isArray(list) ? list.find((item) => item.id === goodId) : null
+  if (!good) return ''
+  if (game.coins < good.price) return `末日币不足，${good.name} 需要 ${good.price} 枚。`
+  if (addItem(game.inventory, good.itemId, 1) > 0) return '背包已满，无法购买。'
+
+  game.coins -= good.price
+  return `购买 ${good.name} ×1，花费 ${good.price} 末日币。`
+}
+
+/** 珍宝商店：每天随机一件史诗近战，当天只能买一次 */
+export function buyAirshipTreasure() {
+  if (!airshipReady()) return '珍宝商店不在这里。'
+  if (Number(game.flags.airshipTreasureBoughtDay) === game.day) return '今天的珍宝已经卖出去了，明天再来。'
+
+  const treasure = treasureForDay(game.day)
+  if (!treasure) return '今天托盘里没有货。'
+  if (game.coins < treasure.price) return `末日币不足，${treasure.name} 需要 ${treasure.price} 枚。`
+  if (addItem(game.inventory, treasure.itemId, 1) > 0) return '背包已满，无法购买。'
+
+  game.coins -= treasure.price
+  game.flags.airshipTreasureBoughtDay = game.day
+  return `买下了今日珍宝：${treasure.name}，花费 ${treasure.price} 末日币。`
+}
+
+/* ===== 居民委托 ===== */
+
+/** 派对委托：上交当日指定的酒，声望 +1 */
+export function airshipPartyCommission() {
+  if (!airshipReady()) return '居民委托在末日飞行船上。'
+  const party = AIRSHIP.commission.party
+  if (cooldownLeft(party.cooldownKey, party.cooldownDays) > 0) return party.cooldownLine
+
+  const wineId = commissionForDay(game.day).wineId
+  const wine = getItem(wineId)
+  if (countItem(game.inventory, wineId) < 1) {
+    return `${party.missingLine}今天需要 ${wine?.name ?? '酒'} ×1。`
+  }
+
+  removeItem(game.inventory, wineId, 1)
+  advanceTurns(party.turns, { decay: false })
+  if (game.dead) return ''
+
+  game.reputation += party.reputation
+  game.cooldowns[party.cooldownKey] = game.day
+  return `${party.doneLine}（上交 ${wine?.name ?? '酒'} ×1，声望 +${party.reputation}，当前 ${game.reputation}）`
+}
+
+/** 杂物委托：无衰减消耗 1 回合，随机扣 10-25 体力，声望 +1 */
+export function airshipChoreCommission() {
+  if (!airshipReady()) return '居民委托在末日飞行船上。'
+  const chore = AIRSHIP.commission.chore
+  if (cooldownLeft(chore.cooldownKey, chore.cooldownDays) > 0) return chore.cooldownLine
+
+  const stamina = commissionForDay(game.day).stamina
+  advanceTurns(chore.turns, { decay: false })
+  if (game.dead) return ''
+
+  applyStatChanges({ stamina: -stamina })
+  if (game.dead) return ''
+
+  game.reputation += chore.reputation
+  game.cooldowns[chore.cooldownKey] = game.day
+  return `${chore.doneLine}（体力 -${stamina}，声望 +${chore.reputation}，当前 ${game.reputation}）`
+}
+
+/* ===== 储油仓库 ===== */
+
+/** 当日购买汽油的单价（1-3 末日币） */
+export function airshipGasolinePrice() {
+  return oilPriceForDay(game.day)
+}
+
+/** 提交汽油：1 桶换 1 末日币 */
+export function submitAirshipGasoline(quantity) {
+  if (!airshipReady()) return '储油仓库在末日飞行船上。'
+  const qty = Math.floor(Number(quantity) || 0)
+  if (qty <= 0) return '请输入要提交的汽油数量。'
+
+  const have = countItem(game.inventory, HELICOPTER.gasolineId)
+  if (have < qty) return `汽油不足，当前只有 ${have} 桶。`
+
+  removeItem(game.inventory, HELICOPTER.gasolineId, qty)
+  const gained = qty * AIRSHIP.oil.sellRate
+  game.coins += gained
+  return `提交汽油 ${qty} 桶，换得 ${gained} 末日币。`
+}
+
+/** 购买汽油：按当日单价结算 */
+export function buyAirshipGasoline(quantity) {
+  if (!airshipReady()) return '储油仓库在末日飞行船上。'
+  const qty = Math.floor(Number(quantity) || 0)
+  if (qty <= 0) return '请输入要购买的汽油数量。'
+
+  const price = oilPriceForDay(game.day)
+  const total = price * qty
+  if (game.coins < total) return `末日币不足，${qty} 桶汽油需要 ${total} 枚。`
+  if (!canStoreItems(game.inventory, [{ id: HELICOPTER.gasolineId, qty }])) {
+    return '背包已满，无法购买。'
+  }
+
+  addItem(game.inventory, HELICOPTER.gasolineId, qty)
+  game.coins -= total
+  return `购买汽油 ${qty} 桶，花费 ${total} 末日币（单价 ${price}）。`
+}
+
+/* ===== 投资中心 ===== */
+
+function clampStockPrice(value, fallback) {
+  const price = Number(value)
+  if (!Number.isFinite(price)) return fallback
+  return Math.max(STOCK_PRICE_MIN, Math.min(STOCK_PRICE_MAX, Math.round(price)))
+}
+
+function createStockMarket(day) {
+  const prices = {}
+  for (const stock of AIRSHIP_STOCKS) {
+    prices[stock.id] = clampStockPrice(stock.basePrice, stock.basePrice)
+  }
+  return {
+    day,
+    prices,
+    prev: { ...prices },
+    holdings: {},
+    realized: 0,
+  }
+}
+
+function normalizeStockMarket(raw) {
+  if (!raw || typeof raw !== 'object') return null
+
+  const prices = {}
+  const prev = {}
+  for (const stock of AIRSHIP_STOCKS) {
+    prices[stock.id] = clampStockPrice(raw.prices?.[stock.id], stock.basePrice)
+    prev[stock.id] = clampStockPrice(raw.prev?.[stock.id], prices[stock.id])
+  }
+
+  const holdings = {}
+  for (const stock of AIRSHIP_STOCKS) {
+    const holding = raw.holdings?.[stock.id]
+    const shares = Math.max(0, Math.floor(Number(holding?.shares) || 0))
+    const cost = Math.max(0, Number(holding?.cost) || 0)
+    if (shares > 0) holdings[stock.id] = { shares, cost }
+  }
+
+  return {
+    day: Math.max(0, Math.floor(Number(raw.day) || 0)),
+    prices,
+    prev,
+    holdings,
+    realized: Math.round(Number(raw.realized) || 0),
+  }
+}
+
+function cloneStockMarket(market) {
+  if (!market) return null
+  const holdings = {}
+  for (const [id, holding] of Object.entries(market.holdings ?? {})) {
+    holdings[id] = { shares: holding.shares, cost: holding.cost }
+  }
+  return {
+    day: market.day,
+    prices: { ...market.prices },
+    prev: { ...market.prev },
+    holdings,
+    realized: market.realized,
+  }
+}
+
+/** 推进到当前天的行情；同一天内价格保持不变 */
+function ensureStockMarketDay() {
+  if (!game.market) {
+    game.market = createStockMarket(game.day)
+    return
+  }
+  if (game.market.day >= game.day) {
+    if (game.market.day > game.day) game.market.day = game.day
+    return
+  }
+
+  let prices = { ...game.market.prices }
+  let prev = { ...prices }
+  for (let day = game.market.day + 1; day <= game.day; day += 1) {
+    prev = { ...prices }
+    prices = rollStockPrices(prices, day)
+  }
+  game.market.prev = prev
+  game.market.prices = prices
+  game.market.day = game.day
+}
+
+/** 打开终端或交易前同步行情 */
+export function syncStockMarket() {
+  if (game.dead || game.location !== AIRSHIP.mapId) return
+  ensureStockMarketDay()
+}
+
+/** 买入股票：按当日价成交，手续费 1%（最低 1 币） */
+export function buyAirshipStock(stockId, quantity) {
+  if (game.dead) return ''
+  if (game.location !== AIRSHIP.mapId) return '投资中心在末日飞行船上。'
+  const stock = AIRSHIP_STOCKS.find((item) => item.id === stockId)
+  if (!stock) return ''
+
+  const qty = Math.floor(Number(quantity) || 0)
+  if (qty <= 0) return '请输入买入数量。'
+  ensureStockMarketDay()
+
+  const price = game.market.prices[stockId]
+  const gross = price * qty
+  const fee = stockTradeFee(gross)
+  const total = gross + fee
+  if (game.coins < total) {
+    return `末日币不足，买入需要 ${total} 枚（含 ${fee} 手续费）。`
+  }
+
+  const holding = game.market.holdings[stockId] ?? { shares: 0, cost: 0 }
+  holding.shares += qty
+  holding.cost += total
+  game.market.holdings[stockId] = holding
+  game.coins -= total
+  return `买入 ${stock.name} ${qty} 股，单价 ${price}，手续费 ${fee}，共 ${total} 末日币。`
+}
+
+/** 卖出股票：按平均成本结转，盈利向下取整，亏损向上取整 */
+export function sellAirshipStock(stockId, quantity) {
+  if (game.dead) return ''
+  if (game.location !== AIRSHIP.mapId) return '投资中心在末日飞行船上。'
+  const stock = AIRSHIP_STOCKS.find((item) => item.id === stockId)
+  if (!stock) return ''
+
+  const qty = Math.floor(Number(quantity) || 0)
+  if (qty <= 0) return '请输入卖出数量。'
+  ensureStockMarketDay()
+
+  const holding = game.market.holdings[stockId]
+  if (!holding || holding.shares < qty) {
+    return `持有不足，当前只有 ${holding?.shares ?? 0} 股 ${stock.name}。`
+  }
+
+  const price = game.market.prices[stockId]
+  const gross = price * qty
+  const fee = stockTradeFee(gross)
+  const proceeds = gross - fee
+  const cost = holding.cost * (qty / holding.shares)
+  const realized = stockProfitRounded(proceeds - cost)
+
+  holding.shares -= qty
+  holding.cost -= cost
+  if (holding.shares <= 0) {
+    holding.shares = 0
+    holding.cost = 0
+  }
+  game.market.holdings[stockId] = holding
+  game.coins += proceeds
+  game.market.realized += realized
+
+  const pnlText = realized > 0 ? `+${realized}` : `${realized}`
+  return `卖出 ${stock.name} ${qty} 股，单价 ${price}，手续费 ${fee}，到账 ${proceeds} 末日币。本次盈亏 ${pnlText}。`
 }

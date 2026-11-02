@@ -1,10 +1,21 @@
 <script setup>
 import { computed } from 'vue'
+import { MUSIC_TRACKS } from '../game/assets'
 import { settings, persistSettings } from '../game/save'
 import { updateMusicSettings, startMusic } from '../game/music'
 import ModalShell from './ModalShell.vue'
 
 const volumePercent = computed(() => Math.round(settings.volume * 100))
+const currentTrack = computed(
+  () => MUSIC_TRACKS.find((track) => track.id === settings.track) ?? MUSIC_TRACKS[0],
+)
+
+function chooseTrack(id) {
+  if (settings.track === id) return
+  settings.track = id
+  updateMusicSettings()
+  if (!settings.muted) startMusic()
+}
 
 function toggleMute() {
   settings.muted = !settings.muted
@@ -24,10 +35,15 @@ function resetVolume() {
   persistSettings()
   updateMusicSettings()
 }
+
+function toggleSurvivalHints() {
+  settings.survivalHints = !settings.survivalHints
+  persistSettings()
+}
 </script>
 
 <template>
-  <ModalShell title="设置" sub="声音相关的偏好会保存在本地" @close="$emit('close')">
+  <ModalShell title="设置" sub="偏好会保存在本地" @close="$emit('close')">
     <section class="rows">
       <div class="row">
         <div class="row__info">
@@ -43,6 +59,42 @@ function resetVolume() {
           <span />
           {{ settings.muted ? '已关闭' : '已开启' }}
         </button>
+      </div>
+
+      <div class="row">
+        <div class="row__info">
+          <h3>生存提示</h3>
+          <p>背包空间、近战耐久或远程清洁度低于 20% 时，在屏幕上方显示可手动关闭的提示条</p>
+        </div>
+        <button
+          type="button"
+          class="switch"
+          :class="{ 'switch--on': settings.survivalHints }"
+          @click="toggleSurvivalHints"
+        >
+          <span />
+          {{ settings.survivalHints ? '已开启' : '已关闭' }}
+        </button>
+      </div>
+
+      <div class="row row--stack">
+        <div class="row__info">
+          <h3>音乐曲目</h3>
+          <p>当前 {{ currentTrack.name }} · 切换后立即生效</p>
+        </div>
+        <div class="tracks">
+          <button
+            v-for="track in MUSIC_TRACKS"
+            :key="track.id"
+            type="button"
+            class="track"
+            :class="{ 'track--active': settings.track === track.id }"
+            @click="chooseTrack(track.id)"
+          >
+            <strong>{{ track.name }}</strong>
+            <span>{{ track.hint }}</span>
+          </button>
+        </div>
       </div>
 
       <div class="row row--stack">
@@ -153,6 +205,47 @@ function resetVolume() {
   align-items: center;
   gap: 16px;
   width: 100%;
+}
+
+.tracks {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.track {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  text-align: left;
+  transition: 0.2s;
+}
+
+.track strong {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: var(--text-mute);
+}
+
+.track span {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  color: var(--text-mute);
+  opacity: 0.7;
+}
+
+.track--active {
+  border-color: rgba(205, 185, 141, 0.5);
+  background: rgba(205, 185, 141, 0.08);
+}
+
+.track--active strong {
+  color: var(--bone);
 }
 
 input[type="range"] {

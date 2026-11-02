@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import {
+  BANKER,
   GARDEN,
   IDENTITY_LEVELS,
   LABOR_TIERS,
@@ -17,6 +18,7 @@ import {
   getItem,
   loanTierByRank,
   loanTierFor,
+  npcById,
   repairCoinCost,
 } from '../data'
 import { MAPS } from '../game/config'
@@ -32,8 +34,10 @@ import {
   cooldownLeft,
   currentPhase,
   deliverQueenLetter,
+  exchangeCurrency,
   exploreCity,
   game,
+  isNpcDead,
   isQuestDone,
   joinCity,
   laborCity,
@@ -48,6 +52,9 @@ import {
   treatInfection,
   visitGarden,
 } from '../game/store'
+import { battle, resetBattle, startBankerCombat } from '../game/battle'
+import AssassinationCard from './AssassinationCard.vue'
+import BattleView from './BattleView.vue'
 import ModalShell from './ModalShell.vue'
 import QuestLinePanel from './QuestLinePanel.vue'
 
@@ -79,6 +86,8 @@ const view = ref('menu')
 const feed = ref('城门在身后合拢，铁链拖过地面。你站在都城的阴影里。')
 const loanAmount = ref(1)
 const palaceView = ref('menu')
+const tradeCoins = ref(2)
+const tradeDawn = ref(2)
 
 const identity = computed(() => identityInfo(game.identity))
 const coins = computed(() => game.coins)
@@ -106,8 +115,30 @@ const meleeRepair = computed(() => {
 })
 const kingGate = computed(() => questLineLocked('king'))
 const queenGate = computed(() => questLineLocked('queen'))
+const kingDead = computed(() => isNpcDead('king'))
+const queenDead = computed(() => isNpcDead('queen'))
+const bankerBattle = computed(() => battle.kind === 'banker')
+const debtState = computed(() => {
+  if (!game.loan) return { label: '无贷款', hint: BANKER.noLoanLine, can: false }
+  if (game.loan.interestWaived) return { label: '利息已免', hint: BANKER.waivedLine, can: false }
+  return {
+    label: '可化债',
+    hint: `当前利息 ${game.loan.interest} 币 · 本金 ${game.loan.principal} 币 · 到期日第 ${game.loan.dueDay} 天`,
+    can: true,
+  }
+})
+const previewCoins = computed(() =>
+  Math.floor(Math.max(0, Number(tradeCoins.value) || 0) / BANKER.exchangeRate),
+)
+const previewDawn = computed(() =>
+  Math.floor(Math.max(0, Number(tradeDawn.value) || 0) / BANKER.exchangeRate),
+)
 const queenCanDeliver = computed(
-  () => game.flags.queenLetter && isQuestDone('yiyang-5') && !game.flags.queenLetterDelivered,
+  () =>
+    !queenDead.value &&
+    game.flags.queenLetter &&
+    isQuestDone('yiyang-5') &&
+    !game.flags.queenLetterDelivered,
 )
 
 function daily(key) {
@@ -152,6 +183,25 @@ function run(action) {
   if (line) feed.value = line
 }
 
+function startDebtFight() {
+  const line = startBankerCombat()
+  if (line) feed.value = line
+}
+
+function bankerDone() {
+  const summary = battle.summary
+  resetBattle()
+  if (summary) feed.value = summary
+}
+
+function exchangeCoins() {
+  run(() => exchangeCurrency('coin', tradeCoins.value))
+}
+
+function exchangeDawn() {
+  run(() => exchangeCurrency('dawn', tradeDawn.value))
+}
+
 function deliverLetter() {
   const line = deliverQueenLetter()
   if (line) feed.value = line
@@ -176,13 +226,31 @@ function bribe() {
   }
 }
 
+function battleBusy() {
+  if (!battle.active) return false
+  feed.value = '战斗还没结束：先逃跑，或者把它打倒'
+  return true
+}
+
 function backFromPalace() {
+  if (battleBusy()) return
   if (palaceView.value === 'menu') view.value = 'depths'
   else palaceView.value = 'menu'
 }
 
 function go(next) {
+  if (battleBusy()) return
+  if (battle.finished) resetBattle()
   view.value = next
+}
+
+function closePanel() {
+  if (battle.active) {
+    feed.value = '战斗中无法离开：先逃跑，或者把它打倒'
+    return
+  }
+  if (battle.finished) resetBattle()
+  $emit('close')
 }
 </script>
 
@@ -191,7 +259,7 @@ function go(next) {
     title="末日都城"
     :sub="`${map.difficulty} · 第 ${game.day} 天 · ${currentPhase}`"
     wide
-    @close="$emit('close')"
+    @close="closePanel"
   >
     <div class="status">
       <span class="status__item">末日币 <b>{{ coins }}</b></span>
@@ -459,11 +527,13 @@ function go(next) {
       </template>
 
       <template v-else-if="palaceView === 'king'">
-        <p v-if="kingGate" class="pane__desc">{{ kingGate }}</p>
+        <p v-if="kingDead" class="pane__desc">{{ npcById('king').deathLine }}</p>
+        <p v-else-if="kingGate" class="pane__desc">{{ kingGate }}</p>
         <template v-else>
           <p class="pane__desc">{{ QUEST_OWNERS.king.intro }}</p>
           <QuestLinePanel owner="king" @feedback="feed = $event" />
         </template>
+        <AssassinationCard npc-id="king" @feedback="feed = $event" />
       </template>
 
       <template v-else-if="palaceView === 'queen'">
@@ -483,6 +553,7 @@ function go(next) {
           </p>
           <QuestLinePanel owner="queen" @feedback="feed = $event" />
         </template>
+        <AssassinationCard npc-id="queen" @feedback="feed = $event" />
       </template>
 
       <div v-else class="placeholder">
@@ -576,6 +647,75 @@ function go(next) {
           每笔贷款结清前，银行不会再借出第二笔。
         </p>
       </div>
+
+      <article class="banker-card">
+        <div class="banker-card__main">
+          <h4>子选项 · 行长金钱堡</h4>
+          <p>柜台后真正的行长。可以谈化债，也可以互换末日币与曙光币。</p>
+        </div>
+        <button type="button" class="btn" @click="go('banker')">见他</button>
+      </article>
+    </section>
+
+    <section v-else-if="view === 'banker'" class="pane">
+      <header class="pane__head">
+        <h3 class="pane__title">行长金钱堡</h3>
+        <button type="button" class="link" @click="go('bank')">← 返回银行</button>
+      </header>
+
+      <p class="pane__desc">{{ BANKER.intro }}</p>
+      <p class="cure__note">{{ BANKER.debtHint }}</p>
+
+      <section class="deal">
+        <header class="deal__head">
+          <h4 class="deal__title">关于化债</h4>
+          <span class="deal__tag">{{ debtState.label }}</span>
+        </header>
+        <p class="deal__desc">
+          进入战斗：行长生命 250、攻击 30，但血量锁在 1 点，打不死。把他打到 1
+          点血，他会免掉这笔贷款的全部利息，只收本金，并把到期日再宽限 30 天。
+        </p>
+        <div class="deal__stats">
+          <span>生命 250</span>
+          <span>攻击 30</span>
+          <span>锁血 1</span>
+          <span>消耗 1 回合</span>
+        </div>
+        <p class="deal__hint">{{ debtState.hint }}</p>
+        <button
+          v-if="!bankerBattle"
+          type="button"
+          class="btn btn--primary deal__btn"
+          :disabled="!debtState.can || battle.active"
+          @click="startDebtFight"
+        >
+          逼他认账 · 1 回合
+        </button>
+        <BattleView v-if="bankerBattle" @done="bankerDone" />
+      </section>
+
+      <section class="deal">
+        <header class="deal__head">
+          <h4 class="deal__title">货币互换</h4>
+          <span class="deal__tag">2 : 1</span>
+        </header>
+        <p class="deal__desc">{{ BANKER.exchangeLine }}</p>
+        <p class="deal__hint">持有：末日币 {{ game.coins }} · 曙光币 {{ game.dawnCoins }}</p>
+
+        <div class="trade">
+          <label for="trade-coins">末日币 → 曙光币</label>
+          <input id="trade-coins" v-model.number="tradeCoins" type="number" min="2" step="1" />
+          <span class="trade__preview">可得 {{ previewCoins }} 曙光币</span>
+          <button type="button" class="btn" @click="exchangeCoins">互换</button>
+        </div>
+        <div class="trade">
+          <label for="trade-dawn">曙光币 → 末日币</label>
+          <input id="trade-dawn" v-model.number="tradeDawn" type="number" min="2" step="1" />
+          <span class="trade__preview">可得 {{ previewDawn }} 末日币</span>
+          <button type="button" class="btn" @click="exchangeDawn">互换</button>
+        </div>
+        <p class="deal__hint">每 2 枚换 1 枚；输入奇数时，零头会留在手里。</p>
+      </section>
     </section>
 
     <section v-else-if="view === 'identity'" class="pane">
@@ -726,7 +866,7 @@ function go(next) {
         <button v-if="view !== 'menu'" type="button" class="btn" @click="go('menu')">
           返回选项
         </button>
-        <button type="button" class="btn" @click="$emit('close')">离开都城</button>
+        <button type="button" class="btn" @click="closePanel">离开都城</button>
       </div>
     </template>
   </ModalShell>
@@ -1088,6 +1228,149 @@ function go(next) {
   font-size: 10.5px;
   line-height: 1.7;
   color: var(--rust-soft);
+}
+
+.banker-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px solid rgba(205, 185, 141, 0.28);
+  border-left: 2px solid var(--bone);
+  background: linear-gradient(180deg, rgba(205, 185, 141, 0.05), rgba(0, 0, 0, 0.18));
+}
+
+.banker-card h4 {
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--bone);
+}
+
+.banker-card p {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--text-dim);
+}
+
+.banker-card .btn {
+  flex: none;
+  height: 32px;
+  font-size: 11px;
+}
+
+.deal {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.24);
+}
+
+.deal__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.deal__title {
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--text);
+}
+
+.deal__tag {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  color: var(--bone);
+}
+
+.deal__desc {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.8;
+  color: var(--text-dim);
+}
+
+.deal__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-mute);
+}
+
+.deal__hint {
+  margin: 8px 0 0;
+  font-size: 10.5px;
+  line-height: 1.7;
+  color: var(--text-mute);
+}
+
+.deal__btn {
+  height: 34px;
+  margin-top: 12px;
+  font-size: 11.5px;
+}
+
+.deal__btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.trade {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+  font-size: 11px;
+  color: var(--text-mute);
+}
+
+.trade label {
+  min-width: 112px;
+  letter-spacing: 0.06em;
+}
+
+.trade input {
+  width: 70px;
+  height: 30px;
+  padding: 0 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--line-strong);
+  outline: none;
+}
+
+.trade input:focus {
+  border-color: rgba(193, 74, 50, 0.6);
+}
+
+.trade__preview {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--bone);
+}
+
+.trade .btn {
+  height: 30px;
+  padding: 0 16px;
+  font-size: 11px;
+  margin-left: auto;
 }
 
 .identity {

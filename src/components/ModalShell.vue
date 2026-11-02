@@ -20,6 +20,9 @@ defineEmits(['close'])
           ✕
         </button>
       </header>
+      <div v-if="$slots.hud" class="modal-hud">
+        <slot name="hud" />
+      </div>
       <div class="modal-body">
         <slot />
       </div>
@@ -34,6 +37,11 @@ defineEmits(['close'])
 .modal-card--wide {
   width: min(1080px, 100%);
   max-height: min(90vh, 900px);
+}
+
+.modal-hud {
+  flex: none;
+  margin: -6px 0 16px;
 }
 
 .modal-foot {

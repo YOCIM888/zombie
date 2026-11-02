@@ -1,6 +1,7 @@
 // 曙光阵地：身份、救济、市场与行尸战斗参数
 import { ITEMS } from './items'
 import { exploreLootPool } from './city'
+import { NPCS } from './npcs'
 
 /** 曙光身份：队员 < 队长 < 指挥 < 副首 */
 export const DAWN_IDENTITY_LEVELS = [
@@ -110,14 +111,7 @@ export const DAWN_PROMOTIONS = [
 ]
 
 /** 首领·羿阳：人类，不吃感染 */
-export const DAWN_LEADER = {
-  id: 'dawn-leader',
-  name: '首领·羿阳',
-  hp: 360,
-  attack: 22,
-  infection: 0,
-  description: '他站在哨塔顶层，背对着你，手按在刀柄上。',
-}
+export const DAWN_LEADER = NPCS.yiyang
 
 /** 阵地人物 */
 export const DAWN_NPCS = [

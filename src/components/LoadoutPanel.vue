@@ -11,6 +11,10 @@ import {
 import { formatCritDamage, formatPercent } from '../game/format'
 import { game, unequipMelee, unequipRanged } from '../game/store'
 
+defineProps({
+  wide: { type: Boolean, default: false },
+})
+
 const equippedDef = computed(() => {
   const equipped = game.equipment.melee
   return equipped ? (getItem(equipped.id) ?? UNARMED) : UNARMED
@@ -54,15 +58,16 @@ const critDamage = formatCritDamage
 </script>
 
 <template>
-  <aside class="loadout">
+  <aside class="loadout" :class="{ 'loadout--wide': wide }">
     <header class="loadout__head">
       <span class="eyebrow">显示面板</span>
       <span class="loadout__bag">背包 · {{ usedSlots }} / {{ game.inventory.length }} 格</span>
     </header>
 
-    <section class="block">
-      <div class="block__head">
-        <h3 class="block__title">近战</h3>
+    <div class="loadout__blocks">
+      <section class="block">
+        <div class="block__head">
+          <h3 class="block__title">近战</h3>
         <span class="block__state">{{ isEquipped ? '已装备' : '空 · 默认拳头' }}</span>
       </div>
 
@@ -185,6 +190,7 @@ const critDamage = formatCritDamage
         </div>
       </div>
     </section>
+    </div>
   </aside>
 </template>
 
@@ -205,6 +211,23 @@ const critDamage = formatCritDamage
   gap: 12px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--line);
+}
+
+.loadout__blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.loadout--wide .loadout__blocks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 26px;
+  align-items: start;
+}
+
+.loadout--wide .hairline {
+  display: none;
 }
 
 .loadout__bag {
@@ -374,6 +397,15 @@ const critDamage = formatCritDamage
 @media (max-width: 900px) {
   .loadout {
     padding: 14px;
+  }
+
+  .loadout--wide .loadout__blocks {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .loadout--wide .hairline {
+    display: block;
   }
 }
 </style>

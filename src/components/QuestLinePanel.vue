@@ -1,10 +1,11 @@
 <script setup>
 import { computed } from 'vue'
-import { countItem, getItem, questLine } from '../data'
+import { countItem, getItem, npcById, questLine } from '../data'
 import {
   acceptQuest,
   claimQuest,
   game,
+  isNpcDead,
   questKillProgress,
   questLockReason,
   questStatus,
@@ -55,6 +56,7 @@ function rewardText(quest) {
   if (reward.dawnIdentity) parts.push(`曙光「${reward.dawnIdentity}」徽章`)
   if (reward.coins) parts.push(`${reward.coins} 末日币`)
   if (reward.dawnCoins) parts.push(`${reward.dawnCoins} 曙光币`)
+  if (reward.reputation) parts.push(`${reward.reputation} 声望`)
   for (const item of reward.items ?? []) {
     parts.push(`${itemName(item.id)} ×${item.qty ?? 1}`)
   }
@@ -66,7 +68,24 @@ function lockReason(quest) {
   return stateOf(quest) === 'locked' ? questLockReason(quest.id) : ''
 }
 
+function targetNpc(quest) {
+  return quest.require?.npc ? npcById(quest.require.npc) : null
+}
+
+function targetText(quest) {
+  const npc = targetNpc(quest)
+  if (!npc) return ''
+  return isNpcDead(npc.id) ? '已死亡' : '存活'
+}
+
+function flagText(quest) {
+  const label = quest.require?.label
+  if (!label) return '条件未达成'
+  return game.flags[quest.require.flag] ? '已达成' : '未达成'
+}
+
 function buttonText(quest) {
+  if (stateOf(quest) === 'available' && quest.require?.betrayal) return '接受（这会杀死你）'
   return {
     done: '已完成',
     active: '提交并领取',
@@ -130,6 +149,20 @@ function act(quest) {
         <div class="quest__line" :class="{ 'is-lack': !game.flags.dawnLeaderKilled }">
           <span>击败首领·羿阳</span>
           <b>{{ game.flags.dawnLeaderKilled ? '已击败' : '未击败' }}</b>
+        </div>
+      </div>
+
+      <div v-if="quest.require?.npc" class="quest__req">
+        <div class="quest__line" :class="{ 'is-lack': !isNpcDead(quest.require.npc) }">
+          <span>目标：{{ targetNpc(quest)?.name }}</span>
+          <b>{{ targetText(quest) }}</b>
+        </div>
+      </div>
+
+      <div v-if="quest.require?.flag" class="quest__req">
+        <div class="quest__line" :class="{ 'is-lack': !game.flags[quest.require.flag] }">
+          <span>{{ quest.require.label ?? '任务条件' }}</span>
+          <b>{{ flagText(quest) }}</b>
         </div>
       </div>
 
