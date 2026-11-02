@@ -1,10 +1,10 @@
 // 远程武器：按六档稀有度录入
 // 不使用弹药与耐久，弹药机制由清洁度替代（清洁度随开火下降，越低伤害越差、越容易卡壳）
 
-export const RANGED_TIERS = ['普通', '稀有', '精良', '史诗', '传说', '神话']
+export const RANGED_TIERS = ['普通', '稀有', '精良', '史诗', '传说', '神话', '限定']
 
-/** 生成一件远程武器（图片按武器名自动对应 public/image/远程武器） */
-function ranged(id, name, tier, weapon, description) {
+/** 生成一件远程武器（图片默认按武器名对应 public/image/远程武器） */
+function ranged(id, name, tier, weapon, description, extra = {}) {
   return {
     id,
     name,
@@ -15,6 +15,7 @@ function ranged(id, name, tier, weapon, description) {
     stackable: false,
     maxStack: 1,
     weapon,
+    ...extra,
   }
 }
 
@@ -111,6 +112,14 @@ const RANGED_LIST = [
   ranged('awm', 'AWM', '神话', {
     attack: 175, crit: 0.48, critDamage: 2.25, dodge: 0.36,
   }, '军方留下的最后一批狙击枪，弹盒上写着一行字：只为一个人准备。'),
+
+  /* ===== 限定 ===== */
+  ranged('royal-lance', '皇家长枪', '限定', {
+    attack: 66, crit: 0.66, critDamage: 1.66, dodge: 0.16,
+  }, '枪管细长，鎏金纹路从枪托一路延伸到枪口。', {
+    limited: true,
+    image: '/image/末日都城限定/皇家长枪.webp',
+  }),
 ]
 
 export const RANGED_ITEMS = Object.fromEntries(RANGED_LIST.map((item) => [item.id, item]))

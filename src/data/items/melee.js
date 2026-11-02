@@ -1,5 +1,5 @@
 // 近战武器：按稀有度分六档，属性随档位递增
-export const MELEE_TIERS = ['普通', '稀有', '精良', '史诗', '传说', '神话']
+export const MELEE_TIERS = ['普通', '稀有', '精良', '史诗', '传说', '神话', '限定']
 
 export const MELEE_TIER_COLORS = {
   '普通': '#9b9588',
@@ -8,10 +8,11 @@ export const MELEE_TIER_COLORS = {
   '史诗': '#8b74b8',
   '传说': '#c9923f',
   '神话': '#c8473a',
+  '限定': '#d8b45a',
 }
 
-/** 生成一件近战武器（图片按武器名自动对应 public/image/近战武器） */
-function melee(id, name, tier, weapon, description) {
+/** 生成一件近战武器（图片默认按武器名对应 public/image/近战武器） */
+function melee(id, name, tier, weapon, description, extra = {}) {
   return {
     id,
     name,
@@ -22,6 +23,7 @@ function melee(id, name, tier, weapon, description) {
     stackable: false,
     maxStack: 1,
     weapon,
+    ...extra,
   }
 }
 
@@ -127,6 +129,13 @@ const MELEE_LIST = [
     '拔出时空气变冷，剑锋上凝着白霜。'),
   melee('longsword-silver-rose', '长剑-银色玫瑰', '神话', { attack: 110, crit: 0.4, critDamage: 2.8, combo: 0.38, durability: 260 },
     '银白剑身雕着玫瑰纹理，轻得不像它的体量。'),
+
+  /* ===== 限定 ===== */
+  melee('royal-scepter', '皇家权杖', '限定', { attack: 22, crit: 0.26, critDamage: 2.66, combo: 0.66, durability: 166 },
+    '杖头嵌着一颗暗红宝石，宫廷匠人把它磨得比礼仪更锋利。', {
+      limited: true,
+      image: '/image/末日都城限定/皇家权杖.webp',
+    }),
 ]
 
 export const MELEE_ITEMS = Object.fromEntries(MELEE_LIST.map((item) => [item.id, item]))

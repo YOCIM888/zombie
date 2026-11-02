@@ -46,6 +46,14 @@ const FOOD_LIST = [
     '表皮发黑，里面还是白的。', { fruit: true }),
   food('cranberry', '越蔓梅', { hunger: 10, thirst: 10 },
     '酸得让人皱眉，能压住嘴里的铁锈味。', { fruit: true }),
+
+  /* ===== 限定 ===== */
+  food('royal-dessert', '皇家甜点', { hunger: 60, hp: 60, infection: -60 },
+    '奶油上压着王宫的家徽，甜得几乎不像末日里的东西。', {
+      tier: '限定',
+      limited: true,
+      image: '/image/末日都城限定/皇家甜点.webp',
+    }),
 ]
 
 export const FOOD_ITEMS = Object.fromEntries(FOOD_LIST.map((item) => [item.id, item]))

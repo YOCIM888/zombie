@@ -284,7 +284,7 @@ export const NUTRITIONIST_QUESTS = [
         { id: 'canned-fish', qty: 3 },
       ],
     },
-    reward: { dawnCoins: 6 },
+    reward: { dawnCoins: 12 },
   },
   {
     id: 'nutritionist-2',
@@ -299,7 +299,7 @@ export const NUTRITIONIST_QUESTS = [
         { id: 'grape', qty: 5 },
       ],
     },
-    reward: { dawnCoins: 9 },
+    reward: { dawnCoins: 20 },
   },
   {
     id: 'nutritionist-3',
@@ -315,7 +315,7 @@ export const NUTRITIONIST_QUESTS = [
         { id: 'whole-wheat-bread', qty: 3 },
       ],
     },
-    reward: { items: [{ id: 'badge-nutritionist', qty: 1 }], dawnCoins: 12 },
+    reward: { items: [{ id: 'badge-nutritionist', qty: 1 }], dawnCoins: 30 },
   },
 ]
 
@@ -333,7 +333,7 @@ export const MECHANIC_QUESTS = [
         { id: 'baseball-bat', qty: 1 },
       ],
     },
-    reward: { dawnCoins: 6 },
+    reward: { dawnCoins: 12 },
   },
   {
     id: 'mechanic-2',
@@ -347,7 +347,7 @@ export const MECHANIC_QUESTS = [
         { id: 'tourniquet', qty: 5 },
       ],
     },
-    reward: { dawnCoins: 9 },
+    reward: { dawnCoins: 20 },
   },
   {
     id: 'mechanic-3',
@@ -356,7 +356,7 @@ export const MECHANIC_QUESTS = [
     name: '一张好弓',
     desc: '莉莉想拆一张猎弓，看看弓臂里的钢片还能不能再用。两把猎弓，她要一把研究、一把留底。',
     require: { items: [{ id: 'hunting-bow', qty: 2 }] },
-    reward: { items: [{ id: 'badge-mechanic', qty: 1 }], dawnCoins: 12 },
+    reward: { items: [{ id: 'badge-mechanic', qty: 1 }], dawnCoins: 30 },
   },
 ]
 
@@ -369,7 +369,7 @@ export const MERCENARY_QUESTS = [
     name: '训练场的靶子',
     desc: '薇尔把一把钝刀扔给你：「先去外面数清楚，十五只。数完再回来谈别的。」',
     require: { kills: 15 },
-    reward: { dawnCoins: 6 },
+    reward: { dawnCoins: 12 },
   },
   {
     id: 'mercenary-2',
@@ -378,7 +378,7 @@ export const MERCENARY_QUESTS = [
     name: '一把顺手的弓',
     desc: '薇尔看上了猎弓。她不说要做什么，只把空出来的枪架擦了一遍。',
     require: { items: [{ id: 'hunting-bow', qty: 1 }] },
-    reward: { dawnCoins: 9 },
+    reward: { dawnCoins: 20 },
   },
   {
     id: 'mercenary-3',
@@ -387,7 +387,7 @@ export const MERCENARY_QUESTS = [
     name: '夜巡',
     desc: '薇尔要你跟她走一趟夜巡。三十只行尸，能回来的人才会被她记住名字。',
     require: { kills: 30 },
-    reward: { items: [{ id: 'badge-mercenary', qty: 1 }], dawnCoins: 15 },
+    reward: { items: [{ id: 'badge-mercenary', qty: 1 }], dawnCoins: 30 },
   },
 ]
 
@@ -405,7 +405,7 @@ export const AGRONOMIST_QUESTS = [
         { id: 'banana', qty: 3 },
       ],
     },
-    reward: { dawnCoins: 6 },
+    reward: { dawnCoins: 12 },
   },
   {
     id: 'agronomist-2',
@@ -420,7 +420,7 @@ export const AGRONOMIST_QUESTS = [
         { id: 'orange', qty: 3 },
       ],
     },
-    reward: { dawnCoins: 9 },
+    reward: { dawnCoins: 20 },
   },
   {
     id: 'agronomist-3',
@@ -439,7 +439,7 @@ export const AGRONOMIST_QUESTS = [
     },
     reward: {
       items: [{ id: 'hunting-bow', qty: 1 }],
-      dawnCoins: 15,
+      dawnCoins: 35,
       note: '苗苗把一张猎弓塞给你：「没有原野里的那种弓，这张也能用。」',
     },
   },

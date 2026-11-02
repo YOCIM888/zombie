@@ -308,14 +308,92 @@ export const PALACE_COOLDOWN = {
 
 /** 凭身份领取的俸禄，平民及以下没有 */
 export const PALACE_SALARY = {
-  '骑士': 2,
-  '男爵': 3,
-  '子爵': 5,
-  '伯爵': 8,
+  '骑士': 3,
+  '男爵': 5,
+  '子爵': 8,
+  '伯爵': 10,
   '侯爵': 12,
   '公爵': 15,
-  '储君': 20,
+  '储君': 18,
 }
+
+/** 宫廷舞会的三档：共用同一个每日次数 */
+export const PALACE_DANCES = [
+  {
+    id: 'common',
+    name: '普通舞会',
+    price: 0,
+    sanity: 30,
+    desc: '厅角的乐队只奏最熟的曲子，谁都能下场跳一支。',
+  },
+  {
+    id: 'elite',
+    name: '名媛舞会',
+    price: 5,
+    sanity: 50,
+    desc: '名媛们围成半圈，手套上的蕾丝比话题更讲究。',
+  },
+  {
+    id: 'star',
+    name: '明星舞会',
+    price: 8,
+    sanity: 80,
+    desc: '水晶灯下站着整座都城的焦点，连乐师都屏住了呼吸。',
+  },
+]
+
+/** 宫廷宴会的三档：共用同一个每日次数 */
+export const PALACE_BANQUETS = [
+  {
+    id: 'common',
+    name: '普通宴会',
+    price: 0,
+    hunger: 30,
+    thirst: 30,
+    desc: '长桌最末的位置也管饱，只要你不介意和侍者一起站着吃。',
+  },
+  {
+    id: 'elite',
+    name: '名人宴会',
+    price: 5,
+    hunger: 50,
+    thirst: 50,
+    desc: '名人端着酒杯在厅里走动，侍者替你续了两次汤。',
+  },
+  {
+    id: 'star',
+    name: '皇家宴会',
+    price: 8,
+    hunger: 80,
+    thirst: 80,
+    desc: '御厨把整条长桌铺满，连酒都是从地窖最深处抬上来的。',
+  },
+]
+
+/** 宫廷客房的三档：共用同一个每日次数 */
+export const PALACE_ROOMS = [
+  {
+    id: 'common',
+    name: '典雅客房',
+    price: 0,
+    stamina: 30,
+    desc: '被褥干净，窗棂上积着薄灰，睡一觉足够恢复精神。',
+  },
+  {
+    id: 'elite',
+    name: '华丽客房',
+    price: 5,
+    stamina: 50,
+    desc: '床柱雕着缠枝花纹，枕头软得让人不想起身。',
+  },
+  {
+    id: 'star',
+    name: '私享舞会',
+    price: 8,
+    stamina: 80,
+    desc: '整层楼只为你一个人点亮，乐师在门外候着，直到你尽兴。',
+  },
+]
 
 /** 感染治疗的六档 */
 export const TREATMENT_TIERS = [
@@ -327,72 +405,179 @@ export const TREATMENT_TIERS = [
   { id: 'court', name: '宫廷治疗', minRank: 6, minIdentity: '公爵', reduce: 60 },
 ]
 
+/** 王宫贵族商店：限定品质，不进入任何随机掉落池 */
+export const PALACE_SHOP = [
+  {
+    id: 'royal-lance',
+    itemId: 'royal-lance',
+    name: '皇家长枪',
+    tier: '限定',
+    price: 88,
+    note: '66 攻击 · 66% 暴击 · 1.66 暴伤 · 16% 闪避',
+  },
+  {
+    id: 'royal-scepter',
+    itemId: 'royal-scepter',
+    name: '皇家权杖',
+    tier: '限定',
+    price: 66,
+    note: '22 攻击 · 26% 暴击 · 2.66 暴伤 · 66% 连击 · 166 耐久',
+  },
+  {
+    id: 'royal-mix',
+    itemId: 'royal-mix',
+    name: '皇家特调',
+    tier: '限定',
+    price: 10,
+    note: '口渴 +60 · 理智 +60 · 体力 +60',
+  },
+  {
+    id: 'royal-dessert',
+    itemId: 'royal-dessert',
+    name: '皇家甜点',
+    tier: '限定',
+    price: 10,
+    note: '饱食 +60 · 生命 +60 · 感染 -60',
+  },
+]
+
+/** 按品质抽一把近战武器（排除限定物品） */
+export function pickMeleeByTier(tier) {
+  const pool = Object.values(ITEMS).filter(
+    (item) => item.category === 'melee' && item.tier === tier && !item.limited,
+  )
+  if (!pool.length) return null
+  return pool[Math.floor(Math.random() * pool.length)]
+}
+
 /**
- * 王宫里的五种会议：共用同一个七日会期
- * 身份越高，座次越靠前，议题也越有分量
+ * 王宫里的七档会议：共用同一个七日会期
+ * 身份越高可参加越高的会议；高爵位也能参加低爵位会议
  */
 export const PALACE_COUNCILS = [
   {
     id: 'knight',
-    name: '骑士会议',
+    name: '圆桌誓会',
     identity: '骑士',
     rank: 1,
     turns: 1,
-    coins: 2,
-    sanity: 10,
-    desc: '巡逻队交接与城墙防务。坐在末席也能听清每一句话。',
+    coins: 5,
+    weaponTier: '普通',
+    desc: '骑士们在圆桌边重述誓约。散会时，有人把一把趁手的家伙推到面前。',
   },
   {
-    id: 'round',
-    name: '圆桌会议',
+    id: 'baron',
+    name: '封邑小议',
     identity: '男爵',
     rank: 2,
     turns: 1,
-    coins: 3,
-    sanity: 10,
-    desc: '男爵们的封地事务，账目与税赋都要在这张桌上过一遍。',
+    coins: 10,
+    weaponTier: '普通',
+    desc: '封地的账目与税赋过一遍小桌，散会时照例有份「路上用的东西」。',
   },
   {
-    id: 'long',
-    name: '长桌会议',
+    id: 'viscount',
+    name: '子爵议厅',
     identity: '子爵',
     rank: 3,
     turns: 1,
-    coins: 5,
-    sanity: 10,
-    desc: '子爵一级的军需调配，长桌上铺满了地图。',
+    coins: 15,
+    weaponTier: '稀有',
+    desc: '军需调配的地图铺满整张议桌，边角上放着一把保养过的兵器。',
   },
   {
-    id: 'staff',
-    name: '幕僚会议',
+    id: 'earl',
+    name: '伯爵议庭',
     identity: '伯爵',
     rank: 4,
     turns: 1,
-    coins: 8,
-    sanity: 10,
-    desc: '伯爵的幕僚议事。议题更少，分量更重。',
+    coins: 20,
+    weaponTier: '稀有',
+    desc: '伯爵们关起门议事，门外的侍从替你备好了一份体面的谢礼。',
   },
   {
-    id: 'court',
-    name: '宫廷会议',
+    id: 'marquis',
+    name: '侯爵会盟',
+    identity: '侯爵',
+    rank: 5,
+    turns: 1,
+    coins: 25,
+    weaponTier: '精良',
+    desc: '几位侯爵的会盟，谈的是巡防与兵权。桌上的兵器不再只是摆设。',
+  },
+  {
+    id: 'duke',
+    name: '公爵议政',
     identity: '公爵',
     rank: 6,
     turns: 1,
-    coins: 12,
-    sanity: 10,
-    medicine: 1,
-    desc: '公爵与储君的内廷会议，一句话能决定半座城的粮食。',
+    coins: 30,
+    weaponTier: '精良',
+    desc: '公爵们定下内廷的规矩，散会时赏下的东西也都带着分量。',
+  },
+  {
+    id: 'heir',
+    name: '储君廷议',
+    identity: '储君',
+    rank: 7,
+    turns: 1,
+    coins: 40,
+    weaponTier: '史诗',
+    desc: '储君坐主位，一句话就能决定半座城的粮食。退席时，内侍捧来一柄史诗兵器。',
   },
 ]
 
-/** 宫廷花园：只有储君能进，七天开放一次 */
+/** 宫廷花园：仅储君可用，四项活动各自计算次数 */
 export const GARDEN = {
   identity: '储君',
   rank: 7,
-  turns: 1,
-  coins: 6,
-  medicines: 3,
-  foods: 2,
+  activities: [
+    {
+      id: 'walk',
+      name: '花园散步',
+      cooldownKey: 'garden-walk',
+      days: 1,
+      turns: 1,
+      fruitCount: 3,
+      reward: '随机单种水果 ×3',
+      desc: '藤架下的果子熟了，园丁朝你点点头，示意你随便摘。',
+    },
+    {
+      id: 'tea',
+      name: '品下午茶',
+      cooldownKey: 'garden-tea',
+      days: 1,
+      turns: 1,
+      items: [
+        { itemId: 'royal-mix', qty: 1 },
+        { itemId: 'royal-dessert', qty: 1 },
+      ],
+      reward: '皇家特调 ×1 + 皇家甜点 ×1',
+      desc: '石桌上摆着一套银器，皇家特调与甜点都还冒着热气。',
+    },
+    {
+      id: 'potion',
+      name: '神秘药剂',
+      cooldownKey: 'garden-potion',
+      days: 5,
+      turns: 1,
+      items: [{ itemId: 'panacea', qty: 5 }],
+      coins: 10,
+      reward: '万能灵药 ×5 · 末日币 +10',
+      desc: '内侍从花房深处端来一只封着蜡的箱子，箱子里有轻微的碰撞声。',
+    },
+    {
+      id: 'prayer',
+      name: '神迹祈祷',
+      cooldownKey: 'garden-prayer',
+      days: 7,
+      turns: 1,
+      fullRestore: true,
+      coins: 30,
+      reward: '状态补满 · 末日币 +30',
+      desc: '花房尽头有一尊无名的石像，跪下去的人都说灵。',
+    },
+  ],
 }
 
 /** 王宫斗兽擂台：赤手空拳提升拳头天赋 */
@@ -415,13 +600,15 @@ export const ARENA = {
 }
 
 /**
- * 在此探索的分支概率：25% 食物 / 25% 饮品 / 50% 什么也没有
+ * 在此探索的分支概率：33% 食物 / 33% 饮品 / 34% 什么也没有
  * 掉落池由物品数据自动生成：食物排除水果（fruit=true），饮品全部可掉落
  */
-export const EXPLORE_BRANCH = { food: 25, drink: 25 }
+export const EXPLORE_BRANCH = { food: 33, drink: 33 }
 
 export function exploreLootPool(category) {
-  return Object.values(ITEMS).filter((item) => item.category === category && !item.fruit)
+  return Object.values(ITEMS).filter(
+    (item) => item.category === category && !item.fruit && !item.limited,
+  )
 }
 
 /** 抽一次探索结果，返回 itemId（null 表示一无所获） */
@@ -437,31 +624,9 @@ export function pickCityLoot() {
   return pool[Math.floor(Math.random() * pool.length)].id
 }
 
-/** 从池子里不重复地取 count 个；池子不够时允许重复补足 */
-function takeRandom(pool, count) {
-  if (!pool.length) return []
-  const copy = [...pool]
-  const picked = []
-  while (picked.length < count) {
-    if (!copy.length) copy.push(...pool)
-    picked.push(copy.splice(Math.floor(Math.random() * copy.length), 1)[0])
-  }
-  return picked
-}
-
 /** 随机一份药品 id（宫廷会议赠品） */
 export function pickRandomMedicine() {
   const pool = Object.values(ITEMS).filter((item) => item.category === 'medicine')
   if (!pool.length) return null
   return pool[Math.floor(Math.random() * pool.length)].id
-}
-
-/** 花园赠礼：3 份药品 + 2 份稀有食物（非水果） */
-export function pickGardenLoot() {
-  const medicines = takeRandom(
-    Object.values(ITEMS).filter((item) => item.category === 'medicine'),
-    GARDEN.medicines,
-  )
-  const foods = takeRandom(exploreLootPool('food'), GARDEN.foods)
-  return [...medicines, ...foods].map((item) => item.id)
 }

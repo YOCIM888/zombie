@@ -1007,6 +1007,7 @@ function closePanel() {
         <p class="pane__desc">{{ shopInfo.desc }}</p>
         <div class="goods">
           <article v-for="good in shopGoods" :key="good.id" class="good">
+            <img class="good__img" :src="getItem(good.itemId)?.image" :alt="good.name" />
             <div class="good__main">
               <h4 class="good__name">
                 {{ good.name }}
@@ -1037,6 +1038,7 @@ function closePanel() {
           </header>
           <p class="extra__desc">{{ AIRSHIP_SHOPS.treasure.desc }}</p>
           <div v-if="treasure" class="treasure">
+            <img class="good__img" :src="getItem(treasure.itemId)?.image" :alt="treasure.name" />
             <div class="treasure__main">
               <h4 class="good__name">
                 {{ treasure.name }}
@@ -1520,6 +1522,15 @@ function closePanel() {
   gap: 16px;
   padding: 10px 12px;
   background: #0d0f10;
+}
+
+.good__img {
+  width: 46px;
+  height: 46px;
+  flex: none;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.25);
 }
 
 .good__main,

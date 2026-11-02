@@ -9,7 +9,11 @@ import {
   LOAN_TERM_DAYS,
   PALACE_COOLDOWN,
   PALACE_COUNCILS,
+  PALACE_DANCES,
+  PALACE_BANQUETS,
+  PALACE_ROOMS,
   PALACE_SALARY,
+  PALACE_SHOP,
   QUEST_OWNERS,
   REPAIR_PERCENT_PER_COIN,
   SHOP_GOODS,
@@ -35,8 +39,8 @@ import {
   attendCouncil,
   becomeKnight,
   borrowCoins,
-  bribeGuard,
   buyGood,
+  buyPalaceGood,
   canEnterPalace,
   claimSalary,
   cooldownLeft,
@@ -49,6 +53,7 @@ import {
   isQuestDone,
   joinCity,
   laborCity,
+  notify,
   palaceBanquet,
   palaceDance,
   palaceGuestRoom,
@@ -58,7 +63,7 @@ import {
   restoreIdentity,
   stealPalace,
   treatInfection,
-  visitGarden,
+  gardenActivity,
 } from '../game/store'
 import { battle, resetBattle, startBankerCombat } from '../game/battle'
 import AssassinationCard from './AssassinationCard.vue'
@@ -72,25 +77,26 @@ const emit = defineEmits(['close'])
 
 const MENU = [
   { id: 'explore', no: '01', name: '在此探索', desc: '花 1 回合搜刮废墟，可能找到食物或饮品。' },
-  { id: 'depths', no: '02', name: '都城深处', desc: '投靠都城、出示身份，或贿赂守卫进入王宫。' },
+  { id: 'palace', no: '02', name: '进入王宫', desc: '骑士以上身份可直接进入王宫深处；身份不足会被守卫拦下。' },
   { id: 'bank', no: '03', name: '都城银行', desc: '按身份额度、利率与宽限借贷；逾期后果各不相同。' },
-  { id: 'identity', no: '04', name: '身份办理', desc: '补办身份牌，或花 30 末日币成为骑士。' },
+  { id: 'identity', no: '04', name: '身份办理', desc: '投靠都城、补办身份牌，或花 30 末日币成为骑士。' },
   { id: 'labor', no: '05', name: '进行劳动', desc: '八档身份活计，每天一份，身份越高越轻、越赚。' },
   { id: 'market', no: '06', name: '贫民集市', desc: '所有普通近战武器与基础补给，明码标价。' },
 ]
 
 const PALACE_MENU = [
-  { id: 'steal', no: '01', name: '进行偷窃', desc: '1 回合。20% 得 1 末日币，80% 被发现（生命 -50）。' },
-  { id: 'dance', no: '02', name: '宫廷舞会', desc: '1 回合，每日一次。骑士以上，理智 +50。' },
-  { id: 'banquet', no: '03', name: '宫廷宴会', desc: '1 回合，每日一次。骑士以上，饱食 / 口渴 +50。' },
-  { id: 'room', no: '04', name: '宫廷客房', desc: '2 回合，每日一次。骑士以上，体力 +50。' },
+  { id: 'steal', no: '01', name: '进行偷窃', desc: '1 回合，每天一次。10% 得 3 币，20% 得 1 币，30% 空手，40% 被扇一巴掌（生命 -5）。' },
+  { id: 'dance', no: '02', name: '宫廷舞会', desc: '1 回合，每日一次。三档舞会共用次数，理智 +30 / +50 / +80。' },
+  { id: 'banquet', no: '03', name: '宫廷宴会', desc: '1 回合，每日一次。三档宴会共用次数，饱食 / 口渴 +30 / +50 / +80。' },
+  { id: 'room', no: '04', name: '宫廷客房', desc: '2 回合，每日一次。三档客房共用次数，体力 +30 / +50 / +80。' },
   { id: 'cure', no: '05', name: '感染治疗', desc: '1 回合，每日一次。按身份解锁六档治疗。' },
   { id: 'salary', no: '06', name: '领取俸禄', desc: '1 回合，每日一次。按身份领取末日币。' },
-  { id: 'council', no: '07', name: '参加会议', desc: '1 回合，七天一次。五种会议按身份开放。' },
-  { id: 'garden', no: '08', name: '宫廷花园', desc: '仅储君可进入。七天一次，药品与食物相赠。' },
+  { id: 'council', no: '07', name: '参加会议', desc: '1 回合，七天一次。七档会议按身份开放，高爵位可参加低爵位会议。' },
+  { id: 'garden', no: '08', name: '宫廷花园', desc: '仅储君可进入。四项活动各自计算次数：散步与下午茶每日一次，神秘药剂五天一次，神迹祈祷七天一次。' },
   { id: 'queen', no: '09', name: '皇后米娅', desc: '她只肯见哥哥信得过的人，手里还得有那封信。' },
   { id: 'king', no: '10', name: '国王艾伦', desc: '骑士以上，他才会开口；他要的东西一件比一件难。' },
   { id: 'arena', no: '11', name: '斗兽擂台', desc: '赤手空拳上场，每天两次，提升拳头天赋。' },
+  { id: 'shop', no: '12', name: '贵族商店', desc: '王宫限定武器与饮食，全部用末日币结算。' },
 ]
 
 const map = MAPS.find((item) => item.id === 'ruined-city')
@@ -263,21 +269,13 @@ function deliverLetter() {
 
 function tryPalace() {
   if (!canEnterPalace()) {
-    feed.value = '守卫拦住你：至少需要「骑士」身份才能进入都城王宫。'
+    const line = '守卫拦住你：至少需要「骑士」身份才能进入都城王宫。'
+    feed.value = line
+    notify(line)
     return
   }
   palaceView.value = 'menu'
   view.value = 'palace'
-}
-
-function bribe() {
-  const before = game.coins
-  const line = bribeGuard()
-  feed.value = line
-  if (before >= 1) {
-    palaceView.value = 'menu'
-    view.value = 'palace'
-  }
 }
 
 function battleBusy() {
@@ -288,13 +286,26 @@ function battleBusy() {
 
 function backFromPalace() {
   if (battleBusy()) return
-  if (palaceView.value === 'menu') view.value = 'depths'
+  if (palaceView.value === 'menu') view.value = 'menu'
   else palaceView.value = 'menu'
+}
+
+/** 底部返回：在王宫子选项里先回王宫菜单，在王宫菜单里才回都城菜单 */
+function footerBack() {
+  if (view.value === 'palace') {
+    backFromPalace()
+    return
+  }
+  go('menu')
 }
 
 function go(next) {
   if (battleBusy()) return
   if (battle.finished) resetBattle()
+  if (next === 'palace') {
+    tryPalace()
+    return
+  }
   view.value = next
 }
 
@@ -329,55 +340,20 @@ function closePanel() {
       <p class="pane__desc">沿着断墙与废弃店铺翻找。有人在这里找到过整箱的罐头，也有人只带回一身尘土。</p>
       <div class="chips">
         <span>消耗 1 回合</span>
-        <span>25% 食物</span>
-        <span>25% 饮品</span>
-        <span>50% 什么也没有</span>
+        <span>33% 食物</span>
+        <span>33% 饮品</span>
+        <span>34% 什么也没有</span>
       </div>
       <button type="button" class="btn btn--primary pane__action" @click="run(exploreCity)">
         在此探索 · 1 回合
       </button>
     </section>
 
-    <section v-else-if="view === 'depths'" class="pane">
-      <header class="pane__head">
-        <h3 class="pane__title">都城深处</h3>
-        <button type="button" class="link" @click="go('menu')">← 返回选项</button>
-      </header>
-
-      <div class="rows">
-        <article class="row">
-          <div>
-            <h4 class="row__name">投靠都城</h4>
-            <p class="row__desc">向都城衙门登记名册，换取一枚平民徽章。</p>
-          </div>
-          <button type="button" class="btn" @click="run(joinCity)">投靠</button>
-        </article>
-
-        <article class="row">
-          <div>
-            <h4 class="row__name">出示身份</h4>
-            <p class="row__desc">
-              至少需要骑士身份才能进入都城王宫。当前身份：{{ game.identity ?? '无' }}
-            </p>
-          </div>
-          <button type="button" class="btn" @click="tryPalace">出示身份</button>
-        </article>
-
-        <article class="row">
-          <div>
-            <h4 class="row__name">贿赂守卫</h4>
-            <p class="row__desc">花 1 末日币，让守卫当作什么都没看见。</p>
-          </div>
-          <button type="button" class="btn" @click="bribe">贿赂 · 1 币</button>
-        </article>
-      </div>
-    </section>
-
     <section v-else-if="view === 'palace'" class="pane">
       <header class="pane__head">
         <h3 class="pane__title">{{ palaceTitle }}</h3>
         <button type="button" class="link" @click="backFromPalace">
-          ← {{ palaceView === 'menu' ? '返回深处' : '返回王宫' }}
+          ← {{ palaceView === 'menu' ? '返回选项' : '返回王宫' }}
         </button>
       </header>
 
@@ -390,8 +366,12 @@ function closePanel() {
         <p class="pane__desc">银器、钱袋和供品堆在无人看守的角落。守卫每隔一会儿会巡一次。</p>
         <div class="chips">
           <span>消耗 1 回合（有衰减）</span>
+          <span>每天一次</span>
+          <span>10% 得 3 末日币</span>
           <span>20% 得 1 末日币</span>
-          <span>80% 被发现 · 生命 -50</span>
+          <span>30% 什么也没偷到</span>
+          <span>40% 被发现 · 生命 -5</span>
+          <span>{{ daily('steal') > 0 ? `冷却 ${daily('steal')} 天` : '今日可用' }}</span>
         </div>
         <button type="button" class="btn btn--primary pane__action" @click="run(stealPalace)">
           进行偷窃 · 1 回合
@@ -399,43 +379,125 @@ function closePanel() {
       </template>
 
       <template v-else-if="palaceView === 'dance'">
-        <p class="pane__desc">乐声从大厅里传出来。只要胸前的徽章够格，没有人会拦你。</p>
-        <div class="chips">
-          <span>消耗 1 回合 · 无衰减</span>
-          <span>骑士以上</span>
-          <span>理智 +50</span>
-          <span>{{ daily('dance') > 0 ? `冷却 ${daily('dance')} 天` : '今日可用' }}</span>
+        <p class="pane__desc">
+          乐声从大厅里传出来。三档舞会共用同一天的入场次数，只要胸前的徽章够格，就没有人会拦你。
+        </p>
+        <p class="cure__note">
+          {{
+            daily('dance') > 0
+              ? `今日舞会已结束，${daily('dance')} 天后可再次入场`
+              : '今日尚未入场'
+          }}
+        </p>
+        <div class="rows">
+          <article v-for="dance in PALACE_DANCES" :key="dance.id" class="row">
+            <div>
+              <h4 class="row__name">{{ dance.name }}</h4>
+              <p class="row__desc">{{ dance.desc }}</p>
+              <p class="row__meta">
+                <span>{{ dance.price > 0 ? `${dance.price} 末日币` : '免费' }}</span>
+                <span>理智 +{{ dance.sanity }}</span>
+                <span>1 回合 · 无衰减</span>
+                <span>骑士以上</span>
+              </p>
+            </div>
+            <button
+              type="button"
+              class="btn"
+              :disabled="daily('dance') > 0 || game.coins < dance.price"
+              @click="run(() => palaceDance(dance.id))"
+            >
+              {{
+                daily('dance') > 0
+                  ? `${daily('dance')} 天后`
+                  : game.coins < dance.price
+                    ? '币不足'
+                    : '入场'
+              }}
+            </button>
+          </article>
         </div>
-        <button type="button" class="btn btn--primary pane__action" @click="run(palaceDance)">
-          参加舞会
-        </button>
       </template>
 
       <template v-else-if="palaceView === 'banquet'">
-        <p class="pane__desc">长桌上永远有食物和酒。没人会在意一个沉默的食客。</p>
-        <div class="chips">
-          <span>消耗 1 回合 · 无衰减</span>
-          <span>骑士以上</span>
-          <span>饱食 +50 / 口渴 +50</span>
-          <span>{{ daily('banquet') > 0 ? `冷却 ${daily('banquet')} 天` : '今日可用' }}</span>
+        <p class="pane__desc">
+          长桌上永远有食物和酒。三档宴会共用同一天的次数，没人会在意一个沉默的食客。
+        </p>
+        <p class="cure__note">
+          {{
+            daily('banquet') > 0
+              ? `今日宴会已结束，${daily('banquet')} 天后可再次入场`
+              : '今日尚未入场'
+          }}
+        </p>
+        <div class="rows">
+          <article v-for="banquet in PALACE_BANQUETS" :key="banquet.id" class="row">
+            <div>
+              <h4 class="row__name">{{ banquet.name }}</h4>
+              <p class="row__desc">{{ banquet.desc }}</p>
+              <p class="row__meta">
+                <span>{{ banquet.price > 0 ? `${banquet.price} 末日币` : '免费' }}</span>
+                <span>饱食 +{{ banquet.hunger }}</span>
+                <span>口渴 +{{ banquet.thirst }}</span>
+                <span>1 回合 · 无衰减</span>
+              </p>
+            </div>
+            <button
+              type="button"
+              class="btn"
+              :disabled="daily('banquet') > 0 || game.coins < banquet.price"
+              @click="run(() => palaceBanquet(banquet.id))"
+            >
+              {{
+                daily('banquet') > 0
+                  ? `${daily('banquet')} 天后`
+                  : game.coins < banquet.price
+                    ? '币不足'
+                    : '入席'
+              }}
+            </button>
+          </article>
         </div>
-        <button type="button" class="btn btn--primary pane__action" @click="run(palaceBanquet)">
-          参加宴会
-        </button>
       </template>
 
       <template v-else-if="palaceView === 'room'">
-        <p class="pane__desc">客房里的被褥是干净的。躺下之后，连墙外的动静都听不见了。</p>
-        <div class="chips">
-          <span>消耗 2 回合 · 无衰减</span>
-          <span>骑士以上</span>
-          <span>体力 +50</span>
-          <span>不消耗饱食度</span>
-          <span>{{ daily('room') > 0 ? `冷却 ${daily('room')} 天` : '今日可用' }}</span>
+        <p class="pane__desc">
+          客房里的被褥是干净的。三档客房共用同一天的入住次数，躺下之后，连墙外的动静都听不见了。
+        </p>
+        <p class="cure__note">
+          {{
+            daily('room') > 0
+              ? `今日客房已入住，${daily('room')} 天后可再次入住`
+              : '今日尚未入住'
+          }}
+        </p>
+        <div class="rows">
+          <article v-for="room in PALACE_ROOMS" :key="room.id" class="row">
+            <div>
+              <h4 class="row__name">{{ room.name }}</h4>
+              <p class="row__desc">{{ room.desc }}</p>
+              <p class="row__meta">
+                <span>{{ room.price > 0 ? `${room.price} 末日币` : '免费' }}</span>
+                <span>体力 +{{ room.stamina }}</span>
+                <span>2 回合 · 无衰减</span>
+              </p>
+            </div>
+            <button
+              type="button"
+              class="btn"
+              :disabled="daily('room') > 0 || game.coins < room.price"
+              @click="run(() => palaceGuestRoom(room.id))"
+            >
+              {{
+                daily('room') > 0
+                  ? `${daily('room')} 天后`
+                  : game.coins < room.price
+                    ? '币不足'
+                    : '入住'
+              }}
+            </button>
+          </article>
         </div>
-        <button type="button" class="btn btn--primary pane__action" @click="run(palaceGuestRoom)">
-          入住客房 · 2 回合
-        </button>
       </template>
 
       <template v-else-if="palaceView === 'cure'">
@@ -479,7 +541,7 @@ function closePanel() {
 
       <template v-else-if="palaceView === 'council'">
         <p class="pane__desc">
-          五种会议共用同一个七日会期：参加其中一场，就要等下一个会期。身份越高，坐得越靠前，听得也越多。
+          七种会议共用同一个七日会期：参加其中一场，就要等下一个会期。身份越高能进的厅越深，高爵位也可以坐回低爵位的桌边。
         </p>
         <p class="cure__note">
           {{
@@ -497,8 +559,7 @@ function closePanel() {
                 <span>需「{{ council.identity }}」</span>
                 <span>{{ council.turns }} 回合</span>
                 <span>末日币 +{{ council.coins }}</span>
-                <span>理智 +{{ council.sanity }}</span>
-                <span v-if="council.medicine">随机药品 ×{{ council.medicine }}</span>
+                <span>随机{{ council.weaponTier }}近战 ×1</span>
               </p>
             </div>
             <button
@@ -521,33 +582,46 @@ function closePanel() {
 
       <template v-else-if="palaceView === 'garden'">
         <p class="pane__desc">
-          石阶尽头的花园只对储君开放。藤架下摆着当日的药品与封存的食物，石桌上还压着一叠末日币。
+          石阶尽头的花园只对储君开放。四项活动各自计算次数，互不影响。
         </p>
-        <div class="chips">
-          <span>仅「{{ GARDEN.identity }}」</span>
-          <span>{{ GARDEN.turns }} 回合 · 无衰减</span>
-          <span>七天一次</span>
-          <span>药品 ×{{ GARDEN.medicines }}</span>
-          <span>食物 ×{{ GARDEN.foods }}</span>
-          <span>末日币 +{{ GARDEN.coins }}</span>
-        </div>
         <p class="cure__note">
           {{
-            weekly('garden') > 0
-              ? `距离下次开放还有 ${weekly('garden')} 天`
-              : currentRank >= GARDEN.rank
-                ? '今天可以进入花园'
-                : '守卫没有让你进去：花园只对储君开放'
+            currentRank >= GARDEN.rank
+              ? '今天可以进入花园'
+              : '守卫没有让你进去：花园只对储君开放'
           }}
         </p>
-        <button
-          type="button"
-          class="btn btn--primary pane__action"
-          :disabled="currentRank < GARDEN.rank"
-          @click="run(visitGarden)"
-        >
-          进入花园
-        </button>
+        <div class="rows">
+          <article v-for="activity in GARDEN.activities" :key="activity.id" class="row">
+            <div>
+              <h4 class="row__name">{{ activity.name }}</h4>
+              <p class="row__desc">{{ activity.desc }}</p>
+              <p class="row__meta">
+                <span>仅「{{ GARDEN.identity }}」</span>
+                <span>{{ activity.turns }} 回合 · 无衰减</span>
+                <span>{{ activity.days }} 天一次</span>
+                <span>{{ activity.reward }}</span>
+              </p>
+            </div>
+            <button
+              type="button"
+              class="btn"
+              :disabled="
+                currentRank < GARDEN.rank ||
+                cooldownLeft(activity.cooldownKey, activity.days) > 0
+              "
+              @click="run(() => gardenActivity(activity.id))"
+            >
+              {{
+                currentRank < GARDEN.rank
+                  ? '需 储君'
+                  : cooldownLeft(activity.cooldownKey, activity.days) > 0
+                    ? `${cooldownLeft(activity.cooldownKey, activity.days)} 天后`
+                    : '前往'
+              }}
+            </button>
+          </article>
+        </div>
       </template>
 
       <template v-else-if="palaceView === 'king'">
@@ -616,6 +690,30 @@ function closePanel() {
         >
           {{ arenaActionLabel }}
         </button>
+      </template>
+
+      <template v-else-if="palaceView === 'shop'">
+        <p class="pane__desc">
+          柜台上只摆着四样东西，每一件都罩在玻璃里。价格牌是手写的，墨迹很新。
+        </p>
+        <div class="goods">
+          <article v-for="good in PALACE_SHOP" :key="good.id" class="good">
+            <img class="good__img" :src="getItem(good.itemId)?.image" :alt="good.name" />
+            <div class="good__main">
+              <h4 class="good__name">
+                {{ good.name }}
+                <span class="good__tier">{{ good.tier }}</span>
+              </h4>
+              <p class="good__note">{{ good.note }}</p>
+            </div>
+            <div class="good__buy">
+              <span>{{ good.price }} 币</span>
+              <button type="button" class="btn" @click="run(() => buyPalaceGood(good.id))">
+                购买
+              </button>
+            </div>
+          </article>
+        </div>
       </template>
 
     </section>
@@ -798,6 +896,13 @@ function closePanel() {
       <div class="rows">
         <article class="row">
           <div>
+            <h4 class="row__name">投靠都城</h4>
+            <p class="row__desc">向都城衙门登记名册，换取一枚平民徽章。</p>
+          </div>
+          <button type="button" class="btn" @click="run(joinCity)">投靠</button>
+        </article>
+        <article class="row">
+          <div>
             <h4 class="row__name">补办身份</h4>
             <p class="row__desc">身份徽章遗失时，可领取历史最高身份的身份牌。</p>
           </div>
@@ -923,7 +1028,7 @@ function closePanel() {
     <template #footer>
       <span class="feed">{{ feed }}</span>
       <div class="foot-btns">
-        <button v-if="view !== 'menu'" type="button" class="btn" @click="go('menu')">
+        <button v-if="view !== 'menu'" type="button" class="btn" @click="footerBack">
           返回选项
         </button>
         <button type="button" class="btn" @click="closePanel">离开都城</button>
@@ -1462,6 +1567,16 @@ function closePanel() {
   font-size: 13px;
   letter-spacing: 0.1em;
   color: var(--text);
+}
+
+.good__tier {
+  margin-left: 8px;
+  padding: 1px 6px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: #d8b45a;
+  border: 1px solid rgba(216, 180, 90, 0.5);
 }
 
 .good__note {

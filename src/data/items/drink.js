@@ -1,5 +1,5 @@
-// 饮品：全部可进入都城探索掉落池
-function drink(id, name, effects, description) {
+// 饮品：默认进入探索掉落池；限定饮品需标记 limited
+function drink(id, name, effects, description, extra = {}) {
   return {
     id,
     name,
@@ -9,6 +9,7 @@ function drink(id, name, effects, description) {
     stackable: true,
     maxStack: 999,
     effects,
+    ...extra,
   }
 }
 
@@ -43,6 +44,14 @@ const DRINK_LIST = [
     '瓶底沉着一条虫子。'),
   drink('whiskey', '威士忌', { thirst: 10, sanity: 10 },
     '泥煤味很重，适合暖手也暖胃。'),
+
+  /* ===== 限定 ===== */
+  drink('royal-mix', '皇家特调', { thirst: 60, sanity: 60, stamina: 60 },
+    '琥珀色的酒液里浮着一层细金粉，杯沿还留着一小片干柠檬。', {
+      tier: '限定',
+      limited: true,
+      image: '/image/末日都城限定/皇家特调.webp',
+    }),
 ]
 
 export const DRINK_ITEMS = Object.fromEntries(DRINK_LIST.map((item) => [item.id, item]))

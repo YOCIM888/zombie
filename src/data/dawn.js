@@ -87,9 +87,9 @@ export const DAWN_FLEE_CHANCE = 0.5
 
 /** 四名常驻人物的每日服务 */
 export const DAWN_SERVICE = {
-  meal: { price: 2 },
-  brew: { price: 3, infection: 20 },
-  training: { price: 3, stamina: 20, sanity: 10 },
+  meal: { price: 1 },
+  brew: { price: 1, infection: 20 },
+  training: { price: 1, stamina: 20, sanity: 10 },
   tend: { turns: 2 },
   fieldSecretAt: 5,
 }
@@ -190,9 +190,10 @@ const ALCOHOL_DRINKS = [
   'whiskey',
 ]
 
-/** 苏涵的配餐：全部食物 + 非酒精饮品 */
+/** 苏涵的配餐：全部食物 + 非酒精饮品，排除限定物品 */
 export function pickDawnMeal() {
   const pool = Object.values(ITEMS).filter((item) => {
+    if (item.limited) return false
     if (item.category === 'food') return true
     if (item.category !== 'drink') return false
     return !ALCOHOL_DRINKS.includes(item.id)

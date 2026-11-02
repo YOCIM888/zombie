@@ -11,12 +11,12 @@ const CATEGORY_LABELS = {
   ranged: '远程武器',
 }
 
-const FOOD_POOL = Object.values(ITEMS).filter((item) => item.category === 'food' && !item.fruit)
-const FRUIT_POOL = Object.values(ITEMS).filter((item) => item.fruit)
-const DRINK_POOL = Object.values(ITEMS).filter((item) => item.category === 'drink')
-const MEDICINE_POOL = Object.values(ITEMS).filter((item) => item.category === 'medicine')
-const MELEE_POOL = Object.values(ITEMS).filter((item) => item.category === 'melee')
-const RANGED_POOL = Object.values(ITEMS).filter((item) => item.category === 'ranged')
+const FOOD_POOL = Object.values(ITEMS).filter((item) => item.category === 'food' && !item.fruit && !item.limited)
+const FRUIT_POOL = Object.values(ITEMS).filter((item) => item.fruit && !item.limited)
+const DRINK_POOL = Object.values(ITEMS).filter((item) => item.category === 'drink' && !item.limited)
+const MEDICINE_POOL = Object.values(ITEMS).filter((item) => item.category === 'medicine' && !item.limited)
+const MELEE_POOL = Object.values(ITEMS).filter((item) => item.category === 'melee' && !item.limited)
+const RANGED_POOL = Object.values(ITEMS).filter((item) => item.category === 'ranged' && !item.limited)
 
 const ITEM_POOLS = {
   food: FOOD_POOL,

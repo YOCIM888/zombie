@@ -49,7 +49,11 @@ import {
   ORCHARD,
   PALACE_COOLDOWN,
   PALACE_COUNCILS,
+  PALACE_DANCES,
+  PALACE_BANQUETS,
+  PALACE_ROOMS,
   PALACE_SALARY,
+  PALACE_SHOP,
   PHASES,
   REPAIR_PERCENT_PER_COIN,
   REST_OPTIONS,
@@ -85,7 +89,7 @@ import {
   pickDawnFruit,
   pickDawnMeal,
   pickFieldLoot,
-  pickGardenLoot,
+  pickMeleeByTier,
   pickRandomMedicine,
   pickZombie,
   questById,
@@ -1962,13 +1966,6 @@ export function canEnterPalace() {
   return identityRank(game.identity) >= identityRank('骑士')
 }
 
-export function bribeGuard() {
-  if (game.dead) return ''
-  if (game.coins < 1) return '末日币不足 1，守卫连眼皮都没抬。'
-  game.coins -= 1
-  return '守卫掂了掂末日币，侧身让开了一条路。'
-}
-
 export function borrowCoins(amount) {
   if (game.dead) return ''
   if (!game.identity) return '至少需要平民身份才能借贷。'
@@ -2304,55 +2301,99 @@ function knightReady() {
   return identityRank(game.identity) >= identityRank('骑士')
 }
 
-/** 偷窃：1 回合（正常衰减），20% 得 1 末日币，80% 被抓生命 -50 */
+/** 贵族商店：王宫限定商品，全部用末日币结算 */
+export function buyPalaceGood(goodId) {
+  if (!palaceReady()) return ''
+  if (!knightReady()) return '至少需要「骑士」身份才能进入王宫。'
+  const good = PALACE_SHOP.find((item) => item.id === goodId)
+  if (!good) return ''
+  if (game.coins < good.price) return `末日币不足，${good.name} 需要 ${good.price}。`
+  if (addItem(game.inventory, good.itemId, 1) > 0) return '背包已满，无法购买。'
+
+  game.coins -= good.price
+  return `购买 ${good.name} ×1，花费 ${good.price} 末日币。`
+}
+
+/** 偷窃：1 回合（正常衰减），每天一次，按概率获得末日币或被守卫扇耳光 */
 export function stealPalace() {
   if (!palaceReady()) return ''
+  if (!knightReady()) return '至少需要「骑士」身份才能进入王宫。'
+  if (!useCooldown('steal', PALACE_COOLDOWN.daily)) {
+    return '今天已经偷过一次，守卫把你盯得更紧了。'
+  }
+
   advanceTurns(1)
   if (game.dead) return ''
 
-  if (Math.random() < 0.2) {
+  const roll = Math.random() * 100
+  if (roll < 10) {
+    game.coins += 3
+    return '你摸走了一只鼓鼓的钱袋，没人看见：末日币 +3。'
+  }
+  if (roll < 30) {
     game.coins += 1
-    return '你从银器柜里摸走一枚末日币，没有人看见：末日币 +1。'
+    return '你从银器柜里摸走一枚末日币：末日币 +1。'
+  }
+  if (roll < 60) {
+    return '你把手伸进柜子，只摸到一层灰，什么也没偷到。'
   }
 
-  adjustStats({ hp: -50 })
-  return game.dead ? '' : '守卫抓住了你的手腕，把你扔出长廊：生命 -50。'
+  adjustStats({ hp: -5 })
+  return game.dead ? '' : '守卫一巴掌扇在你脸上，把你推出长廊：生命 -5。'
 }
 
-/** 宫廷舞会：1 回合，无衰减，每天一次，骑士以上，理智 +50 */
-export function palaceDance() {
+/** 宫廷舞会：三档共用每日次数，1 回合，无衰减，骑士以上 */
+export function palaceDance(danceId = 'common') {
   if (!palaceReady()) return ''
   if (!knightReady()) return '至少需要「骑士」身份才能参加宫廷舞会。'
-  if (!useCooldown('dance', PALACE_COOLDOWN.daily)) return '今天的舞会已经结束，明天再来。'
+  const dance = PALACE_DANCES.find((item) => item.id === danceId)
+  if (!dance) return ''
+  if (cooldownLeft('dance', PALACE_COOLDOWN.daily) > 0) return '今天的舞会已经结束，明天再来。'
+  if (game.coins < dance.price) return `末日币不足，${dance.name} 需要 ${dance.price}。`
+  useCooldown('dance', PALACE_COOLDOWN.daily)
 
+  if (dance.price > 0) game.coins -= dance.price
   advanceTurns(1, { decay: false })
   if (game.dead) return ''
-  adjustStats({ sanity: 50 })
-  return '你在大理石厅里跳完一支舞：理智 +50。'
+  adjustStats({ sanity: dance.sanity })
+  const cost = dance.price > 0 ? `，花费 ${dance.price} 末日币` : ''
+  return `${dance.name}结束：理智 +${dance.sanity}${cost}。`
 }
 
-/** 宫廷宴会：1 回合，无衰减，每天一次，骑士以上，饱食 / 口渴 +50 */
-export function palaceBanquet() {
+/** 宫廷宴会：三档共用每日次数，1 回合，无衰减，骑士以上 */
+export function palaceBanquet(banquetId = 'common') {
   if (!palaceReady()) return ''
   if (!knightReady()) return '至少需要「骑士」身份才能参加宫廷宴会。'
-  if (!useCooldown('banquet', PALACE_COOLDOWN.daily)) return '今天的宴会已经结束，明天再来。'
+  const banquet = PALACE_BANQUETS.find((item) => item.id === banquetId)
+  if (!banquet) return ''
+  if (cooldownLeft('banquet', PALACE_COOLDOWN.daily) > 0) return '今天的宴会已经结束，明天再来。'
+  if (game.coins < banquet.price) return `末日币不足，${banquet.name} 需要 ${banquet.price}。`
+  useCooldown('banquet', PALACE_COOLDOWN.daily)
 
+  if (banquet.price > 0) game.coins -= banquet.price
   advanceTurns(1, { decay: false })
   if (game.dead) return ''
-  adjustStats({ hunger: 50, thirst: 50 })
-  return '长桌上的食物与酒水敞开供应：饱食 +50，口渴 +50。'
+  adjustStats({ hunger: banquet.hunger, thirst: banquet.thirst })
+  const cost = banquet.price > 0 ? `，花费 ${banquet.price} 末日币` : ''
+  return `${banquet.name}结束：饱食 +${banquet.hunger}，口渴 +${banquet.thirst}${cost}。`
 }
 
-/** 宫廷客房：2 回合，无衰减，每天一次，骑士以上，体力 +50 */
-export function palaceGuestRoom() {
+/** 宫廷客房：三档共用每日次数，2 回合，无衰减，骑士以上 */
+export function palaceGuestRoom(roomId = 'common') {
   if (!palaceReady()) return ''
   if (!knightReady()) return '至少需要「骑士」身份才能入住宫廷客房。'
-  if (!useCooldown('room', PALACE_COOLDOWN.daily)) return '今天已经住过一次客房，明天再来。'
+  const room = PALACE_ROOMS.find((item) => item.id === roomId)
+  if (!room) return ''
+  if (cooldownLeft('room', PALACE_COOLDOWN.daily) > 0) return '今天已经住过一次客房，明天再来。'
+  if (game.coins < room.price) return `末日币不足，${room.name} 需要 ${room.price}。`
+  useCooldown('room', PALACE_COOLDOWN.daily)
 
+  if (room.price > 0) game.coins -= room.price
   advanceTurns(2, { decay: false })
   if (game.dead) return ''
-  adjustStats({ stamina: 50 })
-  return '你在客房里睡了个安稳觉：体力 +50。'
+  adjustStats({ stamina: room.stamina })
+  const cost = room.price > 0 ? `，花费 ${room.price} 末日币` : ''
+  return `${room.name}：体力 +${room.stamina}${cost}。`
 }
 
 /** 感染治疗：1 回合，无衰减，每天一次，按身份解锁不同档位 */
@@ -2386,7 +2427,7 @@ export function claimSalary() {
   return `以「${game.identity}」的身份领取俸禄：末日币 +${amount}。`
 }
 
-/** 参加会议：1 回合，无衰减，五种会议共用七日冷却 */
+/** 参加会议：1 回合，无衰减，七种会议共用七日冷却 */
 export function attendCouncil(councilId = 'knight') {
   if (!palaceReady()) return ''
 
@@ -2400,50 +2441,68 @@ export function attendCouncil(councilId = 'knight') {
   advanceTurns(council.turns, { decay: false })
   if (game.dead) return ''
 
-  adjustStats({ sanity: council.sanity })
   game.coins += council.coins
-  let line = `你参加「${council.name}」直到散会：理智 +${council.sanity}，末日币 +${council.coins}。`
+  let line = `你参加「${council.name}」直到散会：末日币 +${council.coins}。`
 
-  if (council.medicine) {
-    const itemId = pickRandomMedicine()
-    if (itemId) {
-      const def = getItem(itemId)
-      const leftover = addItem(game.inventory, itemId, 1)
-      line +=
-        leftover > 0
-          ? ` 背包已满，${def?.name ?? '药品'}留在了会议桌上。`
-          : ` 书记官会后塞给你一份${def?.name ?? '药品'}。`
-    }
+  const weapon = pickMeleeByTier(council.weaponTier)
+  if (weapon) {
+    const leftover = addItem(game.inventory, weapon.id, 1)
+    line +=
+      leftover > 0
+        ? ` 背包已满，${weapon.name}留在了会议桌上。`
+        : ` 会后有人递给你一把${weapon.name}（${weapon.tier}）。`
   }
   return line
 }
 
-/** 宫廷花园：只有储君能进，七天一次，药品、稀有食物与末日币 */
-export function visitGarden() {
+/** 宫廷花园：仅储君可用，四项活动各自计算次数 */
+export function gardenActivity(activityId = 'walk') {
   if (!palaceReady()) return ''
   if (identityRank(game.identity) < GARDEN.rank) {
     return `花园只对「${GARDEN.identity}」开放。守卫没有让你进去。`
   }
-  if (!useCooldown('garden', PALACE_COOLDOWN.weekly)) {
-    return '花园七天开放一次，还没到下一次。'
+  const activity = GARDEN.activities.find((item) => item.id === activityId)
+  if (!activity) return ''
+  if (!useCooldown(activity.cooldownKey, activity.days)) {
+    return `「${activity.name}」${activity.days} 天一次，还没到下一次。`
   }
 
-  advanceTurns(GARDEN.turns, { decay: false })
+  advanceTurns(activity.turns, { decay: false })
   if (game.dead) return ''
 
-  game.coins += GARDEN.coins
-  const gained = []
-  const missed = []
-  for (const itemId of pickGardenLoot()) {
-    const def = getItem(itemId)
-    if (addItem(game.inventory, itemId, 1) > 0) missed.push(def?.name ?? itemId)
-    else gained.push(def?.name ?? itemId)
+  const lines = [`「${activity.name}」完成。`]
+
+  if (activity.fullRestore) {
+    Object.assign(game.stats, DEFAULT_STATS)
+    lines.push('状态全部补满。')
+  }
+  if (activity.coins) {
+    game.coins += activity.coins
+    lines.push(`末日币 +${activity.coins}。`)
   }
 
-  let line = `你在花园里走了一圈：末日币 +${GARDEN.coins}。`
-  if (gained.length) line += `获得 ${gained.join('、')}。`
-  if (missed.length) line += `背包已满，${missed.join('、')}留在了石桌上。`
-  return line
+  if (activity.fruitCount) {
+    const fruitId = pickDawnFruit()
+    if (fruitId) {
+      const def = getItem(fruitId)
+      const leftover = addItem(game.inventory, fruitId, activity.fruitCount)
+      const added = activity.fruitCount - leftover
+      const name = def?.name ?? '水果'
+      if (added > 0) lines.push(`获得${name} ×${added}。`)
+      if (leftover > 0) lines.push(`背包已满，${name} ×${leftover}留在了藤架下。`)
+    }
+  }
+
+  for (const entry of activity.items ?? []) {
+    const def = getItem(entry.itemId)
+    const leftover = addItem(game.inventory, entry.itemId, entry.qty)
+    const added = entry.qty - leftover
+    const name = def?.name ?? entry.itemId
+    if (added > 0) lines.push(`获得${name} ×${added}。`)
+    if (leftover > 0) lines.push(`背包已满，${name} ×${leftover}留在了石桌上。`)
+  }
+
+  return lines.join(' ')
 }
 
 /* ===== 背包操作 ===== */

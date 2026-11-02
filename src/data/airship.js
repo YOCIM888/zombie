@@ -367,11 +367,11 @@ const ALL_ITEMS = Object.values(ITEMS)
 /** 飞行船商店：价格普遍高于都城，全部用末日币结算 */
 export const AIRSHIP_SHOP_GOODS = {
   bar: buildGoods(
-    ALL_ITEMS.filter((item) => item.category === 'drink'),
+    ALL_ITEMS.filter((item) => item.category === 'drink' && !item.limited),
     drinkOrFoodPrice,
   ),
   restaurant: buildGoods(
-    ALL_ITEMS.filter((item) => item.category === 'food'),
+    ALL_ITEMS.filter((item) => item.category === 'food' && !item.limited),
     drinkOrFoodPrice,
   ),
   medical: buildGoods(

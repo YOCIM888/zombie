@@ -78,7 +78,7 @@ export const INVENTORY_SORT_CATEGORIES = [
   'quest',
 ]
 
-export const ITEM_TIER_ORDER = ['普通', '稀有', '精良', '史诗', '传说', '神话']
+export const ITEM_TIER_ORDER = ['普通', '稀有', '精良', '史诗', '传说', '神话', '限定']
 
 /**
  * 原地整理背包：

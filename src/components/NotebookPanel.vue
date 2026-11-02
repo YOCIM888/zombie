@@ -137,6 +137,13 @@ const GROUPS = [
     rows: [
       { name: '底层打工', key: 'labor', days: PALACE_COOLDOWN.daily },
       {
+        name: '王宫 · 进行偷窃',
+        key: 'steal',
+        days: PALACE_COOLDOWN.daily,
+        locked: NEED_KNIGHT,
+        lockText: '需要骑士身份',
+      },
+      {
         name: '王宫舞会',
         key: 'dance',
         days: PALACE_COOLDOWN.daily,
@@ -179,8 +186,29 @@ const GROUPS = [
         lockText: '需要骑士身份',
       },
       {
-        name: '御花园',
-        key: 'garden',
+        name: '花园 · 散步',
+        key: 'garden-walk',
+        days: PALACE_COOLDOWN.daily,
+        locked: () => identityRank(game.identity) < GARDEN.rank,
+        lockText: '需要储君身份',
+      },
+      {
+        name: '花园 · 下午茶',
+        key: 'garden-tea',
+        days: PALACE_COOLDOWN.daily,
+        locked: () => identityRank(game.identity) < GARDEN.rank,
+        lockText: '需要储君身份',
+      },
+      {
+        name: '花园 · 神秘药剂',
+        key: 'garden-potion',
+        days: 5,
+        locked: () => identityRank(game.identity) < GARDEN.rank,
+        lockText: '需要储君身份',
+      },
+      {
+        name: '花园 · 神迹祈祷',
+        key: 'garden-prayer',
         days: PALACE_COOLDOWN.weekly,
         locked: () => identityRank(game.identity) < GARDEN.rank,
         lockText: '需要储君身份',
