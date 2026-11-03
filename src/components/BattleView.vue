@@ -188,23 +188,34 @@ function finish() {
       </button>
     </section>
 
-    <section v-if="bagOpen && battle.active" class="bag">
-      <header class="bag__head">
-        <h4>背包 · 使用物品会消耗一次行动</h4>
-        <button type="button" class="link" @click="bagOpen = false">收起</button>
-      </header>
-      <div v-if="usableItems.length" class="bag__list">
-        <article v-for="item in usableItems" :key="item.index" class="bag__item">
-          <img v-if="item.def.image" :src="item.def.image" :alt="item.def.name" />
-          <div class="bag__main">
-            <h5>{{ item.def.name }} ×{{ item.entry.qty }}</h5>
-            <p>{{ effectText(item.def) }}</p>
+    <Teleport to="body">
+      <div v-if="bagOpen && battle.active" class="bag-mask" @click.self="bagOpen = false">
+        <section class="bag" role="dialog" aria-modal="true" aria-label="战斗背包">
+          <header class="bag__head">
+            <h4>背包 · 使用物品会消耗一次行动</h4>
+            <button
+              type="button"
+              class="bag__close"
+              aria-label="关闭背包"
+              @click="bagOpen = false"
+            >
+              ✕
+            </button>
+          </header>
+          <div v-if="usableItems.length" class="bag__list">
+            <article v-for="item in usableItems" :key="item.index" class="bag__item">
+              <img v-if="item.def.image" :src="item.def.image" :alt="item.def.name" />
+              <div class="bag__main">
+                <h5>{{ item.def.name }} ×{{ item.entry.qty }}</h5>
+                <p>{{ effectText(item.def) }}</p>
+              </div>
+              <button type="button" class="btn" @click="useItemInBattle(item.index)">使用</button>
+            </article>
           </div>
-          <button type="button" class="btn" @click="useItemInBattle(item.index)">使用</button>
-        </article>
+          <p v-else class="bag__empty">背包里没有可用的食物、饮品或药品。</p>
+        </section>
       </div>
-      <p v-else class="bag__empty">背包里没有可用的食物、饮品或药品。</p>
-    </section>
+    </Teleport>
 
     <section v-if="battle.finished" class="result">
       <span class="eyebrow">{{ resultTitle }}</span>
@@ -219,6 +230,7 @@ function finish() {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-height: calc(100% - 14px);
   margin-top: 14px;
 }
 
@@ -327,9 +339,16 @@ function finish() {
 }
 
 .actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
+  margin-top: auto;
+  padding: 12px 0 4px;
+  border-top: 1px solid var(--line);
+  background: #0c0e0f;
 }
 
 .actions .btn {
@@ -346,10 +365,28 @@ function finish() {
   color: var(--text-mute);
 }
 
+.bag-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(4, 5, 6, 0.72);
+  backdrop-filter: blur(6px);
+}
+
 .bag {
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  background: rgba(0, 0, 0, 0.26);
+  display: flex;
+  flex-direction: column;
+  width: min(520px, 100%);
+  max-height: min(76vh, 620px);
+  overflow: auto;
+  padding: 16px 18px 18px;
+  border: 1px solid var(--line-strong);
+  background: linear-gradient(180deg, rgba(17, 19, 20, 0.98), rgba(10, 12, 13, 0.99));
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
 }
 
 .bag__head {
@@ -369,10 +406,21 @@ function finish() {
   color: var(--text-mute);
 }
 
-.link {
-  font-size: 10.5px;
+.bag__close {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  font-size: 13px;
   color: var(--text-mute);
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.3);
   cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.bag__close:hover {
+  color: var(--text);
+  border-color: var(--line-strong);
 }
 
 .bag__list {

@@ -1429,6 +1429,7 @@ function closePanel() {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  min-height: 100%;
   padding-top: 14px;
 }
 
@@ -1697,9 +1698,16 @@ function closePanel() {
 }
 
 .actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
   display: flex;
   gap: 9px;
   flex-wrap: wrap;
+  margin-top: auto;
+  padding: 12px 0 4px;
+  border-top: 1px solid var(--line);
+  background: #0c0e0f;
 }
 
 .actions .btn {

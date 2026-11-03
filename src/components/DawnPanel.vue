@@ -8,7 +8,9 @@ import {
   DAWN_MARKET,
   DAWN_NPCS,
   DAWN_PROMOTIONS,
-  DAWN_RECYCLE_PRICES,
+  DAWN_RECYCLE_RANGES,
+  DAWN_RELIEF_TIERS,
+  DAWN_SALARY,
   DAWN_SERVICE,
   QUEST_OWNERS,
   REPAIR_PERCENT_PER_COIN,
@@ -19,12 +21,15 @@ import {
   getItem,
   npcById,
   repairCoinCost,
+  recyclePriceForDay,
+  dawnRecyclePrices,
   talentEffects,
   talentTitle,
 } from '../data'
 import { MAPS } from '../game/config'
 import {
   claimDawnRelief,
+  claimDawnSalary,
   cooldownLeft,
   corridorFight,
   corridorLeft,
@@ -60,12 +65,13 @@ import StatusHud from './StatusHud.vue'
 
 const MENU = [
   { id: 'fight', no: '01', name: '清理丧尸', desc: '消耗 1 回合（有衰减），进入手动回合制战斗。' },
-  { id: 'relief', no: '02', name: '领取救济', desc: '每天一次，随机领到一个水果，不消耗回合。' },
+  { id: 'relief', no: '02', name: '领取救济', desc: '每天一次，四档救济共用次数：基础 / 进阶 / 高级 / 特级。' },
   { id: 'contact', no: '03', name: '联系管事', desc: '徽章补办、加入曙光，或申请晋升。' },
+  { id: 'salary', no: '04', name: '每日工资', desc: '按曙光身份发放，每天一次：队员 2、队长 5、指挥 8、副首 10 曙光币。' },
   ...DAWN_NPCS.map((npc) => ({ ...npc, placeholder: !npc.implemented })),
-  { id: 'market', no: '09', name: '曙光市场', desc: '普通远程武器、绷带与罐头，明码标价。' },
-  { id: 'salvage', no: '10', name: '物资回收', desc: '背包里的多余武器按品质结算曙光币。' },
-  { id: 'corridor', no: '11', name: '行尸走廊', desc: '赤手空拳穿过走廊，每天两次，提升远程闪避天赋。' },
+  { id: 'market', no: '10', name: '曙光市场', desc: '普通远程武器、绷带与罐头，明码标价。' },
+  { id: 'salvage', no: '11', name: '物资回收', desc: '背包里的多余武器按品质结算曙光币，回收价每日浮动。' },
+  { id: 'corridor', no: '12', name: '行尸走廊', desc: '赤手空拳穿过走廊，每天两次，提升远程闪避天赋。' },
 ]
 
 const map = MAPS.find((item) => item.id === 'dawn-post')
@@ -76,6 +82,11 @@ const feed = ref('哨塔的探照灯扫过来，有人朝你抬了抬下巴，�
 
 const identity = computed(() => dawnInfo(game.dawnIdentity))
 const reliefLeft = computed(() => cooldownLeft('dawn-relief', 1))
+const salaryLeft = computed(() => cooldownLeft('dawn-salary', 1))
+const salary = computed(
+  () =>
+    DAWN_SALARY.find((item) => item.rank === (identity.value?.rank ?? -1)) ?? null,
+)
 const joinLeft = computed(() => Math.max(0, DAWN_JOIN_KILLS - game.zombieKills))
 const placeholder = computed(() => selected.value)
 const promotion = computed(
@@ -168,11 +179,12 @@ const recyclables = computed(() =>
     .map((entry, index) => {
       const def = entry ? getItem(entry.id) : null
       if (!def || def.category !== 'ranged') return null
-      return { index, def, price: DAWN_RECYCLE_PRICES[def.tier] ?? 0 }
+      return { index, def, price: recyclePriceForDay(def.tier, game.day) }
     })
     .filter(Boolean),
 )
 const salvageList = computed(() => weaponRecyclables())
+const recyclePrices = computed(() => dawnRecyclePrices(game.day))
 
 onMounted(resetBattle)
 
@@ -292,15 +304,86 @@ function closePanel() {
         <h3 class="pane__title">领取救济</h3>
         <button type="button" class="link" @click="backToMenu">← 返回选项</button>
       </header>
-      <p class="pane__desc">物资箱里堆着附近农场送来的水果。每人每天一份，管事会盯着你的手。</p>
-      <div class="chips">
-        <span>每天一次</span>
-        <span>随机水果 ×2</span>
-        <span>不消耗回合</span>
-        <span>{{ reliefLeft > 0 ? `冷却 ${reliefLeft} 天` : '今日可领' }}</span>
+      <p class="pane__desc">
+        物资箱里堆着附近农场送来的水果，旁边压着一格药品。四档救济共用每天一次，管事会盯着你的手。
+      </p>
+      <p class="cure__note">
+        {{
+          reliefLeft > 0
+            ? `今日救济已领取，${reliefLeft} 天后可再次领取`
+            : '今天还没有领取救济'
+        }}
+      </p>
+      <div class="rows">
+        <article v-for="tier in DAWN_RELIEF_TIERS" :key="tier.id" class="row">
+          <div>
+            <h4 class="row__name">{{ tier.name }}</h4>
+            <p class="row__desc">{{ tier.desc }}</p>
+            <p class="row__meta">
+              <span>一种随机水果 ×{{ tier.fruitCount }}</span>
+              <span v-for="entry in tier.items" :key="entry.itemId">
+                {{ getItem(entry.itemId)?.name ?? entry.itemId }} ×{{ entry.qty }}
+              </span>
+              <span>免费 · 共享每日次数</span>
+            </p>
+          </div>
+          <button
+            type="button"
+            class="btn"
+            :disabled="reliefLeft > 0"
+            @click="run(() => claimDawnRelief(tier.id))"
+          >
+            {{ reliefLeft > 0 ? `${reliefLeft} 天后` : '领取' }}
+          </button>
+        </article>
       </div>
-      <button type="button" class="btn btn--primary pane__action" @click="run(claimDawnRelief)">
-        领取救济
+    </section>
+
+    <section v-else-if="view === 'salary'" class="pane">
+      <header class="pane__head">
+        <h3 class="pane__title">每日工资</h3>
+        <button type="button" class="link" @click="backToMenu">← 返回选项</button>
+      </header>
+      <p class="pane__desc">
+        管事按身份发工资，四档共用每天一次。身份越高，信封越厚。
+      </p>
+      <div class="chips">
+        <span v-for="item in DAWN_SALARY" :key="item.rank">
+          {{ item.identity }} · {{ item.coins }} 曙光币
+        </span>
+      </div>
+      <div class="identity">
+        <div class="identity__badge">
+          <img v-if="identity" :src="identity.image" :alt="identity.name" />
+          <span v-else>无</span>
+        </div>
+        <div class="identity__info">
+          <h4>{{ game.dawnIdentity ?? '尚无曙光身份' }}</h4>
+          <p>当前档位工资：{{ salary ? `${salary.coins} 曙光币` : '无' }}</p>
+        </div>
+      </div>
+      <p class="cure__note">
+        {{
+          !salary
+            ? '先联系管事加入曙光，才有工资可领。'
+            : salaryLeft > 0
+              ? `今日工资已领取，${salaryLeft} 天后可再次领取。`
+              : '今天的工资还没有领。'
+        }}
+      </p>
+      <button
+        type="button"
+        class="btn btn--primary pane__action"
+        :disabled="!salary || salaryLeft > 0"
+        @click="run(claimDawnSalary)"
+      >
+        {{
+          !salary
+            ? '需先加入曙光'
+            : salaryLeft > 0
+              ? `${salaryLeft} 天后可领`
+              : `领取 ${salary.coins} 曙光币`
+        }}
       </button>
     </section>
 
@@ -427,16 +510,14 @@ function closePanel() {
         <button type="button" class="link" @click="backToMenu">← 返回选项</button>
       </header>
       <p class="pane__desc">
-        背包里的多余武器都可以交上来，按品质结算曙光币。装备中的武器不收。
+        背包里的多余武器都可以交上来，按品质结算曙光币。回收价每天重新浮动，同一天内固定。
       </p>
       <div class="chips">
-        <span>普通 1</span>
-        <span>稀有 3</span>
-        <span>精良 5</span>
-        <span>史诗 7</span>
-        <span>传说 9</span>
-        <span>神话 12</span>
+        <span v-for="(range, tier) in DAWN_RECYCLE_RANGES" :key="tier">
+          {{ tier }} 今日 {{ recyclePrices[tier] }}（{{ range[0] }}~{{ range[1] }}）
+        </span>
       </div>
+      <p class="pane__note">今日回收价 · 第 {{ game.day }} 天</p>
 
       <div v-if="salvageList.length" class="goods">
         <article v-for="entry in salvageList" :key="entry.index" class="good">

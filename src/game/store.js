@@ -12,7 +12,8 @@ import {
   DAWN_JOIN_KILLS,
   DAWN_MARKET,
   DAWN_PROMOTIONS,
-  DAWN_RECYCLE_PRICES,
+  DAWN_RELIEF_TIERS,
+  DAWN_SALARY,
   DAWN_SERVICE,
   DEV_SHOP,
   DOCTOR,
@@ -32,8 +33,10 @@ import {
   STOCK_PRICE_MAX,
   STOCK_PRICE_MIN,
   commissionForDay,
+  dawnInfo,
   formatMoney,
   oilPriceForDay,
+  recyclePriceForDay,
   rollStockPrices,
   roundToCents,
   stockProfitRounded,
@@ -2089,20 +2092,47 @@ function dawnReady() {
   return !game.dead && game.location === 'dawn-post'
 }
 
-/** 领取救济：每天一次，随机一种水果 ×2，不消耗回合 */
-export function claimDawnRelief() {
+/** 领取救济：四档共用每天一次，全部免费 */
+export function claimDawnRelief(tierId = 'basic') {
   if (!dawnReady()) return ''
+  const tier = DAWN_RELIEF_TIERS.find((item) => item.id === tierId)
+  if (!tier) return ''
   if (cooldownLeft('dawn-relief', PALACE_COOLDOWN.daily) > 0) return '今天的救济已经领过了，明天再来。'
-  const itemId = pickDawnFruit()
-  if (!itemId) return '救济处今天没有水果可发。'
 
-  const def = getItem(itemId)
-  if (!canStoreItems(game.inventory, [{ id: itemId, qty: 2 }])) {
-    return `背包空间不足，${def?.name ?? '水果'} ×2 装不下，救济还不算领走`
+  const fruitId = pickDawnFruit()
+  if (!fruitId) return '救济处今天没有水果可发。'
+  const fruitName = getItem(fruitId)?.name ?? fruitId
+  const required = [
+    { id: fruitId, qty: tier.fruitCount },
+    ...tier.items.map((entry) => ({ id: entry.itemId, qty: entry.qty })),
+  ]
+  if (!canStoreItems(game.inventory, required)) {
+    return `背包空间不足，「${tier.name}」装不下，还不算领走。`
   }
-  addItem(game.inventory, itemId, 2)
+
+  addItem(game.inventory, fruitId, tier.fruitCount)
+  const parts = [`${fruitName} ×${tier.fruitCount}`]
+  for (const entry of tier.items) {
+    addItem(game.inventory, entry.itemId, entry.qty)
+    parts.push(`${getItem(entry.itemId)?.name ?? entry.itemId} ×${entry.qty}`)
+  }
   game.cooldowns['dawn-relief'] = game.day
-  return `你从物资箱里领到一份救济：获得 ${def?.name ?? itemId} ×2`
+  return `你从物资箱里领到「${tier.name}」：${parts.join('、')}。`
+}
+
+/** 每日工资：按当前曙光身份领取，四档共用每天一次 */
+export function claimDawnSalary() {
+  if (!dawnReady()) return ''
+  const identity = dawnInfo(game.dawnIdentity)
+  if (!identity) return '先联系管事加入曙光，才有工资可领。'
+  const salary = DAWN_SALARY.find((item) => item.rank === identity.rank)
+  if (!salary) return ''
+  if (!useCooldown('dawn-salary', PALACE_COOLDOWN.daily)) {
+    return '今天的工资已经领过了，明天再来。'
+  }
+
+  game.dawnCoins += salary.coins
+  return `领取「${identity.name}」每日工资：曙光币 +${salary.coins}。`
 }
 
 /** 曙光市场：全部用曙光币结算 */
@@ -2185,7 +2215,7 @@ export function recycleRangedWeapon(slotIndex) {
   const def = getItem(entry.id)
   if (!def || def.category !== 'ranged') return '莉莉只收远程武器。'
 
-  const price = DAWN_RECYCLE_PRICES[def.tier] ?? 0
+  const price = recyclePriceForDay(def.tier, game.day)
   game.inventory[slotIndex] = null
   game.dawnCoins += price
   return `莉莉把「${def.name}」拆成零件：曙光币 +${price}。`
@@ -2197,7 +2227,7 @@ export function weaponRecyclables() {
     .map((entry, index) => {
       const def = entry ? getItem(entry.id) : null
       if (!def || def.category !== 'melee' && def.category !== 'ranged') return null
-      return { index, def, price: DAWN_RECYCLE_PRICES[def.tier] ?? 0 }
+      return { index, def, price: recyclePriceForDay(def.tier, game.day) }
     })
     .filter(Boolean)
 }
@@ -2212,7 +2242,7 @@ export function recycleWeapon(slotIndex) {
     return '物资回收只收武器。'
   }
 
-  const price = DAWN_RECYCLE_PRICES[def.tier] ?? 0
+  const price = recyclePriceForDay(def.tier, game.day)
   game.inventory[slotIndex] = null
   game.dawnCoins += price
   return `你把「${def.name}」交了上去：曙光币 +${price}。`
