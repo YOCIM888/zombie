@@ -1,6 +1,8 @@
 // 默认武器与远程基础面板
 // 没有装备近战武器时，角色以「拳头」作战
 
+import { REPAIR_PERCENT_PER_COIN, REPAIR_PRICE_BY_TIER, REPAIR_PRICE_FALLBACK } from './markets'
+
 export const UNARMED = {
   id: 'unarmed',
   name: '拳头',
@@ -16,6 +18,13 @@ export const UNARMED = {
     combo: 0,
     durability: Infinity,
   },
+}
+
+/** 能吃到拳头天赋的武器：空手，或三把指虎（唯一例外） */
+export const FIST_TALENT_WEAPON_IDS = ['knuckle', 'knuckle-silver', 'knuckle-gold']
+
+export function isFistTalentWeapon(equipped) {
+  return !equipped || FIST_TALENT_WEAPON_IDS.includes(equipped.id)
 }
 
 // 远程槽位未装备时的基础数值
@@ -36,19 +45,24 @@ export const CLEANLINESS_LOW = 30
 export const CLEANLINESS_JAM_MAX = 0.3
 
 /* ===== 维修机制 =====
-   近战耐久与远程清洁度共用同一套收费：每 1 币修复 20% 最大耐久（不足 1 币按 1 币），
-   一次把缺口补满。 */
-export const REPAIR_PERCENT_PER_COIN = 20
+   近战耐久与远程清洁度共用同一套收费：每 20% 缺口按品质收一次费，
+   一次把缺口补满。费率统一在 data/markets.js。 */
 
-/** 按缺口计算维修费用：缺 60% 收 3 币，缺 5% 收 1 币；未损耗返回 0 */
-export function repairCoinCost(current, max) {
+/** 某品质每 20% 缺口的保养单价 */
+export function repairPriceForTier(tier) {
+  return REPAIR_PRICE_BY_TIER[tier] ?? REPAIR_PRICE_FALLBACK
+}
+
+/** 按缺口计算维修费用：普通缺 60% 收 3 币，限定缺 60% 收 30 币；未损耗返回 0 */
+export function repairCoinCost(current, max, tier) {
   const maxValue = Number(max)
   const currentValue = Number(current)
   if (!Number.isFinite(maxValue) || maxValue <= 0) return 0
   if (!Number.isFinite(currentValue)) return 0
   if (currentValue >= maxValue) return 0
   const gap = (maxValue - Math.max(0, currentValue)) / maxValue
-  return Math.max(1, Math.ceil(gap / (REPAIR_PERCENT_PER_COIN / 100)))
+  const steps = Math.max(1, Math.ceil(gap / (REPAIR_PERCENT_PER_COIN / 100)))
+  return steps * repairPriceForTier(tier)
 }
 
 /** 清洁度对应的伤害倍率：100% 时 1.0，50% 时 0.75，0% 时 0.5 */

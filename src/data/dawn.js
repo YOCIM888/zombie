@@ -1,6 +1,12 @@
 // 曙光阵地：身份、救济、市场与行尸战斗参数
 import { ITEMS } from './items'
 import { exploreLootPool } from './city'
+import {
+  DAWN_BOND_PRICE,
+  DAWN_MARKET_PRICES,
+  DAWN_RECYCLE_RANGES,
+  DAWN_SERVICE_PRICES,
+} from './markets'
 import { NPCS } from './npcs'
 
 /** 曙光身份：队员 < 队长 < 指挥 < 副首 */
@@ -28,48 +34,89 @@ export function dawnItemId(name) {
 export const DAWN_JOIN_KILLS = 5
 
 /**
- * 曙光市场：全部用曙光币结算
+ * 曙光市场：全部用曙光币结算，价格统一在 data/markets.js
  * 远程武器只上架普通级，价格按攻击与闪避综合折算
  */
 export const DAWN_MARKET = [
-  { id: 'bandage', itemId: 'bandage', name: '绷带', price: 1, note: '生命 +30' },
-  { id: 'tourniquet', itemId: 'tourniquet', name: '止血带', price: 1, note: '生命 +20 · 感染 -5' },
-  { id: 'canned-meat', itemId: 'canned-meat', name: '肉罐头', price: 1, note: '饱食 +30' },
-  { id: 'canned-fish', itemId: 'canned-fish', name: '鱼罐头', price: 1, note: '饱食 +30' },
+  { id: 'bandage', itemId: 'bandage', name: '绷带', price: DAWN_MARKET_PRICES.bandage, note: '生命 +30' },
+  { id: 'tourniquet', itemId: 'tourniquet', name: '止血带', price: DAWN_MARKET_PRICES.tourniquet, note: '生命 +10 · 理智 +10' },
+  { id: 'canned-meat', itemId: 'canned-meat', name: '肉罐头', price: DAWN_MARKET_PRICES['canned-meat'], note: '饱食 +30' },
+  { id: 'canned-fish', itemId: 'canned-fish', name: '鱼罐头', price: DAWN_MARKET_PRICES['canned-fish'], note: '饱食 +30' },
   {
     id: 'glock',
     itemId: 'glock',
     name: 'Glock',
-    price: 15,
+    price: DAWN_MARKET_PRICES.glock,
     note: '20 攻击 · 10% 暴击 · 28% 暴伤 · 16% 闪避 · 远程武器',
   },
   {
     id: 'hunting-bow',
     itemId: 'hunting-bow',
     name: '猎弓',
-    price: 18,
+    price: DAWN_MARKET_PRICES['hunting-bow'],
     note: '20 攻击 · 14% 暴击 · 35% 暴伤 · 22% 闪避 · 远程武器',
   },
   {
     id: 'usp',
     itemId: 'usp',
     name: 'USP',
-    price: 16,
+    price: DAWN_MARKET_PRICES.usp,
     note: '21 攻击 · 12% 暴击 · 30% 暴伤 · 18% 闪避 · 远程武器',
   },
   {
     id: 'cz75',
     itemId: 'cz75',
     name: 'CZ75',
-    price: 19,
+    price: DAWN_MARKET_PRICES.cz75,
     note: '22 攻击 · 12% 暴击 · 30% 暴伤 · 18% 闪避 · 远程武器',
   },
   {
     id: 'm1911',
     itemId: 'm1911',
     name: 'M1911',
-    price: 22,
+    price: DAWN_MARKET_PRICES.m1911,
     note: '26 攻击 · 11% 暴击 · 35% 暴伤 · 15% 闪避 · 远程武器',
+  },
+]
+
+/** 羁绊商店统一价在 data/markets.js */
+
+export const DAWN_BOND_SHOP = [
+  {
+    id: 'bond-blood-raven',
+    itemId: 'blood-raven',
+    name: '爆能手枪-血鸦',
+    badgeId: 'badge-nutritionist',
+    badgeName: '营养师徽章',
+    price: DAWN_BOND_PRICE,
+    note: '60 攻击 · 88% 暴击 · 2 暴伤 · 15% 闪避',
+  },
+  {
+    id: 'bond-meteor-shotgun',
+    itemId: 'meteor-shotgun',
+    name: '机械霰弹-陨星',
+    badgeId: 'badge-mechanic',
+    badgeName: '机械师徽章',
+    price: DAWN_BOND_PRICE,
+    note: '75 攻击 · 20% 暴击 · 1.2 暴伤 · 55% 闪避',
+  },
+  {
+    id: 'bond-daylight-sniper',
+    itemId: 'daylight-sniper',
+    name: '流光狙击-白昼',
+    badgeId: 'badge-mercenary',
+    badgeName: '雇佣兵徽章',
+    price: DAWN_BOND_PRICE,
+    note: '120 攻击 · 72% 暴击 · 1.5 暴伤 · 5% 闪避',
+  },
+  {
+    id: 'bond-frost-greatsword',
+    itemId: 'frost-greatsword',
+    name: '寒霜大剑-冰晶',
+    badgeId: 'badge-farming-master',
+    badgeName: '农业大师徽章',
+    price: DAWN_BOND_PRICE,
+    note: '88 攻击 · 30% 暴击 · 2.22 暴伤 · 30% 连击 · 288 耐久',
   },
 ]
 
@@ -87,9 +134,9 @@ export const DAWN_FLEE_CHANCE = 0.5
 
 /** 四名常驻人物的每日服务 */
 export const DAWN_SERVICE = {
-  meal: { price: 1 },
-  brew: { price: 1, infection: 20 },
-  training: { price: 1, stamina: 20, sanity: 10 },
+  meal: { price: DAWN_SERVICE_PRICES.meal },
+  brew: { price: DAWN_SERVICE_PRICES.brew, infection: 20 },
+  training: { price: DAWN_SERVICE_PRICES.training, stamina: 20, sanity: 10 },
   tend: { turns: 2 },
   fieldSecretAt: 5,
 }
@@ -113,15 +160,7 @@ export const CORRIDOR = {
   doneLine: '你贴着墙根从行尸之间穿了出来，掌心全是冷汗。',
 }
 
-/** 物资回收：品质档位与每日浮动区间 */
-export const DAWN_RECYCLE_RANGES = {
-  普通: [1, 3],
-  稀有: [4, 7],
-  精良: [8, 12],
-  史诗: [13, 20],
-  传说: [21, 30],
-  神话: [31, 50],
-}
+/** 物资回收：品质档位与每日浮动区间统一在 data/markets.js */
 
 const RECYCLE_TIERS = Object.keys(DAWN_RECYCLE_RANGES)
 
@@ -155,11 +194,22 @@ export const DAWN_PROMOTIONS = [
   { from: '队长', to: '指挥', kills: 200 },
 ]
 
-/** 领取救济：四档共用每天一次，全部免费 */
+/** 领取救济：五档共用每天一次，按曙光身份等级开放 */
 export const DAWN_RELIEF_TIERS = [
+  {
+    id: 'plain',
+    name: '普通救助',
+    identity: '无身份',
+    rank: -1,
+    fruitCount: 2,
+    items: [],
+    desc: '还没有身份的人也能领一份，只有两个水果，没人会多问一句。',
+  },
   {
     id: 'basic',
     name: '基础救助',
+    identity: '队员',
+    rank: 0,
     fruitCount: 2,
     items: [{ itemId: 'bandage', qty: 1 }],
     desc: '物资箱里挑出来的最基础的一份，够撑过今天。',
@@ -167,6 +217,8 @@ export const DAWN_RELIEF_TIERS = [
   {
     id: 'advanced',
     name: '进阶救助',
+    identity: '队长',
+    rank: 1,
     fruitCount: 3,
     items: [{ itemId: 'painkiller', qty: 1 }],
     desc: '多一个水果，加一片止痛药，管事的笔停了一下才签。',
@@ -174,6 +226,8 @@ export const DAWN_RELIEF_TIERS = [
   {
     id: 'high',
     name: '高级救助',
+    identity: '指挥',
+    rank: 2,
     fruitCount: 4,
     items: [{ itemId: 'painkiller', qty: 2 }],
     desc: '箱子底下的存货被翻了出来，止痛药给了两片。',
@@ -181,6 +235,8 @@ export const DAWN_RELIEF_TIERS = [
   {
     id: 'special',
     name: '特级救助',
+    identity: '副首',
+    rank: 3,
     fruitCount: 5,
     items: [{ itemId: 'anti-infection-shot', qty: 1 }],
     desc: '只有快撑不住的人才能拿到这一份，里面有一支抗感染针。',

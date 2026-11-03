@@ -1,5 +1,20 @@
 // 末日飞行船：隐藏地图、直升机入口、招待会所、高台政变、练习与高价商店
 import { ITEMS } from './items'
+import {
+  AIRSHIP_DRINK_FOOD_PRICING,
+  AIRSHIP_MELEE_PRICING,
+  AIRSHIP_MEDICINE_PRICING,
+  AIRSHIP_OIL_PRICING,
+  AIRSHIP_RANGED_PRICING,
+  AIRSHIP_TREASURE_PRICING,
+  STOCK_BASE_PRICES,
+  STOCK_BASE_FALLBACK_PRICE,
+  STOCK_DAY_MOVE,
+  STOCK_FEE_MIN,
+  STOCK_FEE_RATE,
+  STOCK_PRICE_MAX,
+  STOCK_PRICE_MIN,
+} from './markets'
 import { ceilToCents, floorToCents, roundToCents } from './money'
 import { ZOMBIE_TYPES } from './zombies'
 
@@ -128,9 +143,9 @@ export const AIRSHIP = {
   oil: {
     title: '储油仓库',
     desc: '仓库里码着一排铁皮油桶，空气里全是汽油味。这里只认末日币，不认人情。',
-    sellRate: 1,
-    buyMin: 1,
-    buyMax: 3,
+    sellRate: AIRSHIP_OIL_PRICING.sellRate,
+    buyMin: AIRSHIP_OIL_PRICING.buyMin,
+    buyMax: AIRSHIP_OIL_PRICING.buyMax,
   },
   nobles: {
     moran: {
@@ -187,63 +202,57 @@ export const AIRSHIP = {
     { id: 'medical', name: '医药中心', note: '除万能灵药外的全部药品 · 5-10 末日币' },
     { id: 'melee', name: '兵器市场', note: '稀有与精良近战 · 50-100 末日币' },
     { id: 'guns', name: '枪械中心', note: '稀有远程武器 · 60-120 末日币' },
-    { id: 'treasure', name: '珍宝商店', note: '每日一件史诗近战 · 90-200 末日币' },
+    { id: 'treasure', name: '珍宝商店', note: '每日一件史诗近战（不含指虎） · 90-200 末日币' },
     { id: 'commission', name: '居民委托', note: '战斗 / 派对 / 杂物 · 每天各一次' },
     { id: 'investment', name: '投资中心', note: '六支股票 · 每日涨跌 · 1% 手续费' },
     { id: 'oil', name: '储油仓库', note: '汽油买卖 · 每日浮动价' },
   ],
 }
 
-/** 投资中心的六支股票 */
-export const AIRSHIP_STOCKS = [
+/** 投资中心的六支股票：基础价统一在 data/markets.js */
+const STOCK_META = [
   {
     id: 'alan-arms',
     name: '艾伦武装',
     sector: '军工',
-    basePrice: 110,
     desc: '王宫卫队与军械订单。国王的战争机器，涨跌都带着火药味。',
   },
   {
     id: 'mia-logistics',
     name: '米娅后勤',
     sector: '后勤',
-    basePrice: 80,
     desc: '皇后掌管的补给与医药线路。走得慢，但很少断货。',
   },
   {
     id: 'moran-commerce',
     name: '漠然商业',
     sector: '商业',
-    basePrice: 150,
     desc: '飞行船贵族的生意：酒、丝绸与云上关税。',
   },
   {
     id: 'capital-construction',
     name: '都城建设',
     sector: '基建',
-    basePrice: 60,
     desc: '城墙、避难所与重建合同，全看下一份政令落在哪里。',
   },
   {
     id: 'doomsday-entertainment',
     name: '末日娱乐',
     sector: '娱乐',
-    basePrice: 35,
     desc: '赌场、酒馆与巡演。行情比甲板上的人心还快。',
   },
   {
     id: 'food-emergency',
     name: '食品应急',
     sector: '食品',
-    basePrice: 25,
     desc: '罐头与净水储备。灾年里最硬的通货，也是最慢的生意。',
   },
 ]
 
-export const STOCK_PRICE_MIN = 0.01
-export const STOCK_PRICE_MAX = 300
-export const STOCK_FEE_RATE = 0.01
-export const STOCK_FEE_MIN = 1
+export const AIRSHIP_STOCKS = STOCK_META.map((stock) => ({
+  ...stock,
+  basePrice: STOCK_BASE_PRICES[stock.id] ?? STOCK_BASE_FALLBACK_PRICE,
+}))
 
 function normalizeStockPrice(value, fallback) {
   const amount = value === null || value === undefined || value === '' ? NaN : Number(value)
@@ -254,7 +263,7 @@ function normalizeStockPrice(value, fallback) {
   )
 }
 
-/** 交易手续费：成交额的 1%，向上取整到分，最低 1 币 */
+/** 交易手续费：成交额的 1%，向上取整到分，最低 0.1 币 */
 export function stockTradeFee(amount) {
   return Math.max(
     STOCK_FEE_MIN,
@@ -273,7 +282,8 @@ export function rollStockPrices(prices, day) {
   const next = {}
   AIRSHIP_STOCKS.forEach((stock, index) => {
     const current = normalizeStockPrice(prices?.[stock.id], stock.basePrice)
-    const percent = 5 + (dayHash(day, 50 + index) % 11)
+    const percent =
+      STOCK_DAY_MOVE.min + (dayHash(day, 50 + index) % (STOCK_DAY_MOVE.max - STOCK_DAY_MOVE.min + 1))
     let up = dayHash(day, 60 + index) % 2 === 0
 
     // 触底必涨、封顶必跌，保证每天都有变化
@@ -305,26 +315,34 @@ function effectSum(item) {
   return Object.values(item.effects ?? {}).reduce((sum, value) => sum + Math.abs(Number(value) || 0), 0)
 }
 
-/** 饮品 / 食物：3 + 效果绝对值和 / 10，封顶 8 */
+/** 饮品 / 食物：规则见 data/markets.js */
 function drinkOrFoodPrice(item) {
-  return clampPrice(3, 8, 3 + effectSum(item) / 10)
+  const rule = AIRSHIP_DRINK_FOOD_PRICING
+  return clampPrice(rule.min, rule.max, rule.base + effectSum(item) / rule.divisor)
 }
 
-/** 药品：5 + 效果绝对值和 / 15，封顶 10 */
+/** 药品：规则见 data/markets.js */
 function medicinePrice(item) {
-  return clampPrice(5, 10, 5 + effectSum(item) / 15)
+  const rule = AIRSHIP_MEDICINE_PRICING
+  return clampPrice(rule.min, rule.max, rule.base + effectSum(item) / rule.divisor)
 }
 
-/** 稀有 / 精良近战：40 + 攻击 + 暴伤折算，封顶 100 */
+/** 稀有 / 精良近战：规则见 data/markets.js */
 function meleePrice(item) {
+  const rule = AIRSHIP_MELEE_PRICING
   const w = item.weapon ?? {}
-  return clampPrice(50, 100, 40 + (w.attack ?? 0) + (w.critDamage ?? 0) * 8)
+  return clampPrice(
+    rule.min,
+    rule.max,
+    rule.base + (w.attack ?? 0) + (w.critDamage ?? 0) * rule.critDamageFactor,
+  )
 }
 
-/** 稀有远程：45 + 攻击 × 1.3，封顶 120 */
+/** 稀有远程：规则见 data/markets.js */
 function rangedPrice(item) {
+  const rule = AIRSHIP_RANGED_PRICING
   const w = item.weapon ?? {}
-  return clampPrice(60, 120, 45 + (w.attack ?? 0) * 1.3)
+  return clampPrice(rule.min, rule.max, rule.base + (w.attack ?? 0) * rule.attackFactor)
 }
 
 /** 商品说明：武器展示战斗面板，消耗品展示效果 */
@@ -390,25 +408,31 @@ export const AIRSHIP_SHOP_GOODS = {
   ),
 }
 
-const EPIC_MELEE = ALL_ITEMS.filter((item) => item.category === 'melee' && item.tier === '史诗')
+/** 珍宝商店不刷新的物品：两把史诗指虎 */
+const TREASURE_EXCLUDED_IDS = ['knuckle-silver', 'knuckle-gold']
+
+const EPIC_MELEE = ALL_ITEMS.filter(
+  (item) =>
+    item.category === 'melee' &&
+    item.tier === '史诗' &&
+    !TREASURE_EXCLUDED_IDS.includes(item.id),
+)
 
 /**
- * 珍宝商店：按天数确定性地刷新一件史诗近战
+ * 珍宝商店：按天数确定性地刷新一件史诗近战（指虎除外）
  * 同一天反复打开价格不变；跨天自动换货
  */
 export function treasureForDay(day) {
   if (!EPIC_MELEE.length) return null
   const seed = Math.abs(Math.round(Number(day) || 1))
-  let hash = (seed * 9301 + 49297) % 233280
-  hash = (hash * 233280 + 9301) % 233280
-  const index = Math.floor((hash / 233280) * EPIC_MELEE.length) % EPIC_MELEE.length
-  const item = EPIC_MELEE[index]
+  const hash = dayHash(seed, 9)
+  const item = EPIC_MELEE[hash % EPIC_MELEE.length]
   return {
     id: `treasure-${seed}`,
     itemId: item.id,
     name: item.name,
     tier: item.tier,
-    price: 90 + (hash % 111),
+    price: AIRSHIP_TREASURE_PRICING.base + (hash % AIRSHIP_TREASURE_PRICING.spread),
     note: flightGoodNote(item),
   }
 }
@@ -427,10 +451,10 @@ const COMMISSION_WINES = [
 
 /** 按天与用途生成确定性种子，同一天反复查看结果不变 */
 function dayHash(day, salt) {
-  const seed = Math.abs(Math.round(Number(day) || 1)) + salt * 7919
-  let hash = (seed * 9301 + 49297) % 233280
-  hash = (hash * 233280 + 9301) % 233280
-  return hash
+  const seed = (Math.abs(Math.round(Number(day) || 1)) + salt * 7919) >>> 0
+  let hash = Math.imul(seed ^ 0x9e3779b9, 0x85ebca6b) >>> 0
+  hash = Math.imul(hash ^ (hash >>> 13), 0xc2b2ae35) >>> 0
+  return (hash ^ (hash >>> 16)) >>> 0
 }
 
 /**
@@ -448,7 +472,8 @@ export function commissionForDay(day) {
 
 /** 储油仓库当日收购 / 出售价：购买价 1-3 末日币，按天刷新 */
 export function oilPriceForDay(day) {
-  return 1 + (dayHash(day, 4) % 3)
+  const { buyMin, buyMax } = AIRSHIP_OIL_PRICING
+  return buyMin + (dayHash(day, 4) % (buyMax - buyMin + 1))
 }
 
 /** 商店标题与描述 */
@@ -458,5 +483,5 @@ export const AIRSHIP_SHOPS = {
   medical: { name: '医药中心', desc: '玻璃柜里码着药品，标签全是新的。万能灵药不在其中。' },
   melee: { name: '兵器市场', desc: '墙上挂满稀有与精良的近战武器，每一把都擦得发亮。' },
   guns: { name: '枪械中心', desc: '柜台上只摆稀有品质的远程武器，保养得比人都干净。' },
-  treasure: { name: '珍宝商店', desc: '天鹅绒托盘里每天只放一件史诗近战，卖完就收起来。' },
+  treasure: { name: '珍宝商店', desc: '天鹅绒托盘里每天只放一件史诗近战（指虎除外），卖完就收起来。' },
 }

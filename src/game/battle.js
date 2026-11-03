@@ -19,6 +19,7 @@ import {
   commissionForDay,
   getItem,
   identityRank,
+  isFistTalentWeapon,
   mafeiQuestForTarget,
   npcById,
   pickDawnLoot,
@@ -421,7 +422,7 @@ export function meleeAttack() {
     loops += 1
     const { weapon } = currentMelee()
     const arena =
-      !game.equipment.melee && isTalentActive('arena')
+      isFistTalentWeapon(game.equipment.melee) && isTalentActive('arena')
         ? talentEffects('arena', game.talents.arena)
         : {}
     const crit = Math.random() < (weapon.crit ?? 0) && (weapon.critDamage ?? 0) >= 1

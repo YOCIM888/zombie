@@ -31,21 +31,22 @@ const MELEE_SFX = {
   longsword: idsFor([
     'knight-sword', 'tang-dao', 'noble-shortsword', 'keel-blade',
     'crusader-cross-sword', 'scarlet-greatsword', 'longsword-rose-dark',
-    'longsword-frost', 'longsword-silver-rose',
+    'longsword-frost', 'longsword-silver-rose', 'frost-greatsword',
   ]),
   blunt: idsFor([
     'baseball-bat', 'pipe-wrench', 'baton', 'frying-pan', 'claw-hammer',
     'entrenching-tool', 'crowbar', 'hand-axe', 'fire-axe', 'chainsaw',
+    'royal-scepter',
   ]),
   soft: idsFor(['nunchaku']),
 }
 
 const RANGED_SFX = {
-  pistol: idsFor(['cz75', 'glock', 'm1911', 'usp', 'fn57', 'gp100', 'desert-eagle']),
+  pistol: idsFor(['cz75', 'glock', 'm1911', 'usp', 'fn57', 'gp100', 'desert-eagle', 'blood-raven']),
   smg: idsFor(['mac10', 'mp5', 'uzi', 'ump45', 'victor']),
-  rifle: idsFor(['m4a1', 'ar15', 'akm', 'mini14', 'aug', 'scar']),
-  sniper: idsFor(['m700', 'mosin', 't3x', 'awm']),
-  shotgun: idsFor(['m870', 'aa12']),
+  rifle: idsFor(['m4a1', 'ar15', 'akm', 'mini14', 'aug', 'scar', 'royal-lance']),
+  sniper: idsFor(['m700', 'mosin', 't3x', 'awm', 'daylight-sniper']),
+  shotgun: idsFor(['m870', 'aa12', 'meteor-shotgun']),
   soft: idsFor(['hunting-bow', 'compound-bow', 'crossbow']),
 }
 

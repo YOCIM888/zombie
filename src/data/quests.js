@@ -455,7 +455,7 @@ export const MAFEI_QUESTS = [
     desc: '「她在汤里下东西。」马斐把枪栓拉了一下，「喝完汤的人，第二天都没再醒过来。」',
     hint: '接取后到曙光阵地，在苏涵的页面动手。',
     require: { npc: 'nutritionist' },
-    reward: { coins: 44, dawnCoins: 44 },
+    reward: { coins: 20, dawnCoins: 20 },
   },
   {
     id: 'mafei-2',
@@ -465,7 +465,7 @@ export const MAFEI_QUESTS = [
     desc: '「她修的枪，膛线都少了一截。」他说，「拿这种枪上战场的人，一个也没回来。」',
     hint: '接取后到曙光阵地，在莉莉的页面动手。',
     require: { npc: 'mechanic' },
-    reward: { coins: 44, dawnCoins: 44 },
+    reward: { coins: 20, dawnCoins: 20 },
   },
   {
     id: 'mafei-3',
@@ -475,7 +475,7 @@ export const MAFEI_QUESTS = [
     desc: '「她卖过一整支巡逻队的位置。」马斐压低声音，「那些人到现在还挂在铁丝网上。」',
     hint: '接取后到曙光阵地，在薇尔的页面动手。',
     require: { npc: 'mercenary' },
-    reward: { coins: 44, dawnCoins: 44 },
+    reward: { coins: 20, dawnCoins: 20 },
   },
   {
     id: 'mafei-4',
@@ -485,7 +485,7 @@ export const MAFEI_QUESTS = [
     desc: '「你以为她的田里只埋种子？」他笑了一下，「挖开看看，土是黑的。」',
     hint: '接取后到曙光阵地，在苗苗的页面动手。',
     require: { npc: 'agronomist' },
-    reward: { coins: 44, dawnCoins: 44 },
+    reward: { coins: 20, dawnCoins: 20 },
   },
   {
     id: 'mafei-5',
@@ -495,7 +495,7 @@ export const MAFEI_QUESTS = [
     desc: '「他把活人推出哨塔，替自己挡尸群。」马斐说，「你替他办过事，他记你的好，也记你的命。」',
     hint: '接取后到曙光阵地，在羿阳的页面动手。',
     require: { npc: 'dawn-leader' },
-    reward: { coins: 44, dawnCoins: 44 },
+    reward: { coins: 20, dawnCoins: 20 },
   },
   {
     id: 'mafei-6',
@@ -505,7 +505,7 @@ export const MAFEI_QUESTS = [
     desc: '「她每天往国王的药里加一点东西。」他把擦枪布叠好，「一天一点，谁也看不出来。」',
     hint: '接取后进都城王宫，在皇后的页面动手。',
     require: { npc: 'queen' },
-    reward: { coins: 44, dawnCoins: 44 },
+    reward: { coins: 20, dawnCoins: 20 },
   },
   {
     id: 'mafei-7',
@@ -515,7 +515,7 @@ export const MAFEI_QUESTS = [
     desc: '「一道命令，避难所的铁门就再没开过。」马斐说，「里面的人，是他亲手锁死的。」',
     hint: '接取后进都城王宫，在国王的页面动手。',
     require: { npc: 'king' },
-    reward: { coins: 44, dawnCoins: 44 },
+    reward: { coins: 20, dawnCoins: 20 },
   },
   {
     id: 'mafei-8',
@@ -525,7 +525,7 @@ export const MAFEI_QUESTS = [
     desc: '「你吃过他的烧烤。」他盯着你看了一会儿，「你该知道那是什么肉。」',
     hint: '接取后到露营山区，在阿三的摊子前动手。',
     require: { npc: 'ma-san' },
-    reward: { coins: 44, dawnCoins: 44 },
+    reward: { coins: 20, dawnCoins: 20 },
   },
   {
     id: 'mafei-9',
@@ -535,7 +535,7 @@ export const MAFEI_QUESTS = [
     desc: '「她不是人鱼。那条尾巴是缝上去的。」马斐说，「水族箱底下埋着三个孩子。」',
     hint: '接取后到郊区卖场，在水族箱边动手。',
     require: { npc: 'mermaid' },
-    reward: { coins: 44, dawnCoins: 44 },
+    reward: { coins: 20, dawnCoins: 20 },
   },
   {
     id: 'mafei-10',
@@ -545,7 +545,7 @@ export const MAFEI_QUESTS = [
     desc: '「培养槽里的东西，是他自己造出来的。」马斐终于看了你一眼，「他说那是意外。你信吗？」',
     hint: '接取后到 X研究所，在陈博士的培养区动手。',
     require: { npc: 'doctor' },
-    reward: { coins: 44, dawnCoins: 44 },
+    reward: { coins: 20, dawnCoins: 20 },
   },
   {
     id: 'mafei-11',
@@ -555,7 +555,7 @@ export const MAFEI_QUESTS = [
     desc: '「还有一枚火箭。」他把一盒炸药推到你脚边，「炸了它。谁都别想从那上面逃走。」',
     hint: '先在山地军营合成高能炸药（16 回合），再前往航天基地把它装进发射架。',
     require: { flag: 'spaceportBlown', label: '爆破航天基地' },
-    reward: { coins: 144, dawnCoins: 144 },
+    reward: { coins: 40, dawnCoins: 40 },
   },
   {
     id: 'mafei-12',

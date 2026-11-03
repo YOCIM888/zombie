@@ -872,7 +872,7 @@ function closePanel() {
           <span class="tag">第 {{ game.day }} 天 · 末日币 {{ formatMoney(game.coins) }}</span>
         </header>
         <p class="pane__desc">
-          六支股票每日刷新，价格 0.01-300 末日币，最多两位小数。买入卖出各收 1% 手续费，最低 1 币。
+          六支股票每日刷新，价格 0.01-300 末日币，最多两位小数。买入卖出各收 1% 手续费，最低 0.1 币。
         </p>
 
         <div class="market__grid">

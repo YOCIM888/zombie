@@ -1,6 +1,13 @@
 // 末日都城：身份、借贷、集市、王宫与掉落
 
 import { ITEMS } from './items'
+import {
+  CITY_MARKET_DEFAULT_PRICE,
+  CITY_MARKET_PRICES,
+  KNIGHT_COST,
+  PALACE_ACTIVITY_PRICES,
+  PALACE_SHOP_PRICES,
+} from './markets'
 
 export const IDENTITY_LEVELS = [
   { name: '平民', rank: 0, itemId: 'badge-common', image: '/image/身份徽章/平民徽章.webp' },
@@ -26,7 +33,7 @@ export function identityItemId(name) {
   return identityInfo(name)?.itemId ?? null
 }
 
-export const KNIGHT_COST = 30
+/* ===== 身份与价目统一由 data/markets.js 管理 ===== */
 
 /** 都城的活计：身份越高，活越轻、报酬越多；每天只能做一份 */
 export const LABOR_TIERS = [
@@ -248,21 +255,7 @@ export const BANKER = {
     '行长把两摞币推到台面两边：「二换一，两边都是。换多少，你自己填。」',
 }
 
-/** 贫民集市里普通近战武器的定价：按攻击、耐久与特效综合折算 */
-const COMMON_MELEE_PRICES = {
-  'fruit-knife': 6,
-  'kitchen-knife': 6,
-  'nunchaku': 8,
-  'frying-pan': 8,
-  'baton': 9,
-  'knuckle': 9,
-  'claw-hammer': 10,
-  'pipe-wrench': 10,
-  'karambit-classic': 11,
-  'dagger': 15,
-  'baseball-bat': 14,
-}
-
+/** 都城集市里普通近战武器的定价统一在 data/markets.js */
 function meleeShopNote(item) {
   const w = item.weapon
   const crit = Math.round(w.crit * 100)
@@ -276,14 +269,14 @@ export const SHOP_GOODS = [
     id: 'water',
     itemId: 'mineral-water',
     name: '矿泉水',
-    price: 1,
+    price: CITY_MARKET_PRICES['mineral-water'],
     note: '恢复 25% 口渴',
   },
   {
     id: 'biscuit',
     itemId: 'compressed-biscuit',
     name: '压缩饼干',
-    price: 1,
+    price: CITY_MARKET_PRICES['compressed-biscuit'],
     note: '恢复 25% 饱食',
   },
   ...Object.values(ITEMS)
@@ -292,7 +285,7 @@ export const SHOP_GOODS = [
       id: item.id,
       itemId: item.id,
       name: item.name,
-      price: COMMON_MELEE_PRICES[item.id] ?? 6,
+      price: CITY_MARKET_PRICES[item.id] ?? CITY_MARKET_DEFAULT_PRICE,
       note: meleeShopNote(item),
     }))
     .sort((a, b) => a.price - b.price),
@@ -322,21 +315,21 @@ export const PALACE_DANCES = [
   {
     id: 'common',
     name: '普通舞会',
-    price: 0,
+    price: PALACE_ACTIVITY_PRICES.dance.common,
     sanity: 30,
     desc: '厅角的乐队只奏最熟的曲子，谁都能下场跳一支。',
   },
   {
     id: 'elite',
     name: '名媛舞会',
-    price: 5,
+    price: PALACE_ACTIVITY_PRICES.dance.elite,
     sanity: 50,
     desc: '名媛们围成半圈，手套上的蕾丝比话题更讲究。',
   },
   {
     id: 'star',
     name: '明星舞会',
-    price: 8,
+    price: PALACE_ACTIVITY_PRICES.dance.star,
     sanity: 80,
     desc: '水晶灯下站着整座都城的焦点，连乐师都屏住了呼吸。',
   },
@@ -347,7 +340,7 @@ export const PALACE_BANQUETS = [
   {
     id: 'common',
     name: '普通宴会',
-    price: 0,
+    price: PALACE_ACTIVITY_PRICES.banquet.common,
     hunger: 30,
     thirst: 30,
     desc: '长桌最末的位置也管饱，只要你不介意和侍者一起站着吃。',
@@ -355,7 +348,7 @@ export const PALACE_BANQUETS = [
   {
     id: 'elite',
     name: '名人宴会',
-    price: 5,
+    price: PALACE_ACTIVITY_PRICES.banquet.elite,
     hunger: 50,
     thirst: 50,
     desc: '名人端着酒杯在厅里走动，侍者替你续了两次汤。',
@@ -363,7 +356,7 @@ export const PALACE_BANQUETS = [
   {
     id: 'star',
     name: '皇家宴会',
-    price: 8,
+    price: PALACE_ACTIVITY_PRICES.banquet.star,
     hunger: 80,
     thirst: 80,
     desc: '御厨把整条长桌铺满，连酒都是从地窖最深处抬上来的。',
@@ -375,21 +368,21 @@ export const PALACE_ROOMS = [
   {
     id: 'common',
     name: '典雅客房',
-    price: 0,
+    price: PALACE_ACTIVITY_PRICES.room.common,
     stamina: 30,
     desc: '被褥干净，窗棂上积着薄灰，睡一觉足够恢复精神。',
   },
   {
     id: 'elite',
     name: '华丽客房',
-    price: 5,
+    price: PALACE_ACTIVITY_PRICES.room.elite,
     stamina: 50,
     desc: '床柱雕着缠枝花纹，枕头软得让人不想起身。',
   },
   {
     id: 'star',
     name: '私享舞会',
-    price: 8,
+    price: PALACE_ACTIVITY_PRICES.room.star,
     stamina: 80,
     desc: '整层楼只为你一个人点亮，乐师在门外候着，直到你尽兴。',
   },
@@ -412,15 +405,15 @@ export const PALACE_SHOP = [
     itemId: 'royal-lance',
     name: '皇家长枪',
     tier: '限定',
-    price: 88,
-    note: '66 攻击 · 66% 暴击 · 1.66 暴伤 · 16% 闪避',
+    price: PALACE_SHOP_PRICES['royal-lance'],
+    note: '88 攻击 · 66% 暴击 · 1.66 暴伤 · 16% 闪避',
   },
   {
     id: 'royal-scepter',
     itemId: 'royal-scepter',
     name: '皇家权杖',
     tier: '限定',
-    price: 66,
+    price: PALACE_SHOP_PRICES['royal-scepter'],
     note: '22 攻击 · 26% 暴击 · 2.66 暴伤 · 66% 连击 · 166 耐久',
   },
   {
@@ -428,7 +421,7 @@ export const PALACE_SHOP = [
     itemId: 'royal-mix',
     name: '皇家特调',
     tier: '限定',
-    price: 10,
+    price: PALACE_SHOP_PRICES['royal-mix'],
     note: '口渴 +60 · 理智 +60 · 体力 +60',
   },
   {
@@ -436,7 +429,7 @@ export const PALACE_SHOP = [
     itemId: 'royal-dessert',
     name: '皇家甜点',
     tier: '限定',
-    price: 10,
+    price: PALACE_SHOP_PRICES['royal-dessert'],
     note: '饱食 +60 · 生命 +60 · 感染 -60',
   },
 ]

@@ -1,5 +1,6 @@
 // 数据统一出口：物品、时间、都城规则都从这里导入
 export * from './money'
+export * from './markets'
 export * from './items'
 export * from './weapons'
 export * from './inventory'

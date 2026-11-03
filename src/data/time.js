@@ -3,8 +3,8 @@
 /** 一天八个回合 */
 export const PHASES = ['凌晨', '清晨', '上昼', '中午', '下昼', '黄昏', '夜晚', '午夜']
 
-/** 每回合固定扣除 5 点口渴 / 饱食 / 体力 */
-export const TURN_COST = { thirst: -5, hunger: -5, stamina: -5 }
+/** 每回合固定扣除 5 点口渴 / 饱食 / 体力，以及 2 点理智 */
+export const TURN_COST = { thirst: -5, hunger: -5, stamina: -5, sanity: -2 }
 
 /** 进入一张地图时的固定消耗 */
 export const ENTRY_COST = { thirst: -5, hunger: -5, stamina: -5 }

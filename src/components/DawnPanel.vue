@@ -5,6 +5,7 @@ import {
   CORRIDOR,
   DAWN_IDENTITY_LEVELS,
   DAWN_JOIN_KILLS,
+  DAWN_BOND_SHOP,
   DAWN_MARKET,
   DAWN_NPCS,
   DAWN_PROMOTIONS,
@@ -18,9 +19,11 @@ import {
   TALENTS,
   TALENT_EFFECT_LABELS,
   dawnInfo,
+  countItem,
   getItem,
   npcById,
   repairCoinCost,
+  repairPriceForTier,
   recyclePriceForDay,
   dawnRecyclePrices,
   talentEffects,
@@ -36,6 +39,7 @@ import {
   countFruits,
   currentPhase,
   game,
+  buyDawnBond,
   buyDawnGood,
   isNpcDead,
   joinDawn,
@@ -65,13 +69,14 @@ import StatusHud from './StatusHud.vue'
 
 const MENU = [
   { id: 'fight', no: '01', name: '清理丧尸', desc: '消耗 1 回合（有衰减），进入手动回合制战斗。' },
-  { id: 'relief', no: '02', name: '领取救济', desc: '每天一次，四档救济共用次数：基础 / 进阶 / 高级 / 特级。' },
+  { id: 'relief', no: '02', name: '领取救济', desc: '每天一次，五档按曙光身份开放：普通 / 基础 / 进阶 / 高级 / 特级。' },
   { id: 'contact', no: '03', name: '联系管事', desc: '徽章补办、加入曙光，或申请晋升。' },
   { id: 'salary', no: '04', name: '每日工资', desc: '按曙光身份发放，每天一次：队员 2、队长 5、指挥 8、副首 10 曙光币。' },
   ...DAWN_NPCS.map((npc) => ({ ...npc, placeholder: !npc.implemented })),
   { id: 'market', no: '10', name: '曙光市场', desc: '普通远程武器、绷带与罐头，明码标价。' },
-  { id: 'salvage', no: '11', name: '物资回收', desc: '背包里的多余武器按品质结算曙光币，回收价每日浮动。' },
-  { id: 'corridor', no: '12', name: '行尸走廊', desc: '赤手空拳穿过走廊，每天两次，提升远程闪避天赋。' },
+  { id: 'bond', no: '11', name: '羁绊商店', desc: '提交四种纪念徽章之一，各换一件限定武器。' },
+  { id: 'salvage', no: '12', name: '物资回收', desc: '背包里的多余武器按品质结算曙光币，回收价每日浮动。' },
+  { id: 'corridor', no: '13', name: '行尸走廊', desc: '赤手空拳穿过走廊，每天两次，提升远程闪避天赋。' },
 ]
 
 const map = MAPS.find((item) => item.id === 'dawn-post')
@@ -79,8 +84,10 @@ const emit = defineEmits(['close'])
 const view = ref('menu')
 const selected = ref(null)
 const feed = ref('哨塔的探照灯扫过来，有人朝你抬了抬下巴，算是放行。')
+const pendingRecycle = ref(null)
 
 const identity = computed(() => dawnInfo(game.dawnIdentity))
+const dawnRank = computed(() => identity.value?.rank ?? -1)
 const reliefLeft = computed(() => cooldownLeft('dawn-relief', 1))
 const salaryLeft = computed(() => cooldownLeft('dawn-salary', 1))
 const salary = computed(
@@ -88,6 +95,10 @@ const salary = computed(
     DAWN_SALARY.find((item) => item.rank === (identity.value?.rank ?? -1)) ?? null,
 )
 const joinLeft = computed(() => Math.max(0, DAWN_JOIN_KILLS - game.zombieKills))
+
+function bondBadgeCount(good) {
+  return countItem(game.inventory, good.badgeId)
+}
 const placeholder = computed(() => selected.value)
 const promotion = computed(
   () => DAWN_PROMOTIONS.find((item) => item.from === game.dawnIdentity) ?? null,
@@ -123,8 +134,16 @@ const rangedRepair = computed(() => {
   if (!equipped) return { name: '', current: 0, cost: 0, state: 'empty' }
   const def = getItem(equipped.id)
   const current = Number.isFinite(equipped.cleanliness) ? equipped.cleanliness : CLEANLINESS_MAX
-  const cost = repairCoinCost(current, CLEANLINESS_MAX)
-  return { name: def?.name ?? '远程武器', current, cost, state: cost > 0 ? 'dirty' : 'clean' }
+  const tier = def?.tier ?? '普通'
+  const cost = repairCoinCost(current, CLEANLINESS_MAX, tier)
+  return {
+    name: def?.name ?? '远程武器',
+    current,
+    cost,
+    tier,
+    unitPrice: repairPriceForTier(tier),
+    state: cost > 0 ? 'dirty' : 'clean',
+  }
 })
 const corridorLevel = computed(() => Number(game.talents.corridor) || 0)
 const corridorMaxLevel = computed(() => TALENTS.corridor.maxLevel)
@@ -216,6 +235,30 @@ function run(action) {
   if (line) feed.value = line
 }
 
+/** 回收武器：限定品质先弹窗二次确认，其余直接回收 */
+function askRecycle(entry, mode) {
+  if (entry.def.tier === '限定') {
+    pendingRecycle.value = { ...entry, mode }
+    return
+  }
+  runRecycle(entry.index, mode)
+}
+
+function runRecycle(index, mode) {
+  run(() => (mode === 'ranged' ? recycleRangedWeapon(index) : recycleWeapon(index)))
+}
+
+function cancelRecycle() {
+  pendingRecycle.value = null
+}
+
+function confirmRecycle() {
+  const target = pendingRecycle.value
+  pendingRecycle.value = null
+  if (!target) return
+  runRecycle(target.index, target.mode)
+}
+
 function fight() {
   const line = startDawnCombat()
   if (line) feed.value = line
@@ -305,7 +348,7 @@ function closePanel() {
         <button type="button" class="link" @click="backToMenu">← 返回选项</button>
       </header>
       <p class="pane__desc">
-        物资箱里堆着附近农场送来的水果，旁边压着一格药品。四档救济共用每天一次，管事会盯着你的手。
+        物资箱里堆着附近农场送来的水果，旁边压着一格药品。五档救济按曙光身份开放，共用每天一次，管事会盯着你的手。
       </p>
       <p class="cure__note">
         {{
@@ -317,7 +360,10 @@ function closePanel() {
       <div class="rows">
         <article v-for="tier in DAWN_RELIEF_TIERS" :key="tier.id" class="row">
           <div>
-            <h4 class="row__name">{{ tier.name }}</h4>
+            <h4 class="row__name">
+              {{ tier.name }}
+              <span class="row__rank">{{ tier.identity }}</span>
+            </h4>
             <p class="row__desc">{{ tier.desc }}</p>
             <p class="row__meta">
               <span>一种随机水果 ×{{ tier.fruitCount }}</span>
@@ -330,10 +376,16 @@ function closePanel() {
           <button
             type="button"
             class="btn"
-            :disabled="reliefLeft > 0"
+            :disabled="reliefLeft > 0 || dawnRank < tier.rank"
             @click="run(() => claimDawnRelief(tier.id))"
           >
-            {{ reliefLeft > 0 ? `${reliefLeft} 天后` : '领取' }}
+            {{
+              dawnRank < tier.rank
+                ? `需${tier.identity}`
+                : reliefLeft > 0
+                  ? `${reliefLeft} 天后`
+                  : '领取'
+            }}
           </button>
         </article>
       </div>
@@ -485,8 +537,8 @@ function closePanel() {
           <div>
             <h4 class="row__name">远程武器保养</h4>
             <p class="row__desc">
-              曙光阵地只保养远程武器。每 1 曙光币擦回 {{ REPAIR_PERCENT_PER_COIN }}%
-              清洁度，按缺口一次保养完。
+              曙光阵地只保养远程武器。保养费按品质计价（每 {{ REPAIR_PERCENT_PER_COIN }}%
+              缺口 1～10 曙光币），按缺口一次保养完。
             </p>
             <p v-if="rangedRepair.state === 'empty'" class="row__hint">你还没有装备远程武器。</p>
             <p v-else-if="rangedRepair.state === 'clean'" class="row__hint">
@@ -494,12 +546,50 @@ function closePanel() {
             </p>
             <p v-else class="row__hint">
               「{{ rangedRepair.name }}」清洁度 {{ rangedRepair.current }} / {{ CLEANLINESS_MAX }} ·
+              {{ rangedRepair.tier }}品质每 {{ REPAIR_PERCENT_PER_COIN }}% 缺口 {{ rangedRepair.unitPrice }} 曙光币 ·
               保养需 {{ rangedRepair.cost }} 曙光币
             </p>
           </div>
           <button type="button" class="btn" @click="run(repairRangedDawn)">
             保养 · {{ rangedRepair.cost || 0 }} 曙光币
           </button>
+        </article>
+      </div>
+    </section>
+
+    <section v-else-if="view === 'bond'" class="pane">
+      <header class="pane__head">
+        <h3 class="pane__title">羁绊商店</h3>
+        <button type="button" class="link" @click="backToMenu">← 返回选项</button>
+      </header>
+      <p class="pane__desc">
+        柜台后的人不收币，只收信物。四枚纪念徽章各对应一件限定武器，还要补 365
+        曙光币——他说这是「把关系走完的价」。
+      </p>
+
+      <div class="goods">
+        <article v-for="good in DAWN_BOND_SHOP" :key="good.id" class="good">
+          <img class="good__img" :src="getItem(good.itemId)?.image" :alt="good.name" />
+          <div class="good__main">
+            <h4 class="good__name">
+              {{ good.name }}
+              <span class="good__tier">限定</span>
+            </h4>
+            <p class="good__note">{{ good.note }}</p>
+            <p class="good__req">
+              {{ good.badgeName }} ×1
+              <span :class="{ 'good__req--ok': bondBadgeCount(good) > 0 }">
+                {{ bondBadgeCount(good) > 0 ? `（持有 ${bondBadgeCount(good)}）` : '（未持有）' }}
+              </span>
+              · {{ good.price }} 曙光币
+            </p>
+          </div>
+          <div class="good__buy">
+            <span>{{ good.price }} 曙光币</span>
+            <button type="button" class="btn" @click="run(() => buyDawnBond(good.id))">
+              兑换
+            </button>
+          </div>
         </article>
       </div>
     </section>
@@ -514,7 +604,7 @@ function closePanel() {
       </p>
       <div class="chips">
         <span v-for="(range, tier) in DAWN_RECYCLE_RANGES" :key="tier">
-          {{ tier }} 今日 {{ recyclePrices[tier] }}（{{ range[0] }}~{{ range[1] }}）
+          {{ tier }} 今日 {{ recyclePrices[tier] }}（{{ range[0] === range[1] ? range[0] : `${range[0]}~${range[1]}` }}）
         </span>
       </div>
       <p class="pane__note">今日回收价 · 第 {{ game.day }} 天</p>
@@ -533,7 +623,7 @@ function closePanel() {
             <button
               type="button"
               class="btn"
-              @click="run(() => recycleWeapon(entry.index))"
+              @click="askRecycle(entry, 'salvage')"
             >
               回收
             </button>
@@ -709,7 +799,7 @@ function closePanel() {
               <button
                 type="button"
                 class="btn"
-                @click="run(() => recycleRangedWeapon(entry.index))"
+                @click="askRecycle(entry, 'ranged')"
               >
                 拆解
               </button>
@@ -867,6 +957,32 @@ function closePanel() {
         </p>
       </div>
     </section>
+
+    <Teleport to="body">
+      <ModalShell
+        v-if="pendingRecycle"
+        title="确认回收限定武器？"
+        :sub="`${pendingRecycle.def.name} · ${pendingRecycle.def.tier}`"
+        @close="cancelRecycle"
+      >
+        <div class="chips">
+          <span>限定武器 · 回收价固定 {{ pendingRecycle.price }} 曙光币</span>
+          <span>{{ pendingRecycle.mode === 'ranged' ? '拆成零件' : '上交回收' }}</span>
+        </div>
+        <p class="pane__desc">
+          回收后「{{ pendingRecycle.def.name }}」会永久离开背包，无法找回，也不能撤销。
+        </p>
+        <template #footer>
+          <span>限定武器只有这一件</span>
+          <div class="foot-btns">
+            <button type="button" class="btn" @click="cancelRecycle">再想想</button>
+            <button type="button" class="btn btn--primary" @click="confirmRecycle">
+              确认回收
+            </button>
+          </div>
+        </template>
+      </ModalShell>
+    </Teleport>
 
     <template #footer>
       <span class="feed">{{ feed }}</span>
@@ -1051,6 +1167,16 @@ function closePanel() {
   color: var(--text);
 }
 
+.row__rank {
+  margin-left: 8px;
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: var(--bone);
+  border: 1px solid var(--line);
+}
+
 .row__desc {
   margin: 5px 0 0;
   font-size: 10.5px;
@@ -1144,6 +1270,26 @@ function closePanel() {
   font-size: 10px;
   line-height: 1.6;
   color: var(--text-mute);
+}
+
+.good__tier {
+  margin-left: 8px;
+  padding: 1px 6px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: #d8b45a;
+  border: 1px solid rgba(216, 180, 90, 0.45);
+}
+
+.good__req {
+  margin: 4px 0 0;
+  font-size: 10.5px;
+  color: var(--text-mute);
+}
+
+.good__req--ok {
+  color: #9cbf6a;
 }
 
 .good__buy {

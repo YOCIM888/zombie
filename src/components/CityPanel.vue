@@ -28,6 +28,7 @@ import {
   loanTierFor,
   npcById,
   repairCoinCost,
+  repairPriceForTier,
   talentEffects,
   talentTitle,
 } from '../data'
@@ -85,7 +86,7 @@ const MENU = [
 ]
 
 const PALACE_MENU = [
-  { id: 'steal', no: '01', name: '进行偷窃', desc: '1 回合，每天一次。10% 得 3 币，20% 得 1 币，30% 空手，40% 被扇一巴掌（生命 -5）。' },
+  { id: 'steal', no: '01', name: '进行偷窃', desc: '1 回合，每天一次。10% 得 3 币，20% 得 2 币，30% 得 1 币，20% 空手，20% 被扇一巴掌（生命 -5）。' },
   { id: 'dance', no: '02', name: '宫廷舞会', desc: '1 回合，每日一次。三档舞会共用次数，理智 +30 / +50 / +80。' },
   { id: 'banquet', no: '03', name: '宫廷宴会', desc: '1 回合，每日一次。三档宴会共用次数，饱食 / 口渴 +30 / +50 / +80。' },
   { id: 'room', no: '04', name: '宫廷客房', desc: '2 回合，每日一次。三档客房共用次数，体力 +30 / +50 / +80。' },
@@ -170,8 +171,17 @@ const meleeRepair = computed(() => {
   const max = def?.weapon?.durability
   if (!Number.isFinite(max)) return { name: def?.name ?? '', current: 0, max: 0, cost: 0, state: 'free' }
   const current = Number.isFinite(equipped.durability) ? equipped.durability : max
-  const cost = repairCoinCost(current, max)
-  return { name: def?.name ?? '近战武器', current, max, cost, state: cost > 0 ? 'worn' : 'full' }
+  const tier = def?.tier ?? '普通'
+  const cost = repairCoinCost(current, max, tier)
+  return {
+    name: def?.name ?? '近战武器',
+    current,
+    max,
+    cost,
+    tier,
+    unitPrice: repairPriceForTier(tier),
+    state: cost > 0 ? 'worn' : 'full',
+  }
 })
 const kingGate = computed(() => questLineLocked('king'))
 const queenGate = computed(() => questLineLocked('queen'))
@@ -368,9 +378,10 @@ function closePanel() {
           <span>消耗 1 回合（有衰减）</span>
           <span>每天一次</span>
           <span>10% 得 3 末日币</span>
-          <span>20% 得 1 末日币</span>
-          <span>30% 什么也没偷到</span>
-          <span>40% 被发现 · 生命 -5</span>
+          <span>20% 得 2 末日币</span>
+          <span>30% 得 1 末日币</span>
+          <span>20% 什么也没偷到</span>
+          <span>20% 被发现 · 生命 -5</span>
           <span>{{ daily('steal') > 0 ? `冷却 ${daily('steal')} 天` : '今日可用' }}</span>
         </div>
         <button type="button" class="btn btn--primary pane__action" @click="run(stealPalace)">
@@ -1003,8 +1014,8 @@ function closePanel() {
           <div>
             <h4 class="row__name">近战武器保养</h4>
             <p class="row__desc">
-              末日城堡的铁匠只接近战活。每 1 末日币修复 {{ REPAIR_PERCENT_PER_COIN }}%
-              最大耐久，按缺口一次修满。
+              末日城堡的铁匠只接近战活。保养费按品质计价（每 {{ REPAIR_PERCENT_PER_COIN }}%
+              缺口 1～10 币），按缺口一次修满。
             </p>
             <p v-if="meleeRepair.state === 'empty'" class="row__hint">你还没有装备近战武器。</p>
             <p v-else-if="meleeRepair.state === 'free'" class="row__hint">
@@ -1015,6 +1026,7 @@ function closePanel() {
             </p>
             <p v-else class="row__hint">
               「{{ meleeRepair.name }}」耐久 {{ meleeRepair.current }} / {{ meleeRepair.max }} ·
+              {{ meleeRepair.tier }}品质每 {{ REPAIR_PERCENT_PER_COIN }}% 缺口 {{ meleeRepair.unitPrice }} 币 ·
               修复需 {{ meleeRepair.cost }} 币
             </p>
           </div>

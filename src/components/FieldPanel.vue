@@ -18,6 +18,7 @@ import {
   ZOMBIE_ABILITY_LABELS,
   canStoreItems,
   countItem,
+  expandPriceAtSize,
   fieldMapById,
   getItem,
   lootCategoryText,
@@ -179,11 +180,13 @@ const devMenuTag = computed(() => {
 })
 const bagSize = computed(() => game.inventory.length)
 const bagFull = computed(() => bagSize.value >= DEV_SHOP.expandLimit)
+const expandPrice = computed(() => expandPriceAtSize(bagSize.value))
 const canExpand = computed(
   () =>
     !bagFull.value &&
-    game.coins >= DEV_SHOP.expandCost &&
-    game.dawnCoins >= DEV_SHOP.expandCost,
+    expandPrice.value !== null &&
+    game.coins >= expandPrice.value.coins &&
+    game.dawnCoins >= expandPrice.value.dawnCoins,
 )
 
 const yanranSeen = computed(() => Boolean(game.flags.yanranSeen))
@@ -997,8 +1000,8 @@ function closePanel() {
               <span class="extra__tag">背包 {{ bagSize }} / {{ DEV_SHOP.expandLimit }} 格</span>
             </header>
             <p class="extra__desc">
-              每次加 {{ DEV_SHOP.expandSteps }} 格，收 {{ DEV_SHOP.expandCost }} 末日币 +
-              {{ DEV_SHOP.expandCost }} 曙光币。
+              每次加 {{ DEV_SHOP.expandSteps }} 格，按当前容量分段收费：20-50 格 5+5，50-100 格 8+8，
+              100-150 格 10+10，150-200 格 15+15（末日币 + 曙光币）。
             </p>
             <button
               type="button"
@@ -1006,7 +1009,7 @@ function closePanel() {
               :disabled="!canExpand"
               @click="run(expandBackpack)"
             >
-              {{ bagFull ? '已达容量上限' : `扩容 +${DEV_SHOP.expandSteps} 格` }}
+              {{ bagFull ? '已达容量上限' : `扩容 +${DEV_SHOP.expandSteps} 格（${expandPrice.coins} + ${expandPrice.dawnCoins}）` }}
             </button>
           </div>
 

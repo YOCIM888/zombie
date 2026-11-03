@@ -7,6 +7,7 @@ import {
   cleanlinessMultiplier,
   countUsedSlots,
   getItem,
+  isFistTalentWeapon,
   talentBonus,
   talentEffects,
 } from '../data'
@@ -38,7 +39,7 @@ const activeMeleeBonus = computed(() =>
   isTalentActive('melee') ? talentBonus('melee', game.talents.melee) : 0,
 )
 const activeArena = computed(() =>
-  !isEquipped.value && isTalentActive('arena')
+  isFistTalentWeapon(game.equipment.melee) && isTalentActive('arena')
     ? talentEffects('arena', game.talents.arena)
     : {},
 )

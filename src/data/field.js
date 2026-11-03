@@ -525,7 +525,6 @@ export const DEV_SHOP = {
     intro: '开发者把键盘推开，站到了桌子对面。血条长得像一条不会结束的进度线。',
     victoryLine: '开发者的血条终于见底。他把十字剑-圣战推到你面前，甩了甩手腕。',
   },
-  expandCost: 5,
   expandSteps: 10,
   expandLimit: 200,
 }

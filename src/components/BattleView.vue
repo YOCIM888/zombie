@@ -10,6 +10,7 @@ import {
   cleanlinessJamChance,
   cleanlinessMultiplier,
   getItem,
+  isFistTalentWeapon,
   talentBonus,
   talentEffects,
 } from '../data'
@@ -37,7 +38,9 @@ const melee = computed(() => {
   const def = equipped ? getItem(equipped.id) : null
   const weapon = def?.weapon ?? UNARMED.weapon
   const arena =
-    !equipped && isTalentActive('arena') ? talentEffects('arena', game.talents.arena) : {}
+    isFistTalentWeapon(equipped) && isTalentActive('arena')
+      ? talentEffects('arena', game.talents.arena)
+      : {}
   const meleeTalent = isTalentActive('melee')
     ? talentBonus('melee', game.talents.melee)
     : 0

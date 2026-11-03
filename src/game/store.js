@@ -10,6 +10,7 @@ import {
   CLEANLINESS_PER_SHOT,
   COMPANIONS,
   DAWN_JOIN_KILLS,
+  DAWN_BOND_SHOP,
   DAWN_MARKET,
   DAWN_PROMOTIONS,
   DAWN_RELIEF_TIERS,
@@ -18,6 +19,7 @@ import {
   DEV_SHOP,
   DOCTOR,
   ENTRY_COST,
+  expandPriceAtSize,
   GARAGE,
   GARDEN,
   GIANT_PUPPET,
@@ -99,6 +101,7 @@ import {
   questLine,
   removeItem,
   repairCoinCost,
+  repairPriceForTier,
   talentBonus,
   talentEffects,
   talentTitle,
@@ -718,7 +721,7 @@ function useCooldown(key, days) {
 }
 
 /**
- * 推进回合：每回合扣 5 点口渴 / 饱食 / 体力；每 8 回合进入新的一天
+ * 推进回合：每回合扣 5 点口渴 / 饱食 / 体力、2 点理智；每 8 回合进入新的一天
  * decay = false 时（睡觉/小憩跳过的回合）不结算普通衰减
  */
 export function advanceTurns(count, { decay = true } = {}) {
@@ -1728,7 +1731,7 @@ export function takeDevHealingGift() {
   return '游戏开发者推来一箱医疗物资：绷带 20、止痛药 20、止血带 20。「这次不用缝。」'
 }
 
-/** 背包扩容：每次 5 末日币 + 5 曙光币，增加 10 格，上限 200 格 */
+/** 背包扩容：按当前容量分段收费，每次增加 10 格，上限 200 格 */
 export function expandBackpack() {
   const blocked = devGuard()
   if (blocked !== null) return blocked
@@ -1736,16 +1739,20 @@ export function expandBackpack() {
     return `背包已经到 ${DEV_SHOP.expandLimit} 格上限，装不下更多了。`
   }
 
-  const cost = DEV_SHOP.expandCost
+  const price = expandPriceAtSize(game.inventory.length)
+  if (!price) return `背包已经到 ${DEV_SHOP.expandLimit} 格上限，装不下更多了。`
+
+  const cost = price.coins
+  const dawnCost = price.dawnCoins
   if (game.coins < cost) return `末日币不足，扩容需要 ${cost} 末日币。`
-  if (game.dawnCoins < cost) return `曙光币不足，扩容需要 ${cost} 曙光币。`
+  if (game.dawnCoins < dawnCost) return `曙光币不足，扩容需要 ${dawnCost} 曙光币。`
 
   game.coins -= cost
-  game.dawnCoins -= cost
+  game.dawnCoins -= dawnCost
   const before = game.inventory.length
   const next = Math.min(before + DEV_SHOP.expandSteps, DEV_SHOP.expandLimit)
   for (let index = before; index < next; index += 1) game.inventory.push(null)
-  return `你付了 ${cost} 末日币和 ${cost} 曙光币。背包从 ${before} 格扩到 ${next} 格。`
+  return `你付了 ${cost} 末日币和 ${dawnCost} 曙光币。背包从 ${before} 格扩到 ${next} 格。`
 }
 
 /* ===== 开发者控制台 ===== */
@@ -2092,11 +2099,15 @@ function dawnReady() {
   return !game.dead && game.location === 'dawn-post'
 }
 
-/** 领取救济：四档共用每天一次，全部免费 */
+/** 领取救济：五档共用每天一次，按曙光身份等级开放 */
 export function claimDawnRelief(tierId = 'basic') {
   if (!dawnReady()) return ''
   const tier = DAWN_RELIEF_TIERS.find((item) => item.id === tierId)
   if (!tier) return ''
+  const rank = dawnInfo(game.dawnIdentity)?.rank ?? -1
+  if (rank < tier.rank) {
+    return `「${tier.name}」需要曙光身份「${tier.identity}」，你现在的身份还不够。`
+  }
   if (cooldownLeft('dawn-relief', PALACE_COOLDOWN.daily) > 0) return '今天的救济已经领过了，明天再来。'
 
   const fruitId = pickDawnFruit()
@@ -2144,6 +2155,29 @@ export function buyDawnGood(goodId) {
   if (addItem(game.inventory, good.itemId, 1) > 0) return '背包已满，无法购买。'
   game.dawnCoins -= good.price
   return `购买 ${good.name} ×1，花费 ${good.price} 曙光币。`
+}
+
+/** 羁绊商店：提交对应纪念徽章 + 365 曙光币兑换限定武器 */
+export function buyDawnBond(goodId) {
+  if (!dawnReady()) return ''
+  const good = DAWN_BOND_SHOP.find((item) => item.id === goodId)
+  if (!good) return ''
+  if (countItem(game.inventory, good.badgeId) < 1) {
+    return `羁绊商店只认信物：需要「${good.badgeName}」×1 才能兑换 ${good.name}。`
+  }
+  if (game.dawnCoins < good.price) {
+    return `曙光币不足，${good.name} 需要 ${good.price} 枚。`
+  }
+  if (removeItem(game.inventory, good.badgeId, 1) > 0) {
+    return `「${good.badgeName}」扣除失败，背包状态异常。`
+  }
+  const leftover = addItem(game.inventory, good.itemId, 1)
+  if (leftover > 0) {
+    addItem(game.inventory, good.badgeId, 1)
+    return '背包已满，无法兑换。'
+  }
+  game.dawnCoins -= good.price
+  return `你用「${good.badgeName}」和 ${good.price} 曙光币换到了 ${good.name}。`
 }
 
 /** 补办历史最高的曙光徽章 */
@@ -2361,10 +2395,14 @@ export function stealPalace() {
     return '你摸走了一只鼓鼓的钱袋，没人看见：末日币 +3。'
   }
   if (roll < 30) {
+    game.coins += 2
+    return '你从供桌上抽走两枚硬币，塞进袖口：末日币 +2。'
+  }
+  if (roll < 60) {
     game.coins += 1
     return '你从银器柜里摸走一枚末日币：末日币 +1。'
   }
-  if (roll < 60) {
+  if (roll < 80) {
     return '你把手伸进柜子，只摸到一层灰，什么也没偷到。'
   }
 
@@ -2705,7 +2743,7 @@ export function consumeRangedCleanliness() {
   return { current: equipped.cleanliness, empty: equipped.cleanliness <= 0, name: def?.name ?? '' }
 }
 
-/** 都城近战保养：按耐久缺口收费，每 1 币磨回 20% 最大耐久，一次修满 */
+/** 都城近战保养：按耐久缺口与品质收费，一次修满 */
 function repairEquippedMelee(currency, label) {
   const equipped = game.equipment.melee
   if (!equipped) return '你还没有装备近战武器，保养台前空着。'
@@ -2717,17 +2755,17 @@ function repairEquippedMelee(currency, label) {
   const current = Number.isFinite(equipped.durability) ? equipped.durability : max
   if (current >= max) return `「${def?.name ?? '近战武器'}」的刃口还锋利，不需要打磨。`
 
-  const cost = repairCoinCost(current, max)
+  const cost = repairCoinCost(current, max, def?.tier)
   if (game[currency] < cost) {
     return `${label}不足，修复「${def?.name ?? '近战武器'}」需要 ${cost} ${label}。`
   }
 
   game[currency] -= cost
   equipped.durability = max
-  return `你重新打磨上油，「${def?.name ?? '近战武器'}」耐久恢复至 ${max}，花费 ${cost} ${label}（每 ${REPAIR_PERCENT_PER_COIN}% 缺口 1 币）。`
+  return `你重新打磨上油，「${def?.name ?? '近战武器'}」耐久恢复至 ${max}，花费 ${cost} ${label}（${def?.tier ?? '普通'}品质每 ${REPAIR_PERCENT_PER_COIN}% 缺口 ${repairPriceForTier(def?.tier)} 币）。`
 }
 
-/** 曙光远程保养：按清洁度缺口收费，每 1 币擦回 20% 清洁度，一次保养完 */
+/** 曙光远程保养：按清洁度缺口与品质收费，一次保养完 */
 function repairEquippedRanged(currency, label) {
   const equipped = game.equipment.ranged
   if (!equipped) return '你还没有装备远程武器，保养台前空着。'
@@ -2738,14 +2776,14 @@ function repairEquippedRanged(currency, label) {
     return `「${def?.name ?? '远程武器'}」已经很干净，不需要保养。`
   }
 
-  const cost = repairCoinCost(current, CLEANLINESS_MAX)
+  const cost = repairCoinCost(current, CLEANLINESS_MAX, def?.tier)
   if (game[currency] < cost) {
     return `${label}不足，保养「${def?.name ?? '远程武器'}」需要 ${cost} ${label}。`
   }
 
   game[currency] -= cost
   equipped.cleanliness = CLEANLINESS_MAX
-  return `你擦净了「${def?.name ?? '远程武器'}」：清洁度恢复至 ${CLEANLINESS_MAX}，花费 ${cost} ${label}（每 ${REPAIR_PERCENT_PER_COIN}% 缺口 1 币）。`
+  return `你擦净了「${def?.name ?? '远程武器'}」：清洁度恢复至 ${CLEANLINESS_MAX}，花费 ${cost} ${label}（${def?.tier ?? '普通'}品质每 ${REPAIR_PERCENT_PER_COIN}% 缺口 ${repairPriceForTier(def?.tier)} 币）。`
 }
 
 /** 末日城堡集市：只保养近战武器 */
@@ -3305,7 +3343,7 @@ export function buyFlightGood(kind, goodId) {
   return `购买 ${good.name} ×1，花费 ${good.price} 末日币。`
 }
 
-/** 珍宝商店：每天随机一件史诗近战，当天只能买一次 */
+/** 珍宝商店：每天确定一件史诗近战（指虎除外），当天只能买一次 */
 export function buyAirshipTreasure() {
   if (!airshipReady()) return '珍宝商店不在这里。'
   if (Number(game.flags.airshipTreasureBoughtDay) === game.day) return '今天的珍宝已经卖出去了，明天再来。'
@@ -3715,7 +3753,7 @@ export function syncStockMarket() {
   ensureStockMarketDay()
 }
 
-/** 买入股票：按当日价成交，手续费 1%（最低 1 币） */
+/** 买入股票：按当日价成交，手续费 1%（最低 0.1 币） */
 export function buyAirshipStock(stockId, quantity) {
   if (game.dead) return ''
   if (game.location !== AIRSHIP.mapId) return '投资中心在末日飞行船上。'
