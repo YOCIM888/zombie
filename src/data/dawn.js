@@ -86,6 +86,7 @@ export const DAWN_MARKET = [
   },
   {
     id: 'm1911',
+    itemId: 'm1911',
     name: 'M1911',
     price: DAWN_MARKET_PRICES.m1911,
     note: '26 攻击 · 11% 暴击 · 35% 暴伤 · 15% 闪避 · 远程武器',

@@ -18,6 +18,7 @@ export const CITY_MARKET_PRICES = {
   'karambit-classic': 17,
   'baseball-bat': 18,
   'dagger': 20,
+  crowbar: 50,
 }
 
 /** 都城集市：未单独定价的普通近战默认价（末日币） */

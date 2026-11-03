@@ -289,6 +289,13 @@ export const SHOP_GOODS = [
       note: meleeShopNote(item),
     }))
     .sort((a, b) => a.price - b.price),
+  {
+    id: 'crowbar',
+    itemId: 'crowbar',
+    name: '撬棍',
+    price: CITY_MARKET_PRICES.crowbar,
+    note: meleeShopNote(ITEMS.crowbar),
+  },
 ]
 
 /* ===== 都城王宫 ===== */
