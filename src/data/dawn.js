@@ -39,7 +39,7 @@ export const DAWN_JOIN_KILLS = 5
  */
 export const DAWN_MARKET = [
   { id: 'bandage', itemId: 'bandage', name: '绷带', price: DAWN_MARKET_PRICES.bandage, note: '生命 +30' },
-  { id: 'tourniquet', itemId: 'tourniquet', name: '止血带', price: DAWN_MARKET_PRICES.tourniquet, note: '生命 +20' },
+  { id: 'painkiller', itemId: 'painkiller', name: '止痛药', price: DAWN_MARKET_PRICES.painkiller, note: '理智 +30' },
   { id: 'canned-meat', itemId: 'canned-meat', name: '肉罐头', price: DAWN_MARKET_PRICES['canned-meat'], note: '饱食 +30' },
   { id: 'canned-fish', itemId: 'canned-fish', name: '鱼罐头', price: DAWN_MARKET_PRICES['canned-fish'], note: '饱食 +30' },
   {
