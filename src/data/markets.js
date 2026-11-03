@@ -51,8 +51,10 @@ export const DAWN_MARKET_PRICES = {
   'canned-fish': 1,
   'hunting-bow': 19,
   glock: 20,
+  pm: 20,
   usp: 21,
   cz75: 22,
+  'luger-08': 24,
   m1911: 28,
 }
 
@@ -84,7 +86,7 @@ export const AIRSHIP_DRINK_FOOD_PRICING = {
   base: 3,
   divisor: 10,
   min: 3,
-  max: 8,
+  max: 15,
 }
 
 /** 药品：base + 效果绝对值和 ÷ divisor，限制在 min–max（末日币） */
@@ -92,7 +94,7 @@ export const AIRSHIP_MEDICINE_PRICING = {
   base: 5,
   divisor: 15,
   min: 5,
-  max: 10,
+  max: 15,
 }
 
 /** 稀有 / 精良近战：base + 攻击 + 暴伤 × critDamageFactor，限制在 min–max（末日币） */

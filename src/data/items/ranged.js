@@ -27,21 +27,21 @@ const RANGED_LIST = [
   ranged('glock', 'Glock', '普通', {
     attack: 20, crit: 0.1, critDamage: 1.28, dodge: 0.16,
   }, '没有多余的保险，拔出来就能扣，剩下只看手稳不稳。'),
+  ranged('pm', 'PM', '普通', {
+    attack: 20, crit: 0.08, critDamage: 1.28, dodge: 0.18,
+  }, '马卡洛夫手枪，握把上的红星磨得只剩一点轮廓，弹匣里还压着八发。'),
   ranged('usp', 'USP', '普通', {
     attack: 21, crit: 0.12, critDamage: 1.3, dodge: 0.18,
   }, '枪身上刻过使用者的名字，大半已经被划掉了。'),
   ranged('cz75', 'CZ75', '普通', {
     attack: 22, crit: 0.12, critDamage: 1.3, dodge: 0.18,
   }, '握把磨得发亮，弹匣里的簧片有点松，但还能打。'),
-  ranged('m1911', 'M1911', '普通', {
-    attack: 26, crit: 0.11, critDamage: 1.35, dodge: 0.15,
-  }, '老式击锤手枪，后坐力顶得手腕发麻，声音却让人安心。'),
-  ranged('pm', 'PM', '普通', {
-    attack: 20, crit: 0.08, critDamage: 1.28, dodge: 0.18,
-  }, '马卡洛夫手枪，握把上的红星磨得只剩一点轮廓，弹匣里还压着八发。'),
   ranged('luger-08', '鲁格08', '普通', {
     attack: 24, crit: 0.14, critDamage: 1.32, dodge: 0.17,
   }, '肘节式枪机抬起来的声音很轻，木柄磨得发亮，像从旧照片里走出来的枪。'),
+  ranged('m1911', 'M1911', '普通', {
+    attack: 26, crit: 0.11, critDamage: 1.35, dodge: 0.15,
+  }, '老式击锤手枪，后坐力顶得手腕发麻，声音却让人安心。'),
 
   /* ===== 稀有 ===== */
   ranged('mac10', 'MAC10', '稀有', {
