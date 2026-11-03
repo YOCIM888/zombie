@@ -1189,6 +1189,19 @@ function closePanel() {
               出发 · 私奔
             </button>
           </template>
+          <template v-if="garageDeparted">
+            <div class="chips">
+              <span>汽油 {{ gasolineCount }}</span>
+              <span>每 2 回合 +1 桶</span>
+            </div>
+            <button
+              type="button"
+              class="btn btn--primary extra__action"
+              @click="run(stealGarageGasoline)"
+            >
+              偷取汽油 · 2 回合
+            </button>
+          </template>
         </article>
 
         <article v-else-if="view === 'lulu'" class="extra">

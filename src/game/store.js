@@ -1262,11 +1262,11 @@ export function countGasoline() {
   return countItem(game.inventory, GARAGE.gasolineId)
 }
 
-function garageGuard() {
+function garageGuard({ allowDeparted = false } = {}) {
   if (game.dead) return ''
   if (game.location !== GARAGE.mapId) return '地下车库在核心商圈负一层。'
   if (!game.flags[GARAGE.requiresFlag]) return GARAGE.lockedLine
-  if (game.flags.garageDeparted) return GARAGE.departedLine
+  if (game.flags.garageDeparted && !allowDeparted) return GARAGE.departedLine
   return null
 }
 
@@ -1305,9 +1305,9 @@ export function searchGarageKey() {
   return '你在第三辆车的遮阳板后面摸到一把车钥匙。'
 }
 
-/** 第三段：从油桶里偷取汽油 */
+/** 第三段：从油桶里偷取汽油（达成私奔结局后仍可继续偷油） */
 export function stealGarageGasoline() {
-  const blocked = garageGuard()
+  const blocked = garageGuard({ allowDeparted: true })
   if (blocked !== null) return blocked
   if (!game.flags.garageOpened) return '得先撬开卷帘门。'
 
