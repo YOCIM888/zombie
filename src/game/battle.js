@@ -344,8 +344,11 @@ function hasAbility(key) {
 function attackBlocked() {
   if (battle.tripped) {
     battle.tripped = false
-    pushLog('你被绊了个踉跄，灰头土脸地爬起来，没能出手。')
-    return true
+    if (Math.random() < ABILITY.tripSkip) {
+      pushLog('你被绊了个踉跄，灰头土脸地爬起来，没能出手。')
+      return true
+    }
+    pushLog('你挣开缠住双腿的手，稳住了身形。')
   }
   if (battle.blinded) {
     battle.blinded = false

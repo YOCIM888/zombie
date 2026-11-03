@@ -43,6 +43,13 @@ export const DAWN_MARKET = [
   { id: 'canned-meat', itemId: 'canned-meat', name: '肉罐头', price: DAWN_MARKET_PRICES['canned-meat'], note: '饱食 +30' },
   { id: 'canned-fish', itemId: 'canned-fish', name: '鱼罐头', price: DAWN_MARKET_PRICES['canned-fish'], note: '饱食 +30' },
   {
+    id: 'hunting-bow',
+    itemId: 'hunting-bow',
+    name: '猎弓',
+    price: DAWN_MARKET_PRICES['hunting-bow'],
+    note: '20 攻击 · 14% 暴击 · 35% 暴伤 · 22% 闪避 · 远程武器',
+  },
+  {
     id: 'glock',
     itemId: 'glock',
     name: 'Glock',
@@ -50,11 +57,11 @@ export const DAWN_MARKET = [
     note: '20 攻击 · 10% 暴击 · 28% 暴伤 · 16% 闪避 · 远程武器',
   },
   {
-    id: 'hunting-bow',
-    itemId: 'hunting-bow',
-    name: '猎弓',
-    price: DAWN_MARKET_PRICES['hunting-bow'],
-    note: '20 攻击 · 14% 暴击 · 35% 暴伤 · 22% 闪避 · 远程武器',
+    id: 'pm',
+    itemId: 'pm',
+    name: 'PM',
+    price: DAWN_MARKET_PRICES.pm,
+    note: '20 攻击 · 8% 暴击 · 28% 暴伤 · 18% 闪避 · 远程武器',
   },
   {
     id: 'usp',
@@ -71,8 +78,14 @@ export const DAWN_MARKET = [
     note: '22 攻击 · 12% 暴击 · 30% 暴伤 · 18% 闪避 · 远程武器',
   },
   {
+    id: 'luger-08',
+    itemId: 'luger-08',
+    name: 'Luger 08',
+    price: DAWN_MARKET_PRICES['luger-08'],
+    note: '24 攻击 · 14% 暴击 · 32% 暴伤 · 17% 闪避 · 远程武器',
+  },
+  {
     id: 'm1911',
-    itemId: 'm1911',
     name: 'M1911',
     price: DAWN_MARKET_PRICES.m1911,
     note: '26 攻击 · 11% 暴击 · 35% 暴伤 · 15% 闪避 · 远程武器',

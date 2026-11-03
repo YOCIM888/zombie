@@ -73,9 +73,9 @@ export const FIELD_MAPS = [
     '枯黄的田埂围着几间塌了半边的农舍，院里的果树还挂着没人摘的果子。',
     0.16,
     'low',
-    { fruit: 45, melee: 30, food: 10, medicine: 5, drink: 10 },
+    { fruit: 40, melee: 35, food: 10, medicine: 5, drink: 10 },
     { fruit: 20, food: 30, drink: 20, medicine: 15, melee: 15 },
-    { 普通: 75, 稀有: 25 },
+    { 普通: 66, 稀有: 34 },
     '水果为主，近战武器只出普通 / 稀有',
   ),
   map(
@@ -89,7 +89,7 @@ export const FIELD_MAPS = [
     'low',
     { food: 30, fruit: 25, drink: 20, medicine: 10, melee: 15 },
     { food: 30, drink: 30, fruit: 15, medicine: 15, melee: 10 },
-    { 普通: 70, 稀有: 30 },
+    { 普通: 65, 稀有: 35 },
     '食物、饮品与水果均衡，武器品质普通 / 稀有',
   ),
   map(
@@ -173,7 +173,7 @@ export const FIELD_MAPS = [
     'extreme',
     { medicine: 30, ranged: 30, melee: 20, fruit: 10, drink: 5, food: 5 },
     { medicine: 30, ranged: 30, melee: 20, food: 10, drink: 10 },
-    { 普通: 10, 稀有: 20, 精良: 30, 史诗: 28, 传说: 10, 神话: 2 },
+    { 普通: 10, 稀有: 21, 精良: 35, 史诗: 25, 传说: 8, 神话: 1 },
     '药品与武器混合，可出神话',
   ),
   map(
@@ -187,7 +187,7 @@ export const FIELD_MAPS = [
     'hell',
     { ranged: 35, medicine: 25, melee: 25, food: 5, drink: 5, fruit: 5 },
     { ranged: 35, medicine: 25, melee: 25, food: 10, drink: 5 },
-    { 普通: 5, 稀有: 15, 精良: 25, 史诗: 30, 传说: 18, 神话: 7 },
+    { 普通: 5, 稀有: 15, 精良: 30, 史诗: 35, 传说: 12, 神话: 3 },
     '全图最高品质，神话武器占比最高',
   ),
 ]
