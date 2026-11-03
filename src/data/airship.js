@@ -389,7 +389,7 @@ export const AIRSHIP_SHOP_GOODS = {
     drinkOrFoodPrice,
   ),
   restaurant: buildGoods(
-    ALL_ITEMS.filter((item) => item.category === 'food' && !item.limited),
+    ALL_ITEMS.filter((item) => item.category === 'food' && !item.limited && !item.special),
     drinkOrFoodPrice,
   ),
   medical: buildGoods(

@@ -42,11 +42,11 @@ const MELEE_SFX = {
 }
 
 const RANGED_SFX = {
-  pistol: idsFor(['cz75', 'glock', 'm1911', 'usp', 'fn57', 'gp100', 'desert-eagle', 'blood-raven']),
+  pistol: idsFor(['cz75', 'glock', 'm1911', 'usp', 'fn57', 'gp100', 'desert-eagle', 'blood-raven', 'pm', 'luger-08']),
   smg: idsFor(['mac10', 'mp5', 'uzi', 'ump45', 'victor']),
-  rifle: idsFor(['m4a1', 'ar15', 'akm', 'mini14', 'aug', 'scar', 'royal-lance']),
-  sniper: idsFor(['m700', 'mosin', 't3x', 'awm', 'daylight-sniper']),
-  shotgun: idsFor(['m870', 'aa12', 'meteor-shotgun']),
+  rifle: idsFor(['m4a1', 'ar15', 'akm', 'mini14', 'aug', 'scar', 'royal-lance', 'fal', 'hk416', 'm14']),
+  sniper: idsFor(['m700', 'mosin', 't3x', 'awm', 'daylight-sniper', 'svd', 'm82a1']),
+  shotgun: idsFor(['m870', 'aa12', 'meteor-shotgun', 'henry-lever']),
   soft: idsFor(['hunting-bow', 'compound-bow', 'crossbow']),
 }
 

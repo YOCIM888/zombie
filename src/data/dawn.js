@@ -39,7 +39,7 @@ export const DAWN_JOIN_KILLS = 5
  */
 export const DAWN_MARKET = [
   { id: 'bandage', itemId: 'bandage', name: '绷带', price: DAWN_MARKET_PRICES.bandage, note: '生命 +30' },
-  { id: 'tourniquet', itemId: 'tourniquet', name: '止血带', price: DAWN_MARKET_PRICES.tourniquet, note: '生命 +10 · 理智 +10' },
+  { id: 'tourniquet', itemId: 'tourniquet', name: '止血带', price: DAWN_MARKET_PRICES.tourniquet, note: '生命 +20' },
   { id: 'canned-meat', itemId: 'canned-meat', name: '肉罐头', price: DAWN_MARKET_PRICES['canned-meat'], note: '饱食 +30' },
   { id: 'canned-fish', itemId: 'canned-fish', name: '鱼罐头', price: DAWN_MARKET_PRICES['canned-fish'], note: '饱食 +30' },
   {
@@ -312,10 +312,10 @@ const ALCOHOL_DRINKS = [
   'whiskey',
 ]
 
-/** 苏涵的配餐：全部食物 + 非酒精饮品，排除限定物品 */
+/** 苏涵的配餐：全部食物 + 非酒精饮品，排除限定与特殊物品 */
 export function pickDawnMeal() {
   const pool = Object.values(ITEMS).filter((item) => {
-    if (item.limited) return false
+    if (item.limited || item.special) return false
     if (item.category === 'food') return true
     if (item.category !== 'drink') return false
     return !ALCOHOL_DRINKS.includes(item.id)

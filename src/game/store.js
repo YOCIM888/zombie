@@ -1731,6 +1731,21 @@ export function takeDevHealingGift() {
   return '游戏开发者推来一箱医疗物资：绷带 20、止痛药 20、止血带 20。「这次不用缝。」'
 }
 
+/** 一次性糖果礼包：开发者糖果 ×6 */
+export function takeDevCandyGift() {
+  const blocked = devGuard()
+  if (blocked !== null) return blocked
+  if (game.flags.devCandyGiftTaken) return '糖果礼包已经领过了。'
+  if (!canStoreItems(game.inventory, DEV_SHOP.candyItems)) {
+    return '背包放不下这份糖果，先腾出几格再来。'
+  }
+  for (const item of DEV_SHOP.candyItems) {
+    addItem(game.inventory, item.id, item.qty)
+  }
+  game.flags.devCandyGiftTaken = true
+  return '游戏开发者推来一袋糖果：开发者糖果 ×6。「甜的东西，至少不会咬你。」'
+}
+
 /** 背包扩容：按当前容量分段收费，每次增加 10 格，上限 200 格 */
 export function expandBackpack() {
   const blocked = devGuard()

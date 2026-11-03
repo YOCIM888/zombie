@@ -600,7 +600,7 @@ export const EXPLORE_BRANCH = { food: 33, drink: 33 }
 
 export function exploreLootPool(category) {
   return Object.values(ITEMS).filter(
-    (item) => item.category === category && !item.fruit && !item.limited,
+    (item) => item.category === category && !item.fruit && !item.limited && !item.special,
   )
 }
 

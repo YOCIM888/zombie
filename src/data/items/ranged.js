@@ -36,6 +36,12 @@ const RANGED_LIST = [
   ranged('m1911', 'M1911', '普通', {
     attack: 26, crit: 0.11, critDamage: 1.35, dodge: 0.15,
   }, '老式击锤手枪，后坐力顶得手腕发麻，声音却让人安心。'),
+  ranged('pm', 'PM', '普通', {
+    attack: 20, crit: 0.08, critDamage: 1.28, dodge: 0.18,
+  }, '马卡洛夫手枪，握把上的红星磨得只剩一点轮廓，弹匣里还压着八发。'),
+  ranged('luger-08', '鲁格08', '普通', {
+    attack: 24, crit: 0.14, critDamage: 1.32, dodge: 0.17,
+  }, '肘节式枪机抬起来的声音很轻，木柄磨得发亮，像从旧照片里走出来的枪。'),
 
   /* ===== 稀有 ===== */
   ranged('mac10', 'MAC10', '稀有', {
@@ -79,6 +85,12 @@ const RANGED_LIST = [
   ranged('mini14', 'Mini14', '精良', {
     attack: 74, crit: 0.28, critDamage: 1.65, dodge: 0.26,
   }, '轻便的射手步枪，适合从二楼窗口点射。'),
+  ranged('henry-lever', '亨利杠杆', '精良', {
+    attack: 82, crit: 0.14, critDamage: 1.6, dodge: 0.18,
+  }, '杠杆护木一压一推，鹿弹在弹仓里滚得很沉，近身时一枪能把门口清空。'),
+  ranged('fal', 'FAL', '精良', {
+    attack: 84, crit: 0.26, critDamage: 1.7, dodge: 0.22,
+  }, '冷战的旧骨头，木质护木换成了聚合物，点射时枪身只轻轻一顶。'),
   ranged('m700', 'M700', '精良', {
     attack: 88, crit: 0.34, critDamage: 1.7, dodge: 0.22,
   }, '栓动步枪，拉机柄要用力才顺畅，准得让人上瘾。'),
@@ -93,6 +105,12 @@ const RANGED_LIST = [
   ranged('scar', 'SCAR', '史诗', {
     attack: 105, crit: 0.28, critDamage: 1.85, dodge: 0.3,
   }, '战斗步枪，枪身泛着哑光的沙色，弹壳落得很重。'),
+  ranged('m14', 'M14', '史诗', {
+    attack: 108, crit: 0.32, critDamage: 1.82, dodge: 0.24,
+  }, '打磨过的胡桃木托，机械瞄具改成了觇孔，远距离一枪一枪地咬。'),
+  ranged('svd', 'SVD', '史诗', {
+    attack: 108, crit: 0.34, critDamage: 1.88, dodge: 0.22,
+  }, '光学瞄具的镜片有一条细裂，侧面的导轨上还挂着褪色的编号牌。'),
   ranged('mosin', '莫辛纳甘', '史诗', {
     attack: 112, crit: 0.36, critDamage: 1.85, dodge: 0.2,
   }, '一把比爷爷还老的栓动枪，木托上刻满划痕。'),
@@ -101,6 +119,9 @@ const RANGED_LIST = [
   ranged('victor', 'Victor', '传说', {
     attack: 104, crit: 0.4, critDamage: 2, dodge: 0.4,
   }, '短行程后坐，枪声像一声压低的哨响，弹着点几乎连成一线。'),
+  ranged('hk416', 'HK416', '传说', {
+    attack: 118, crit: 0.36, critDamage: 2, dodge: 0.36,
+  }, '活塞短行程，导轨上还留着没撕干净的胶带，连发时像一台不肯停的机器。'),
   ranged('t3x', 'T3X', '传说', {
     attack: 122, crit: 0.4, critDamage: 2, dodge: 0.26,
   }, '轻量栓动枪，枪托上贴着早已褪色的狩猎许可。'),
@@ -112,6 +133,9 @@ const RANGED_LIST = [
   ranged('awm', 'AWM', '神话', {
     attack: 175, crit: 0.48, critDamage: 2.25, dodge: 0.36,
   }, '军方留下的最后一批狙击枪，弹盒上写着一行字：只为一个人准备。'),
+  ranged('m82a1', 'M82A1', '神话', {
+    attack: 205, crit: 0.45, critDamage: 2.35, dodge: 0.18,
+  }, '十二点七毫米的枪管比人还长，制退器压在肩上，开火时整栋楼都会听见。'),
 
   /* ===== 限定 ===== */
   ranged('blood-raven', '爆能手枪-血鸦', '限定', {

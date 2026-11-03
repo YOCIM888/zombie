@@ -72,6 +72,7 @@ import {
   submitGenerator,
   submitMermaidDrink,
   submitSupplies,
+  takeDevCandyGift,
   takeDevHealingGift,
   takeDevKnightGift,
   takeDevNoviceGift,
@@ -170,8 +171,9 @@ const mermaidHint = computed(() => {
 const noviceGiftTaken = computed(() => Boolean(game.flags.devNoviceGiftTaken))
 const knightGiftTaken = computed(() => Boolean(game.flags.devKnightGiftTaken))
 const healingGiftTaken = computed(() => Boolean(game.flags.devHealingGiftTaken))
+const candyGiftTaken = computed(() => Boolean(game.flags.devCandyGiftTaken))
 const devGiftTaken = computed(
-  () => noviceGiftTaken.value && knightGiftTaken.value && healingGiftTaken.value,
+  () => noviceGiftTaken.value && knightGiftTaken.value && healingGiftTaken.value && candyGiftTaken.value,
 )
 const devDuelWon = computed(() => Boolean(game.flags[DEV_SHOP.duel.doneFlag]))
 const devMenuTag = computed(() => {
@@ -991,6 +993,29 @@ function closePanel() {
               @click="run(takeDevHealingGift)"
             >
               领取治疗礼包
+            </button>
+          </div>
+
+          <div class="dev-gift">
+            <header class="extra__head">
+              <h4 class="extra__title">领取糖果礼包</h4>
+              <span class="extra__tag">{{ candyGiftTaken ? '已领取' : '一次性' }}</span>
+            </header>
+            <div class="chips">
+              <span>开发者糖果 ×6</span>
+              <span>每颗饱食 +100</span>
+              <span>不进入任何掉落池</span>
+            </div>
+            <p v-if="candyGiftTaken" class="extra__desc">
+              一袋糖果已经塞进你的背包。
+            </p>
+            <button
+              v-else
+              type="button"
+              class="btn btn--primary extra__action"
+              @click="run(takeDevCandyGift)"
+            >
+              领取糖果礼包
             </button>
           </div>
 

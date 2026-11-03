@@ -11,7 +11,7 @@ const CATEGORY_LABELS = {
   ranged: '远程武器',
 }
 
-const FOOD_POOL = Object.values(ITEMS).filter((item) => item.category === 'food' && !item.fruit && !item.limited)
+const FOOD_POOL = Object.values(ITEMS).filter((item) => item.category === 'food' && !item.fruit && !item.limited && !item.special)
 const FRUIT_POOL = Object.values(ITEMS).filter((item) => item.fruit && !item.limited)
 const DRINK_POOL = Object.values(ITEMS).filter((item) => item.category === 'drink' && !item.limited)
 const MEDICINE_POOL = Object.values(ITEMS).filter((item) => item.category === 'medicine' && !item.limited)
@@ -509,6 +509,9 @@ export const DEV_SHOP = {
     { id: 'bandage', qty: 20 },
     { id: 'painkiller', qty: 20 },
     { id: 'tourniquet', qty: 20 },
+  ],
+  candyItems: [
+    { id: 'dev-candy', qty: 6 },
   ],
   duel: {
     id: 'dev-duel',
