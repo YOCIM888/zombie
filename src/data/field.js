@@ -190,9 +190,58 @@ export const FIELD_MAPS = [
     { 普通: 5, 稀有: 15, 精良: 30, 史诗: 35, 传说: 12, 神话: 3 },
     '全图最高品质，神话武器占比最高',
   ),
+  map(
+    'long-beach-harbor',
+    '长滩海港',
+    'LV. 12',
+    '绝对禁区',
+    5,
+    '防波堤断成几截，搁浅的货轮倾在浅滩上，集装箱门半开，里面传出海水也盖不住的声音。',
+    0.68,
+    'harbor',
+    { food: 20, drink: 20, medicine: 10, ranged: 25, melee: 15, fruit: 10 },
+    { food: 20, drink: 25, medicine: 15, ranged: 20, melee: 15, fruit: 5 },
+    { 普通: 5, 稀有: 15, 精良: 30, 史诗: 30, 传说: 15, 神话: 5 },
+    '海货与饮品充足，远程武器占比高，可出神话',
+  ),
+  map(
+    'biochemical-nest',
+    '生化巢穴',
+    'LV. 13',
+    '绝对禁区',
+    5,
+    '地下实验室的闸门早已失效，培养槽一列列裂开，地面覆着一层缓慢起伏的菌毯。',
+    0.75,
+    'nest',
+    { medicine: 35, ranged: 25, melee: 20, food: 5, drink: 5, fruit: 10 },
+    { medicine: 40, ranged: 25, melee: 15, food: 10, drink: 10 },
+    { 稀有: 15, 精良: 28, 史诗: 32, 传说: 17, 神话: 8 },
+    '药品与高品阶武器集中，神话概率最高，感染风险极高',
+  ),
 ]
 
 export const FIELD_MAP_BY_ID = Object.fromEntries(FIELD_MAPS.map((item) => [item.id, item]))
+
+/** 长滩海港·巨型邮轮：杀害船长的十轮死斗 */
+export const HARBOR_MUTINY = {
+  mapId: 'long-beach-harbor',
+  crewCount: 9,
+  crewName: '船员死士',
+  crewImage: '/image/主角与NPC立绘/船员死士.webp',
+  crewDescription:
+    '船员们把舷梯堵死，手里握着拆下来的消防斧和撬棍。他们已经不打算让船离开。',
+  crewHpMin: 150,
+  crewHpMax: 200,
+  crewAttackMin: 20,
+  crewAttackMax: 30,
+  captainId: 'alex',
+  finale: '油轮沉没',
+  banDays: 365,
+  banMapIds: ['ruined-city', 'dawn-post', 'utopia-city'],
+  startLine: '你拔枪时，舷梯两侧的船员同时站了起来。没有人说话，但每个人都堵住了退路。',
+  captainDeathLine:
+    '亚历克斯靠在驾驶台上，舱单从指间滑落。船体深处传来第一声闷响——有人已经点燃了炸药。',
+}
 
 export function fieldMapById(id) {
   return FIELD_MAP_BY_ID[id] ?? null
@@ -496,8 +545,8 @@ export const DEV_SHOP = {
   noviceItems: [
     { id: 'panacea', qty: 5 },
     { id: 'anti-infection-shot', qty: 5 },
-    { id: 'canned-beans', qty: 30 },
-    { id: 'cranberry', qty: 30 },
+    { id: 'canned-beans', qty: 20 },
+    { id: 'cranberry', qty: 20 },
     { id: 'dagger', qty: 1 },
     { id: 'glock', qty: 1 },
   ],
@@ -506,27 +555,17 @@ export const DEV_SHOP = {
     { id: 'brandy', qty: 10 },
   ],
   healingItems: [
-    { id: 'bandage', qty: 20 },
-    { id: 'painkiller', qty: 20 },
-    { id: 'tourniquet', qty: 20 },
+    { id: 'bandage', qty: 10 },
+    { id: 'painkiller', qty: 10 },
+    { id: 'tourniquet', qty: 10 },
   ],
   candyItems: [
-    { id: 'dev-candy', qty: 6 },
+    { id: 'dev-candy', qty: 10 },
   ],
   duel: {
-    id: 'dev-duel',
-    name: '游戏开发者',
-    hp: 99999,
-    attack: 1,
-    dodge: 0,
-    infection: 0,
-    abilities: [],
-    description:
-      '他给自己挂了一条测试用的血条，又把十字剑放在桌子对面。「放心，我只用一点力。」',
+    npcId: 'game-developer',
     rewardItemId: 'crusader-cross-sword',
     doneFlag: 'devDuelWon',
-    intro: '开发者把键盘推开，站到了桌子对面。血条长得像一条不会结束的进度线。',
-    victoryLine: '开发者的血条终于见底。他把十字剑-圣战推到你面前，甩了甩手腕。',
   },
   expandSteps: 10,
   expandLimit: 200,

@@ -16,13 +16,18 @@ const STAT_LABELS = {
 
 const options = [REST_OPTIONS.nap, REST_OPTIONS.sleep]
 const clock = computed(() => `第 ${game.day} 天 · 安全屋`)
+const hasFairyGem = computed(() =>
+  game.inventory.some((entry) => entry?.id === 'fairy-gem'),
+)
 
 function effects(option) {
-  return Object.entries(option.effects).map(([key, value]) => ({
-    label: STAT_LABELS[key] ?? key,
-    text: `${value > 0 ? '+' : ''}${value}%`,
-    positive: value > 0,
-  }))
+  return Object.entries(option.effects)
+    .filter(([, value]) => !hasFairyGem.value || value > 0)
+    .map(([key, value]) => ({
+      label: STAT_LABELS[key] ?? key,
+      text: `${value > 0 ? '+' : ''}${value}%`,
+      positive: value > 0,
+    }))
 }
 
 function rest(kind) {
@@ -33,6 +38,9 @@ function rest(kind) {
 
 <template>
   <ModalShell title="睡觉" :sub="clock" @close="$emit('close')">
+    <p v-if="hasFairyGem" class="rest-note">
+      精灵宝石生效：小憩与睡觉不再扣除饱食和口渴。
+    </p>
     <div class="rests">
       <article v-for="option in options" :key="option.id" class="rest">
         <header class="rest__head">
@@ -60,6 +68,17 @@ function rest(kind) {
 </template>
 
 <style scoped>
+.rest-note {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-left: 2px solid rgba(205, 185, 141, 0.5);
+  background: rgba(205, 185, 141, 0.06);
+  font-size: 10.5px;
+  line-height: 1.7;
+  letter-spacing: 0.03em;
+  color: var(--rust-soft);
+}
+
 .rests {
   display: grid;
   grid-template-columns: 1fr 1fr;

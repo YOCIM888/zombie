@@ -59,6 +59,18 @@ const FOOD_LIST = [
       special: true,
     }),
 
+  /* ===== 深海：不进入常规探索池 ===== */
+  food('mutant-fish', '变异鱼肉', {
+    hunger: 30, thirst: 30, stamina: 100, sanity: -80, infection: 80,
+  }, '鱼肉泛着不自然的蓝光，入口后胃里像有什么东西在慢慢苏醒。', {
+    special: true,
+  }),
+  food('safe-fish', '无害化鱼肉', {
+    hunger: 30, thirst: 30, stamina: 50,
+  }, '处理过的鱼肉不再发蓝，煎熟后只剩正常的腥香。', {
+    special: true,
+  }),
+
   /* ===== 限定 ===== */
   food('royal-dessert', '皇家甜点', { hunger: 60, hp: 60, infection: -60 },
     '奶油上压着王宫的家徽，甜得几乎不像末日里的东西。', {

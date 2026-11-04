@@ -1,19 +1,23 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { BACKGROUND_IMAGE, DEFAULT_CHARACTER_NAME, STAT_DEFS, STAT_MAX } from '../game/config'
+import { BACKGROUND_IMAGE, DEFAULT_CHARACTER_NAME, STAT_DEFS } from '../game/config'
 import { AIRSHIP, FINALES, fieldMapById, formatMoney } from '../data'
 import {
   currentPhase,
   currentPlaytime,
+  dismissTradeNotice,
   game,
   leaveMap,
   leaveToMenu,
   notify,
   renameCharacter,
   saveToSlot,
+  statCap,
   tickPlaytime,
+  tradeNotice,
 } from '../game/store'
 import { flushGlobalStats } from '../game/save'
+import { battle } from '../game/battle'
 import { formatDuration } from '../game/format'
 import ModalShell from './ModalShell.vue'
 import ExplorePanel from './ExplorePanel.vue'
@@ -26,7 +30,9 @@ import NotebookPanel from './NotebookPanel.vue'
 import InventoryPanel from './InventoryPanel.vue'
 import SavePanel from './SavePanel.vue'
 import SleepPanel from './SleepPanel.vue'
+import StatusHud from './StatusHud.vue'
 import SurvivalAlerts from './SurvivalAlerts.vue'
+import UtopiaPanel from './UtopiaPanel.vue'
 import DevConsole from './DevConsole.vue'
 
 const panel = ref('')
@@ -77,6 +83,8 @@ function openRegion() {
     panel.value = 'city'
   } else if (game.location === AIRSHIP.mapId) {
     panel.value = 'airship'
+  } else if (game.location === 'utopia-city') {
+    panel.value = 'utopia'
   } else if (fieldMapById(game.location)) {
     panel.value = 'field'
   } else {
@@ -124,7 +132,7 @@ function finishAndLeave() {
 }
 
 function percentOf(key) {
-  return Math.max(0, Math.min(100, (game.stats[key] / STAT_MAX) * 100))
+  return Math.max(0, Math.min(100, (game.stats[key] / statCap(key)) * 100))
 }
 </script>
 
@@ -138,19 +146,26 @@ function percentOf(key) {
       <header class="hud panel">
         <div class="hud__top">
           <div class="identity">
-            <span class="eyebrow">幸存者档案</span>
-            <div class="identity__row">
-              <h1 class="identity__name">{{ game.character }}</h1>
-              <button type="button" class="identity__rename" @click="openRename">改名</button>
-              <span class="identity__tag">存档 {{ slotLabel }}</span>
-              <span v-if="game.identity" class="identity__tag">身份 · {{ game.identity }}</span>
-              <span v-if="game.dawnIdentity" class="identity__tag">曙光 · {{ game.dawnIdentity }}</span>
+            <img
+              class="identity__avatar"
+              src="/image/主角与NPC立绘/主角头像.webp"
+              :alt="`${game.character}的头像`"
+            />
+            <div class="identity__main">
+              <span class="eyebrow">幸存者档案</span>
+              <div class="identity__row">
+                <h1 class="identity__name">{{ game.character }}</h1>
+                <button type="button" class="identity__rename" @click="openRename">改名</button>
+                <span class="identity__tag">存档 {{ slotLabel }}</span>
+                <span v-if="game.identity" class="identity__tag">身份 · {{ game.identity }}</span>
+                <span v-if="game.dawnIdentity" class="identity__tag">曙光 · {{ game.dawnIdentity }}</span>
+              </div>
+              <p class="identity__meta">
+                第 {{ game.day }} 天 · {{ currentPhase }} · 本次游玩
+                {{ formatDuration(currentPlaytime, { withSeconds: false }) }} · 累计击杀
+                {{ game.zombieKills }} 丧尸
+              </p>
             </div>
-            <p class="identity__meta">
-              第 {{ game.day }} 天 · {{ currentPhase }} · 本次游玩
-              {{ formatDuration(currentPlaytime, { withSeconds: false }) }} · 累计击杀
-              {{ game.zombieKills }} 丧尸
-            </p>
           </div>
 
           <div class="hud__right">
@@ -166,7 +181,7 @@ function percentOf(key) {
             <div class="gauge__head">
               <span class="gauge__label">{{ stat.label }}</span>
               <span class="gauge__value">
-                {{ game.stats[stat.key] }}<em>/{{ STAT_MAX }}</em>
+                {{ game.stats[stat.key] }}<em>/{{ statCap(stat.key) }}</em>
               </span>
             </div>
             <div class="gauge__track">
@@ -296,6 +311,7 @@ function percentOf(key) {
     <DawnPanel v-else-if="panel === 'dawn'" @close="closeCity" />
     <FieldPanel v-else-if="panel === 'field'" @close="closeCity" @travel="panel = 'airship'" />
     <AirshipPanel v-else-if="panel === 'airship'" @close="closeCity" />
+    <UtopiaPanel v-else-if="panel === 'utopia'" @close="closeCity" />
     <CompanionPanel v-else-if="panel === 'companion'" @close="panel = ''" />
     <NotebookPanel v-else-if="panel === 'notebook'" @close="panel = ''" />
     <SleepPanel v-else-if="panel === 'sleep'" @close="panel = ''" />
@@ -383,6 +399,32 @@ function percentOf(key) {
       </template>
     </ModalShell>
 
+    <ModalShell
+      v-if="tradeNotice.sales.length && !battle.active && !game.dead"
+      title="自由贸易 · 售出通知"
+      :sub="`第 ${tradeNotice.day} 天结算`"
+      @close="dismissTradeNotice()"
+    >
+      <div class="trade-notice">
+        <p class="trade-notice__lead">你在自由贸易托管的东西卖出去了。</p>
+        <ul class="trade-notice__list">
+          <li v-for="(sale, index) in tradeNotice.sales" :key="index">
+            <span>{{ sale.name }}</span>
+            <span>{{ sale.price }} 末日币</span>
+          </li>
+        </ul>
+        <p class="trade-notice__total">
+          合计 {{ tradeNotice.total }} 末日币，已记入自由贸易待领取收入。
+        </p>
+      </div>
+      <template #footer>
+        <span>前往乌托邦城 · 自由贸易领取</span>
+        <button type="button" class="btn btn--primary" @click="dismissTradeNotice()">
+          知道了
+        </button>
+      </template>
+    </ModalShell>
+
     <DevConsole v-if="showDevConsole" @close="showDevConsole = false" />
   </main>
 </template>
@@ -436,6 +478,27 @@ function percentOf(key) {
   gap: 20px;
   padding-bottom: 14px;
   border-bottom: 1px solid var(--line);
+}
+
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.identity__avatar {
+  width: 72px;
+  height: 72px;
+  flex: none;
+  object-fit: cover;
+  border: 1px solid var(--line-strong);
+  background: rgba(0, 0, 0, 0.4);
+  filter: saturate(0.9) contrast(1.05);
+}
+
+.identity__main {
+  min-width: 0;
 }
 
 .identity__row {
@@ -839,6 +902,54 @@ function percentOf(key) {
   margin-left: auto;
 }
 
+/* 自由贸易结算 */
+
+.trade-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.trade-notice__lead {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.8;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+
+.trade-notice__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border: 1px solid var(--line);
+  background: var(--line);
+}
+
+.trade-notice__list li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  background: #0d0f10;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+  color: var(--bone);
+}
+
+.trade-notice__total {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  color: var(--rust-soft);
+}
+
 /* 死亡 */
 
 .death {
@@ -973,6 +1084,11 @@ function percentOf(key) {
 
   .identity__name {
     font-size: 18px;
+  }
+
+  .identity__avatar {
+    width: 56px;
+    height: 56px;
   }
 
   .hud__leave {

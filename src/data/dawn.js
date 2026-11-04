@@ -6,6 +6,7 @@ import {
   DAWN_MARKET_PRICES,
   DAWN_RECYCLE_RANGES,
   DAWN_SERVICE_PRICES,
+  rangedPrice,
 } from './markets'
 import { NPCS } from './npcs'
 
@@ -33,64 +34,27 @@ export function dawnItemId(name) {
 /** 加入曙光需要的击杀数 */
 export const DAWN_JOIN_KILLS = 5
 
+/** 远程商品：价格由武器属性自动计算 */
+function dawnGun(id, name, note) {
+  return { id, itemId: id, name, price: rangedPrice(ITEMS[id].weapon), note }
+}
+
 /**
  * 曙光市场：全部用曙光币结算，价格统一在 data/markets.js
- * 远程武器只上架普通级，价格按攻击与闪避综合折算
+ * 远程武器只上架普通级，价格按 rangedPrice 计算
  */
 export const DAWN_MARKET = [
   { id: 'bandage', itemId: 'bandage', name: '绷带', price: DAWN_MARKET_PRICES.bandage, note: '生命 +30' },
   { id: 'painkiller', itemId: 'painkiller', name: '止痛药', price: DAWN_MARKET_PRICES.painkiller, note: '理智 +30' },
   { id: 'canned-meat', itemId: 'canned-meat', name: '肉罐头', price: DAWN_MARKET_PRICES['canned-meat'], note: '饱食 +30' },
   { id: 'canned-fish', itemId: 'canned-fish', name: '鱼罐头', price: DAWN_MARKET_PRICES['canned-fish'], note: '饱食 +30' },
-  {
-    id: 'hunting-bow',
-    itemId: 'hunting-bow',
-    name: '猎弓',
-    price: DAWN_MARKET_PRICES['hunting-bow'],
-    note: '20 攻击 · 14% 暴击 · 35% 暴伤 · 22% 闪避 · 远程武器',
-  },
-  {
-    id: 'glock',
-    itemId: 'glock',
-    name: 'Glock',
-    price: DAWN_MARKET_PRICES.glock,
-    note: '20 攻击 · 10% 暴击 · 28% 暴伤 · 16% 闪避 · 远程武器',
-  },
-  {
-    id: 'pm',
-    itemId: 'pm',
-    name: 'PM',
-    price: DAWN_MARKET_PRICES.pm,
-    note: '20 攻击 · 8% 暴击 · 28% 暴伤 · 18% 闪避 · 远程武器',
-  },
-  {
-    id: 'usp',
-    itemId: 'usp',
-    name: 'USP',
-    price: DAWN_MARKET_PRICES.usp,
-    note: '21 攻击 · 12% 暴击 · 30% 暴伤 · 18% 闪避 · 远程武器',
-  },
-  {
-    id: 'cz75',
-    itemId: 'cz75',
-    name: 'CZ75',
-    price: DAWN_MARKET_PRICES.cz75,
-    note: '22 攻击 · 12% 暴击 · 30% 暴伤 · 18% 闪避 · 远程武器',
-  },
-  {
-    id: 'luger-08',
-    itemId: 'luger-08',
-    name: 'Luger 08',
-    price: DAWN_MARKET_PRICES['luger-08'],
-    note: '24 攻击 · 14% 暴击 · 32% 暴伤 · 17% 闪避 · 远程武器',
-  },
-  {
-    id: 'm1911',
-    itemId: 'm1911',
-    name: 'M1911',
-    price: DAWN_MARKET_PRICES.m1911,
-    note: '26 攻击 · 11% 暴击 · 35% 暴伤 · 15% 闪避 · 远程武器',
-  },
+  dawnGun('hunting-bow', '猎弓', '19 攻击 · 14% 暴击 · 35% 暴伤 · 22% 闪避 · 远程武器'),
+  dawnGun('glock', 'Glock', '20 攻击 · 10% 暴击 · 28% 暴伤 · 16% 闪避 · 远程武器'),
+  dawnGun('pm', 'PM', '20 攻击 · 8% 暴击 · 28% 暴伤 · 18% 闪避 · 远程武器'),
+  dawnGun('usp', 'USP', '21 攻击 · 12% 暴击 · 30% 暴伤 · 18% 闪避 · 远程武器'),
+  dawnGun('cz75', 'CZ75', '22 攻击 · 12% 暴击 · 30% 暴伤 · 18% 闪避 · 远程武器'),
+  dawnGun('luger-08', 'Luger 08', '24 攻击 · 14% 暴击 · 32% 暴伤 · 17% 闪避 · 远程武器'),
+  dawnGun('m1911', 'M1911', '26 攻击 · 11% 暴击 · 35% 暴伤 · 15% 闪避 · 远程武器'),
 ]
 
 /** 羁绊商店统一价在 data/markets.js */
@@ -133,15 +97,6 @@ export const DAWN_BOND_SHOP = [
     note: '88 攻击 · 30% 暴击 · 2.22 暴伤 · 30% 连击 · 288 耐久',
   },
 ]
-
-/** 目前只有一种行尸：普通行尸 */
-export const DAWN_ZOMBIE = {
-  name: '普通行尸',
-  hp: 100,
-  attack: 10,
-  infection: 1,
-  description: '它曾经也是某个人。现在只剩下向前走的本能。',
-}
 
 /** 逃跑成功率 */
 export const DAWN_FLEE_CHANCE = 0.5

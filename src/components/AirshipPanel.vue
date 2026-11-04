@@ -56,6 +56,7 @@ import {
 } from '../game/battle'
 import BattleView from './BattleView.vue'
 import ModalShell from './ModalShell.vue'
+import NpcIntro from './NpcIntro.vue'
 import QuestLinePanel from './QuestLinePanel.vue'
 import StatusHud from './StatusHud.vue'
 
@@ -462,7 +463,9 @@ function closePanel() {
               {{ coupDone ? '已臣服' : `任务 ${nobleDone} / ${nobleTotal}` }}
             </span>
           </header>
-          <p class="extra__desc">{{ coupDone ? nobleInfo.afterCoup : nobleIntro }}</p>
+          <NpcIntro :npc-id="activeNoble">
+            <p class="extra__desc">{{ coupDone ? nobleInfo.afterCoup : nobleIntro }}</p>
+          </NpcIntro>
           <div class="chips">
             <span>任务线 · {{ nobleInfo.line }}</span>
             <span>奖励：声望 / 末日币 / 稀有装备</span>

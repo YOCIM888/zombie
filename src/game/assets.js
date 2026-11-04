@@ -3,8 +3,8 @@ import { WEAPON_SFX_SOURCES } from './sfx'
 
 /** 可选背景音乐；id 会写入本地设置 */
 export const MUSIC_TRACKS = [
-  { id: 'backmusic', name: '废墟低语', hint: '默认曲目', src: '/audio/backmusic.mp3' },
-  { id: 'background', name: '余烬晨光', hint: '新增曲目', src: '/audio/Background.mp3' },
+  { id: 'background', name: '余烬晨光', hint: '默认曲目', src: '/audio/Background.mp3' },
+  { id: 'backmusic', name: '废墟低语', hint: '备用曲目', src: '/audio/backmusic.mp3' },
 ]
 
 export const allImageAssets = imageAssets
@@ -58,19 +58,36 @@ const CATEGORY_ORDER = [
   '远程武器',
   '食物',
   '饮品',
+  '鸡尾酒',
+  '餐馆',
   '药品',
+  '宝石',
   '身份徽章',
+  '公会徽章',
+  '公会限定武器',
+  '末日都城限定',
+  '曙光阵地限定',
   '纪念徽章',
   '任务道具',
+  '角色立绘',
+  '丧尸立绘',
+  '变异海洋生物',
+  '世界BOSS',
 ]
+
+/** 文件夹名与图鉴分类名不一致时的显示映射 */
+const CATEGORY_LABELS = {
+  '主角与NPC立绘': '角色立绘',
+}
 
 export function buildCodexCategories(assets) {
   const groups = new Map()
   for (const path of assets) {
     const [, , category, file] = path.split('/')
     if (!category || category === '背景图' || !file) continue
-    if (!groups.has(category)) groups.set(category, [])
-    groups.get(category).push({
+    const label = CATEGORY_LABELS[category] ?? category
+    if (!groups.has(label)) groups.set(label, [])
+    groups.get(label).push({
       name: file.replace(/\.(webp|png|jpg|jpeg|gif|avif)$/i, ''),
       src: path,
     })

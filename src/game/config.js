@@ -83,6 +83,20 @@ export const DIFFICULTY_LEVELS = [
   '绝对禁区',
 ]
 
+/** 特殊地图：第 15 天后开放 */
+export const UTOPIA_MAP = {
+  id: 'utopia-city',
+  name: '乌托邦城',
+  difficulty: DIFFICULTY_LEVELS[0],
+  level: '特殊',
+  desc: '高墙、净水与长明的电灯。这里看起来不像末日，但城门只为被选中的人打开。',
+  note: '第 15 天后开放 · 公会与自由贸易区',
+  risk: 1,
+  open: true,
+  unlockDay: 15,
+  special: true,
+}
+
 export const MAPS = [
   {
     id: 'ruined-city',
@@ -105,6 +119,7 @@ export const MAPS = [
     open: true,
   },
   ...FIELD_MAPS,
+  UTOPIA_MAP,
   AIRSHIP_MAP,
 ]
 
@@ -163,6 +178,8 @@ export const INVENTORY_CATEGORIES = [
   { id: 'food', name: '食物' },
   { id: 'drink', name: '饮品' },
   { id: 'medicine', name: '药品' },
+  { id: 'gem', name: '宝石' },
+  { id: 'guild', name: '公会徽章' },
   { id: 'identity', name: '身份牌' },
   { id: 'memento', name: '纪念徽章' },
   { id: 'quest', name: '任务物品' },

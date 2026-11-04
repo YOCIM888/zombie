@@ -2,11 +2,12 @@
 
 import { ITEMS } from './items'
 import {
-  CITY_MARKET_DEFAULT_PRICE,
   CITY_MARKET_PRICES,
+  CROWBAR_PRICE,
   KNIGHT_COST,
   PALACE_ACTIVITY_PRICES,
   PALACE_SHOP_PRICES,
+  meleePrice,
 } from './markets'
 
 export const IDENTITY_LEVELS = [
@@ -233,26 +234,22 @@ export function loanInterest(principal, rate) {
   return Math.max(1, Math.round(principal * rate))
 }
 
-/** 都城银行行长：化债战斗与货币互换 */
+/** 都城银行行长：化债战斗 */
 export const BANKER = {
   npcId: 'banker',
-  /** 互换比例：每 exchangeRate 枚可换 1 枚，双向相同 */
-  exchangeRate: 2,
   /** 化债后到期日额外宽限的天数 */
   graceDays: 30,
   /** 化债战斗里行长的锁血下限 */
   hpFloor: 1,
   intro:
-    '柜台后面那扇门终于开了。行长金钱堡摘下金丝眼镜，把账本摊在桌上，手指按在你那一页。',
+    '柜台后面那扇门终于开了。行长钱三爷摘下金丝眼镜，把账本摊在桌上，手指按在你那一页。',
   debtLine:
-    '金钱堡扶着桌沿坐回椅子，喘着气笑了：「行，利息我不要了。本金，再加三十天。」',
+    '钱三爷扶着桌沿坐回椅子，喘着气笑了：「行，利息我不要了。本金，再加三十天。」',
   debtHint:
     '他不打算免掉一个铜板，除非你把他逼到绝路。传闻他在每一场械斗里都只流血到最后一点，然后笑着收手。',
   noLoanLine: '你今天不欠银行的钱，没什么可谈的。',
   waivedLine: '这笔贷款的利息已经免过了，只剩本金要还。',
   fleeLine: '你收住手，退出了银行大厅。行长整理着袖口，账本还摊在桌上。',
-  exchangeLine:
-    '行长把两摞币推到台面两边：「二换一，两边都是。换多少，你自己填。」',
 }
 
 /** 都城集市里普通近战武器的定价统一在 data/markets.js */
@@ -285,7 +282,7 @@ export const SHOP_GOODS = [
       id: item.id,
       itemId: item.id,
       name: item.name,
-      price: CITY_MARKET_PRICES[item.id] ?? CITY_MARKET_DEFAULT_PRICE,
+      price: meleePrice(item.weapon),
       note: meleeShopNote(item),
     }))
     .sort((a, b) => a.price - b.price),
@@ -293,7 +290,7 @@ export const SHOP_GOODS = [
     id: 'crowbar',
     itemId: 'crowbar',
     name: '撬棍',
-    price: CITY_MARKET_PRICES.crowbar,
+    price: CROWBAR_PRICE,
     note: meleeShopNote(ITEMS.crowbar),
   },
 ]
@@ -561,9 +558,9 @@ export const GARDEN = {
       cooldownKey: 'garden-potion',
       days: 5,
       turns: 1,
-      items: [{ itemId: 'panacea', qty: 5 }],
+      items: [{ itemId: 'panacea', qty: 1 }],
       coins: 10,
-      reward: '万能灵药 ×5 · 末日币 +10',
+      reward: '万能灵药 ×1 · 末日币 +10',
       desc: '内侍从花房深处端来一只封着蜡的箱子，箱子里有轻微的碰撞声。',
     },
     {
@@ -573,8 +570,8 @@ export const GARDEN = {
       days: 7,
       turns: 1,
       fullRestore: true,
-      coins: 30,
-      reward: '状态补满 · 末日币 +30',
+      coins: 20,
+      reward: '状态补满 · 末日币 +20',
       desc: '花房尽头有一尊无名的石像，跪下去的人都说灵。',
     },
   ],

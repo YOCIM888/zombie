@@ -2,7 +2,17 @@
 // 数值参考一代，并按二代 100 点生命 / 手动回合制的节奏重新缩放
 
 function zombie(id, name, hp, attack, infection, dodge, abilities, description) {
-  return { id, name, hp, attack, infection, dodge, abilities, description }
+  return {
+    id,
+    name,
+    hp,
+    attack,
+    infection,
+    dodge,
+    abilities,
+    description,
+    image: `/image/丧尸立绘/${name}.webp`,
+  }
 }
 
 export const ZOMBIE_TYPES = [
@@ -40,7 +50,21 @@ export const ZOMBIE_TYPES = [
     '胸腔里伸出几根骨刺，尖端还挂着旧布条。'),
 ]
 
-export const ZOMBIE_BY_ID = Object.fromEntries(ZOMBIE_TYPES.map((item) => [item.id, item]))
+/** 曙光阵地每日清理的基础行尸：单独成种，不进入地图分布池 */
+export const DAWN_ZOMBIE = zombie(
+  'dawn-wanderer',
+  '普通行尸',
+  100,
+  10,
+  2,
+  0,
+  ['infect'],
+  '它曾经也是某个人。现在只剩下向前走的本能。',
+)
+
+export const ZOMBIE_BY_ID = Object.fromEntries(
+  [...ZOMBIE_TYPES, DAWN_ZOMBIE].map((item) => [item.id, item]),
+)
 
 /** 地图威胁对应的丧尸池 */
 export const ZOMBIE_POOLS = {
@@ -60,6 +84,26 @@ export const ZOMBIE_POOLS = {
     'frost',
     'military',
     'mother',
+  ],
+  harbor: [
+    'crawler',
+    'bloated',
+    'military',
+    'armored',
+    'jumper',
+    'acid',
+    'ghost',
+    'ripper',
+  ],
+  nest: [
+    'bloated',
+    'mother',
+    'acid',
+    'ripper',
+    'frost',
+    'impaler',
+    'ghost',
+    'armored',
   ],
 }
 

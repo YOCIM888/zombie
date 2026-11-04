@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import {
   AIRSHIP,
   AIRSHIP_STOCKS,
@@ -8,17 +8,29 @@ import {
   GARDEN,
   ORCHARD,
   PALACE_COOLDOWN,
+  SERVICE_PERMITS,
   STRANGE_BARBECUE,
   TALENTS,
+  TRADE_LISTING_LIMIT,
+  UTOPIA_TRAININGS,
+  WORLD_BOSSES,
+  WORLD_BOSS_HP,
+  formatMoney,
   identityRank,
+  mayorForDay,
 } from '../data'
 import {
+  activeGuild,
   arenaLeft,
   cooldownLeft,
   corridorLeft,
   game,
+  guildCommissionState,
+  hasServicePermit,
   isNpcDead,
   practiceLeft,
+  utopiaTrainingLeft,
+  utopiaTrainingLimit,
 } from '../game/store'
 import ModalShell from './ModalShell.vue'
 import StatusHud from './StatusHud.vue'
@@ -71,6 +83,70 @@ function arenaRowState() {
     return { label: '今日次数已用完', tone: 'cooling', left: '剩余 0 次' }
   }
   return { label: `今日剩余 ${left} 次`, tone: 'ready', left: `剩余 ${left} 次` }
+}
+
+function mayorRowState() {
+  const mayor = mayorForDay(game.day)
+  const visited = Number(game.flags.mayorVisitDay) === game.day
+  return visited
+    ? { label: `今日已拜访 · ${mayor?.name ?? ''}`, tone: 'cooling', left: '剩余 0 次' }
+    : { label: `今日可拜访 · ${mayor?.name ?? ''}`, tone: 'ready', left: '剩余 1 次' }
+}
+
+function guildRowState() {
+  const guild = activeGuild()
+  if (!guild) return { label: '未加入公会', tone: 'locked', left: '剩余 0 次' }
+  const state = guildCommissionState(guild.id)
+  if (!state) return { label: '本公会暂无委托', tone: 'done', left: '剩余 0 次' }
+  if (state.claimedToday) return { label: '今日已交付', tone: 'done', left: '剩余 0 次' }
+  if (state.canClaim) return { label: '委托可交付', tone: 'ready', left: '剩余 1 次' }
+  return { label: '委托进行中', tone: 'cooling', left: '剩余 1 次' }
+}
+
+function permitRowState() {
+  const oncePermits = SERVICE_PERMITS.filter((permit) => permit.once)
+  const done = oncePermits.filter((permit) => hasServicePermit(permit.id)).length
+  const left = oncePermits.length - done
+  if (left <= 0) return { label: '全部办结', tone: 'done', left: '剩余 0 项' }
+  return { label: `已办 ${done}/${oncePermits.length} 项证照`, tone: 'ready', left: `剩余 ${left} 项` }
+}
+
+function tradeSlotRowState() {
+  const listings = Array.isArray(game.flags.tradeListings) ? game.flags.tradeListings.length : 0
+  const left = Math.max(0, TRADE_LISTING_LIMIT - listings)
+  return listings >= TRADE_LISTING_LIMIT
+    ? { label: `摊位已满 ${listings}/${TRADE_LISTING_LIMIT}`, tone: 'cooling', left: '剩余 0 个' }
+    : { label: `已上架 ${listings}/${TRADE_LISTING_LIMIT}`, tone: 'ready', left: `剩余 ${left} 个` }
+}
+
+function tradeIncomeRowState() {
+  const income = Math.max(0, Number(game.flags.tradeIncome) || 0)
+  return income > 0
+    ? { label: `待领 ${formatMoney(income)} 末日币`, tone: 'ready', left: '剩余 1 次' }
+    : { label: '暂无待领收入', tone: 'done', left: '剩余 0 次' }
+}
+
+function trainingRowState(kind) {
+  if ((game.talents[kind] ?? 0) >= TALENTS[kind].maxLevel) {
+    return { label: '天赋已满级', tone: 'done', left: '剩余 0 次' }
+  }
+  const left = utopiaTrainingLeft(kind)
+  if (left <= 0) return { label: '今日次数已用完', tone: 'cooling', left: '剩余 0 次' }
+  return { label: `今日剩余 ${left} 次`, tone: 'ready', left: `剩余 ${left} 次` }
+}
+
+function bossRowState(boss) {
+  if (game.flags.worldBossDefeated?.[boss.id]) {
+    return { label: '已击杀', tone: 'done', left: '100%' }
+  }
+  const saved = Number(game.flags.worldBossHp?.[boss.id])
+  const hp = Number.isFinite(saved) && saved > 0 ? Math.min(WORLD_BOSS_HP, saved) : WORLD_BOSS_HP
+  const ratio = hp / WORLD_BOSS_HP
+  return {
+    label: `剩余 ${hp} / ${WORLD_BOSS_HP}`,
+    tone: hp < WORLD_BOSS_HP ? 'cooling' : 'ready',
+    left: `${(ratio * 100).toFixed(1)}%`,
+  }
 }
 
 const GROUPS = [
@@ -286,6 +362,49 @@ const GROUPS = [
       },
     ],
   },
+  {
+    title: '乌托邦城',
+    rows: [
+      {
+        name: '代理城主 · 拜访会长',
+        cycle: '每天一次',
+        customState: mayorRowState,
+      },
+      {
+        name: '公会日常委托',
+        cycle: '每天一次',
+        customState: guildRowState,
+      },
+      {
+        name: '办事中心 · 证照办理',
+        cycle: '一次性',
+        customState: permitRowState,
+      },
+      {
+        name: '自由贸易 · 摊位',
+        cycle: '随时可上架',
+        customState: tradeSlotRowState,
+      },
+      {
+        name: '自由贸易 · 待领收入',
+        cycle: '隔天结算',
+        customState: tradeIncomeRowState,
+      },
+      ...UTOPIA_TRAININGS.map((training) => ({
+        name: training.name,
+        cycle: () => `每天 ${utopiaTrainingLimit()} 次`,
+        customState: () => trainingRowState(training.kind),
+      })),
+    ],
+  },
+  {
+    title: '世界BOSS',
+    rows: WORLD_BOSSES.map((boss) => ({
+      name: boss.name,
+      cycle: '无冷却',
+      customState: () => bossRowState(boss),
+    })),
+  },
 ]
 
 function cycleText(days) {
@@ -305,16 +424,70 @@ function rowState(row) {
   }
 }
 
-const groups = computed(() =>
+const statusFilter = ref('all')
+const groupFilter = ref('all')
+
+const STATUS_FILTERS = [
+  { id: 'all', name: '全部' },
+  { id: 'ready', name: '可进行' },
+  { id: 'cooling', name: '冷却中' },
+  { id: 'locked', name: '未解锁' },
+  { id: 'done', name: '已完成' },
+]
+
+const allGroups = computed(() =>
   GROUPS.filter((group) => !group.visible || group.visible()).map((group) => ({
     title: group.title,
     rows: group.rows.map((row) => ({
       name: row.name,
-      cycle: row.cycle ?? cycleText(row.days),
+      cycle: typeof row.cycle === 'function' ? row.cycle() : (row.cycle ?? cycleText(row.days)),
       state: rowState(row),
     })),
   })),
 )
+
+const groupOptions = computed(() => [
+  { id: 'all', name: '全部区域' },
+  ...allGroups.value.map((group) => ({ id: group.title, name: group.title })),
+])
+
+const statusCounts = computed(() => {
+  const counts = { all: 0, ready: 0, cooling: 0, locked: 0, done: 0 }
+  for (const group of allGroups.value) {
+    for (const row of group.rows) {
+      counts.all += 1
+      if (counts[row.state.tone] !== undefined) counts[row.state.tone] += 1
+    }
+  }
+  return counts
+})
+
+const groups = computed(() =>
+  allGroups.value
+    .filter((group) => groupFilter.value === 'all' || group.title === groupFilter.value)
+    .map((group) => ({
+      ...group,
+      rows: group.rows.filter(
+        (row) => statusFilter.value === 'all' || row.state.tone === statusFilter.value,
+      ),
+    }))
+    .filter((group) => group.rows.length > 0),
+)
+
+const visibleCount = computed(() =>
+  groups.value.reduce((sum, group) => sum + group.rows.length, 0),
+)
+
+const showStocks = computed(
+  () =>
+    statusFilter.value === 'all' &&
+    (groupFilter.value === 'all' || groupFilter.value === '末日飞行船'),
+)
+
+function resetFilters() {
+  statusFilter.value = 'all'
+  groupFilter.value = 'all'
+}
 
 const stockChanges = computed(() => {
   const market = game.market
@@ -343,6 +516,46 @@ const stockChanges = computed(() => {
       <StatusHud />
     </template>
 
+    <div class="filters">
+      <div class="filters__row">
+        <span class="filters__label">状态</span>
+        <button
+          v-for="item in STATUS_FILTERS"
+          :key="item.id"
+          type="button"
+          class="chip"
+          :class="{ 'chip--active': statusFilter === item.id }"
+          @click="statusFilter = item.id"
+        >
+          {{ item.name }}<i>{{ statusCounts[item.id] }}</i>
+        </button>
+      </div>
+      <div class="filters__row">
+        <span class="filters__label">区域</span>
+        <button
+          v-for="item in groupOptions"
+          :key="item.id"
+          type="button"
+          class="chip"
+          :class="{ 'chip--active': groupFilter === item.id }"
+          @click="groupFilter = item.id"
+        >
+          {{ item.name }}
+        </button>
+      </div>
+      <p class="filters__summary">
+        <span>显示 {{ visibleCount }} / {{ statusCounts.all }} 条</span>
+        <button
+          v-if="statusFilter !== 'all' || groupFilter !== 'all'"
+          type="button"
+          class="filters__reset"
+          @click="resetFilters"
+        >
+          清除筛选
+        </button>
+      </p>
+    </div>
+
     <div class="book">
       <section v-for="group in groups" :key="group.title" class="book__group">
         <h3 class="book__title">{{ group.title }}</h3>
@@ -360,7 +573,7 @@ const stockChanges = computed(() => {
         </div>
       </section>
 
-      <section class="book__group">
+      <section v-if="showStocks" class="book__group">
         <h3 class="book__title">末日飞行船 · 投资行情</h3>
         <div class="book__rows">
           <article v-for="stock in stockChanges" :key="stock.id" class="entry">
@@ -373,6 +586,8 @@ const stockChanges = computed(() => {
           </article>
         </div>
       </section>
+
+      <p v-if="!groups.length && !showStocks" class="book__empty">没有符合条件的条目。</p>
     </div>
 
     <template #footer>
@@ -383,11 +598,99 @@ const stockChanges = computed(() => {
 </template>
 
 <style scoped>
+.filters {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px dashed var(--line);
+}
+
+.filters__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filters__label {
+  min-width: 34px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--rust-soft);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text-mute);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.chip:hover {
+  color: var(--bone);
+  border-color: var(--rust-soft);
+}
+
+.chip--active {
+  color: var(--bone);
+  border-color: var(--rust-soft);
+  background: color-mix(in srgb, var(--rust) 14%, transparent);
+}
+
+.chip i {
+  font-style: normal;
+  font-size: 9px;
+  opacity: 0.6;
+}
+
+.filters__summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  color: var(--text-mute);
+}
+
+.filters__reset {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--rust-soft);
+  font-family: inherit;
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
 .book {
   display: flex;
   flex-direction: column;
   gap: 20px;
   padding-top: 4px;
+}
+
+.book__empty {
+  margin: 0;
+  padding: 18px 2px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--text-mute);
 }
 
 .book__title {

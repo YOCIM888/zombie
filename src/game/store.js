@@ -19,9 +19,17 @@ import {
   DEV_SHOP,
   DOCTOR,
   ENTRY_COST,
+  EXCHANGE_BASKET_PRICE,
+  FISH_PROCESSING,
+  KRAKEN_BLADE_CRAFT,
+  exchangeRateFromIncome,
   expandPriceAtSize,
+  floorToCents,
   GARAGE,
   GARDEN,
+  GUILD_BY_ID,
+  GUILD_COMMISSION_REWARD,
+  HARBOR_MUTINY,
   GIANT_PUPPET,
   HELICOPTER,
   AIRSHIP,
@@ -32,8 +40,11 @@ import {
   TALENTS,
   TALENT_ACTIVE_LIMIT,
   TALENT_EFFECT_LABELS,
+  UTOPIA_TRAINING_BY_KIND,
   STOCK_PRICE_MAX,
   STOCK_PRICE_MIN,
+  TAVERN_COCKTAILS,
+  TRADE_LISTING_LIMIT,
   commissionForDay,
   dawnInfo,
   formatMoney,
@@ -62,9 +73,12 @@ import {
   PHASES,
   REPAIR_PERCENT_PER_COIN,
   REST_OPTIONS,
+  RESTAURANT_DISHES,
   ROCKET,
   ROTTEN_SEED,
   SHOP_GOODS,
+  SERVICE_CENTER_EXPRESS_DAWN,
+  SERVICE_PERMITS,
   STRANGE_BARBECUE,
   TREATMENT_TIERS,
   TURN_COST,
@@ -86,6 +100,7 @@ import {
   loanInterest,
   loanTierByRank,
   loanTierFor,
+  mayorForDay,
   NPCS,
   npcById,
   organizeInventory,
@@ -105,6 +120,7 @@ import {
   talentBonus,
   talentEffects,
   talentTitle,
+  tradeSaleChance,
   treasureForDay,
 } from '../data'
 import {
@@ -127,7 +143,41 @@ export function normalizeCharacterName(value, fallback = '') {
 }
 
 const STAT_LABELS = Object.fromEntries(STAT_DEFS.map((stat) => [stat.key, stat.label]))
-const clampStat = (value) => Math.max(0, Math.min(100, Math.round(value)))
+
+/** 当前持有公会徽章的公会；没有则返回 null */
+export function activeGuildId() {
+  for (const entry of game.inventory) {
+    if (!entry) continue
+    const def = getItem(entry.id)
+    if (def?.category === 'guild') return def.guildId ?? null
+  }
+  return null
+}
+
+export function activeGuild() {
+  return GUILD_BY_ID[activeGuildId()] ?? null
+}
+
+/** 单项属性的上限：骑士公会 + 骑士剑会把生命上限提高到 120 */
+export function statCap(key) {
+  if (
+    key === 'hp' &&
+    activeGuildId() === 'knight' &&
+    game.equipment.melee?.id === 'knight-sword'
+  ) {
+    return 100 + (GUILD_BY_ID.knight?.maxHpBonus ?? 20)
+  }
+  return 100
+}
+
+const clampStat = (value, key = '') =>
+  Math.max(0, Math.min(statCap(key), Math.round(value)))
+
+/** 失去生命上限增益时，把当前生命压回新上限 */
+export function syncHpCap() {
+  const cap = statCap('hp')
+  if ((game.stats.hp ?? 0) > cap) game.stats.hp = cap
+}
 
 export const game = reactive({
   screen: 'menu',
@@ -157,8 +207,30 @@ export const game = reactive({
   flags: {},
   finale: '',
   reputation: 0,
-  talents: { melee: 0, ranged: 0, arena: 0, corridor: 0 },
-  training: { melee: 0, ranged: 0, arena: 0, corridor: 0 },
+  talents: {
+    melee: 0,
+    ranged: 0,
+    arena: 0,
+    corridor: 0,
+    draw: 0,
+    sword: 0,
+    sniper: 0,
+    block: 0,
+    pistol: 0,
+    spray: 0,
+  },
+  training: {
+    melee: 0,
+    ranged: 0,
+    arena: 0,
+    corridor: 0,
+    draw: 0,
+    sword: 0,
+    sniper: 0,
+    block: 0,
+    pistol: 0,
+    spray: 0,
+  },
   activeTalents: [],
   market: null,
   playtimeBase: 0,
@@ -188,7 +260,21 @@ watch(
 export const devState = reactive({
   oneHitKill: false,
   lockStats: false,
+  lockOxygen: false,
 })
+
+/** 自由贸易售出通知：只在当前页面会话内生效，不写入存档 */
+export const tradeNotice = reactive({
+  day: 0,
+  total: 0,
+  sales: [],
+})
+
+export function dismissTradeNotice() {
+  tradeNotice.sales = []
+  tradeNotice.total = 0
+  tradeNotice.day = 0
+}
 
 export const currentPlaytime = computed(() => game.playtimeBase + game.sessionSeconds)
 export const currentPhase = computed(() => PHASES[game.phase] ?? PHASES[0])
@@ -399,24 +485,21 @@ function applySlot(slot) {
   game.quests = cloneQuests(slot.quests)
   game.flags = slot.flags && typeof slot.flags === 'object' ? { ...slot.flags } : {}
   game.reputation = Math.max(0, Number(slot.reputation) || 0)
-  game.talents = {
-    melee: Math.max(0, Math.min(3, Math.round(Number(slot.talents?.melee) || 0))),
-    ranged: Math.max(0, Math.min(3, Math.round(Number(slot.talents?.ranged) || 0))),
-    arena: Math.max(
-      0,
-      Math.min(TALENTS.arena.maxLevel, Math.round(Number(slot.talents?.arena) || 0)),
-    ),
-    corridor: Math.max(
-      0,
-      Math.min(TALENTS.corridor.maxLevel, Math.round(Number(slot.talents?.corridor) || 0)),
-    ),
-  }
-  game.training = {
-    melee: Math.max(0, Math.min(99, Math.round(Number(slot.training?.melee) || 0))),
-    ranged: Math.max(0, Math.min(99, Math.round(Number(slot.training?.ranged) || 0))),
-    arena: Math.max(0, Math.min(99, Math.round(Number(slot.training?.arena) || 0))),
-    corridor: Math.max(0, Math.min(99, Math.round(Number(slot.training?.corridor) || 0))),
-  }
+  game.talents = Object.fromEntries(
+    Object.values(TALENTS).map((talent) => [
+      talent.key,
+      Math.max(
+        0,
+        Math.min(talent.maxLevel, Math.round(Number(slot.talents?.[talent.key]) || 0)),
+      ),
+    ]),
+  )
+  game.training = Object.fromEntries(
+    Object.keys(TALENTS).map((key) => [
+      key,
+      Math.max(0, Math.min(99, Math.round(Number(slot.training?.[key]) || 0))),
+    ]),
+  )
 
   const learnedTalents = Object.values(TALENTS)
     .filter((talent) => (game.talents[talent.key] || 0) > 0)
@@ -446,6 +529,7 @@ function applySlot(slot) {
     if (slot.dawnIdentity) addItem(game.inventory, dawnItemId(slot.dawnIdentity), 1)
   }
   syncIdentities()
+  syncHpCap()
   checkStatDeaths()
   checkLoanDue()
 }
@@ -471,6 +555,8 @@ export async function enterGame(slotIndex, { isNew = false, name = '' } = {}) {
     game.progress = 1
   }
 
+  dismissTradeNotice()
+
   if (isNew) {
     game.character = normalizeCharacterName(name, DEFAULT_CHARACTER_NAME)
     game.stats = { ...DEFAULT_STATS }
@@ -495,8 +581,30 @@ export async function enterGame(slotIndex, { isNew = false, name = '' } = {}) {
     game.flags = {}
     game.finale = ''
     game.reputation = 0
-    game.talents = { melee: 0, ranged: 0, arena: 0, corridor: 0 }
-    game.training = { melee: 0, ranged: 0, arena: 0, corridor: 0 }
+    game.talents = {
+      melee: 0,
+      ranged: 0,
+      arena: 0,
+      corridor: 0,
+      draw: 0,
+      sword: 0,
+      sniper: 0,
+      block: 0,
+      pistol: 0,
+      spray: 0,
+    }
+    game.training = {
+      melee: 0,
+      ranged: 0,
+      arena: 0,
+      corridor: 0,
+      draw: 0,
+      sword: 0,
+      sniper: 0,
+      block: 0,
+      pistol: 0,
+      spray: 0,
+    }
     game.activeTalents = []
     game.market = createStockMarket(1)
     game.playtimeBase = 0
@@ -576,7 +684,7 @@ function adjustStats(changes) {
       // 生命/饱食/口渴/理智/体力不再下降；感染不再上升
       value = key === 'infection' ? Math.min(0, delta) : Math.max(0, delta)
     }
-    game.stats[key] = clampStat((game.stats[key] ?? 0) + value)
+    game.stats[key] = clampStat((game.stats[key] ?? 0) + value, key)
   }
   checkStatDeaths()
 }
@@ -586,16 +694,38 @@ export function applyStatChanges(changes) {
   adjustStats(changes)
 }
 
+/** 诗人公会保护的四项归零属性 */
+const POET_PROTECTED_STATS = new Set(['hunger', 'thirst', 'sanity', 'stamina'])
+
 /** 属性触发结局：饱食/口渴/理智/体力归零、感染满 100、生命归零 */
 function checkStatDeaths() {
   if (game.dead) return
+  const poet = activeGuildId() === 'poet'
+  let poetZero = false
+
   for (const rule of STAT_ENDINGS) {
     const value = game.stats[rule.key] ?? 0
     const triggered = rule.at >= 100 ? value >= rule.at : value <= rule.at
     if (!triggered) continue
+    if (poet && POET_PROTECTED_STATS.has(rule.key)) {
+      poetZero = true
+      continue
+    }
     die(rule.reason, rule.ending)
     return
   }
+
+  if (!poetZero) return
+
+  const turnKey = `${game.day}-${game.phase}`
+  if (game.flags.poetLastDrain === turnKey) return
+  game.flags.poetLastDrain = turnKey
+  game.stats.hp = clampStat((game.stats.hp ?? 0) - 25, 'hp')
+  if (game.stats.hp <= 0) {
+    die('诗人公会的庇护终于耗尽。你没被饥渴和疲惫带走，但身体先一步停摆了。', '伤重不治')
+    return
+  }
+  notify('诗人公会的意志撑住了你：生命 -25。', 3000)
 }
 
 /** 收走背包里全部食物 / 饮品 / 药品，返回被收走的件数 */
@@ -652,6 +782,11 @@ function die(reason, ending = '') {
   if (ending === '恶魔' && unlockAchievement('death-list')) {
     notify('成就解锁 · 死亡名单')
   }
+}
+
+/** 深海氧气耗尽：溺水死亡结局 */
+export function drownPlayer() {
+  die('氧气耗尽。你向海面挣扎，四肢却越来越沉，最后连光都看不见了。', '溺水')
 }
 
 /** 身份以背包里的身份牌为准：两个阵营各取等级最高的一枚 */
@@ -731,6 +866,7 @@ export function advanceTurns(count, { decay = true } = {}) {
     if (game.phase >= PHASES.length) {
       game.phase = 0
       game.day += 1
+      processTradeSales()
     }
     checkLoanDue()
   }
@@ -749,11 +885,16 @@ export function sleepRest(kind) {
   advanceTurns(option.turns, { decay: false })
   if (game.dead) return
 
-  adjustStats(option.effects)
-  const summary = Object.entries(option.effects)
+  const fairyGem = game.inventory.some((entry) => entry?.id === 'fairy-gem')
+  const effects = fairyGem
+    ? Object.fromEntries(Object.entries(option.effects).filter(([, value]) => value > 0))
+    : option.effects
+  adjustStats(effects)
+  const summary = Object.entries(effects)
     .map(([key, value]) => `${STAT_LABELS[key] ?? key} ${value > 0 ? '+' : ''}${value}`)
     .join('，')
-  notify(`${option.name} · 跳过 ${option.turns} 回合 · ${summary}`, 3200)
+  const note = fairyGem ? ' · 精灵宝石抵掉了负面消耗' : ''
+  notify(`${option.name} · 跳过 ${option.turns} 回合 · ${summary}${note}`, 3200)
 }
 
 /* ===== 地图 ===== */
@@ -764,6 +905,18 @@ export function enterMap(mapId) {
   if (!map) return false
   if (!map.open) {
     notify(`「${map.name}」尚未开放`)
+    return false
+  }
+  if (map.unlockDay && game.day < map.unlockDay) {
+    notify(`「${map.name}」要到第 ${map.unlockDay} 天后才会开放（当前第 ${game.day} 天）`, 3200)
+    return false
+  }
+  const portBanUntil = Number(game.flags.portBanUntilDay) || 0
+  if (portBanUntil > game.day && HARBOR_MUTINY.banMapIds.includes(mapId)) {
+    notify(
+      `油轮沉没后你的名声臭了：还有 ${portBanUntil - game.day} 天无法进入「${map.name}」。`,
+      3600,
+    )
     return false
   }
   if (map.hidden) {
@@ -808,6 +961,931 @@ export function enterMap(mapId) {
 export function leaveMap() {
   game.location = null
 }
+
+/* ===== 乌托邦训练 ===== */
+
+function utopiaTrainingDayState() {
+  const state = game.flags.utopiaTraining
+  if (!state || state.day !== game.day) return { day: game.day }
+  return { ...state }
+}
+
+/** 今日该训练的剩余次数 */
+export function utopiaTrainingLeft(kind) {
+  if (!UTOPIA_TRAINING_BY_KIND[kind]) return 0
+  const state = utopiaTrainingDayState()
+  return Math.max(0, utopiaTrainingLimit() - (Number(state[kind]) || 0))
+}
+
+/** 每日训练次数：办理训练许可后从 2 次提高到 3 次 */
+export function utopiaTrainingLimit() {
+  return hasServicePermit('training-permit') ? 3 : 2
+}
+
+function utopiaTrainingGuard(kind) {
+  if (game.dead) return ''
+  if (game.location !== 'utopia-city') return '训练场在乌托邦城。'
+  const training = UTOPIA_TRAINING_BY_KIND[kind]
+  if (!training) return '没有这个训练。'
+  if ((game.talents[kind] || 0) >= TALENTS[kind].maxLevel) {
+    return '这项天赋已经满级。'
+  }
+  if (utopiaTrainingLeft(kind) <= 0) {
+    return `今天这项训练已经做满 ${utopiaTrainingLimit()} 次了。`
+  }
+
+  if (training.weaponSlot === 'melee') {
+    const equipped = game.equipment.melee
+    if (!equipped || !training.weaponIds.includes(equipped.id)) {
+      return `需要装备：${training.weaponText}`
+    }
+    const def = getItem(equipped.id)
+    const max = def?.weapon?.durability
+    const current = Number.isFinite(equipped.durability) ? equipped.durability : max
+    if (!Number.isFinite(max) || current < 10) {
+      return '武器耐久不足 10，先去保养。'
+    }
+  } else {
+    const equipped = game.equipment.ranged
+    if (!equipped || !training.weaponIds.includes(equipped.id)) {
+      return `需要装备：${training.weaponText}`
+    }
+    const current = Number.isFinite(equipped.cleanliness)
+      ? equipped.cleanliness
+      : CLEANLINESS_MAX
+    if (current < 10) return '武器清洁度不足 10，先去保养。'
+  }
+  return ''
+}
+
+/** 乌托邦六种专项训练：1 回合、10 消耗、每天 2 次（训练许可后 3 次）、每次 5-10 进度 */
+export function utopiaTrain(kind) {
+  const blocked = utopiaTrainingGuard(kind)
+  if (blocked) return blocked
+
+  const training = UTOPIA_TRAINING_BY_KIND[kind]
+  const actionDay = game.day
+  const actionState = utopiaTrainingDayState()
+  advanceTurns(1)
+  if (game.dead) return ''
+
+  const notes = []
+  if (training.weaponSlot === 'melee') {
+    const equipped = game.equipment.melee
+    const def = getItem(equipped.id)
+    const max = def?.weapon?.durability
+    const current = Number.isFinite(equipped.durability) ? equipped.durability : max
+    equipped.durability = Math.max(0, current - 10)
+    notes.push(`训练消耗 ${def?.name ?? '近战武器'} 耐久 10。`)
+    if (equipped.durability <= 0) {
+      game.equipment.melee = null
+      syncHpCap()
+      notes.push(`${def?.name ?? '武器'}在训练中断裂了。`)
+      if (typeof window !== 'undefined') notify(`${def?.name ?? '武器'}已经断裂`, 3000)
+    }
+  } else {
+    const equipped = game.equipment.ranged
+    const def = getItem(equipped.id)
+    const current = Number.isFinite(equipped.cleanliness)
+      ? equipped.cleanliness
+      : CLEANLINESS_MAX
+    equipped.cleanliness = Math.max(0, current - 10)
+    notes.push(`训练消耗 ${def?.name ?? '远程武器'} 清洁度 10。`)
+    if (equipped.cleanliness <= 0) {
+      notes.push(`${def?.name ?? '远程武器'}的清洁度归零，需要保养。`)
+      if (typeof window !== 'undefined') notify(`${def?.name ?? '远程武器'}需要保养`, 3000)
+    }
+  }
+
+  const gain = 5 + Math.floor(Math.random() * 6)
+  let level = game.talents[kind] || 0
+  let progress = (game.training[kind] || 0) + gain
+  while (level < TALENTS[kind].maxLevel && progress >= 100) {
+    level += 1
+    progress -= 100
+  }
+  if (level >= TALENTS[kind].maxLevel) progress = 0
+
+  const before = game.talents[kind] || 0
+  game.talents[kind] = level
+  game.training[kind] = progress
+  if (level > before) {
+    const title = talentTitle(kind, level)
+    notes.push(`天赋提升 · ${title}`)
+    autoEnableTalent(kind)
+    if (!isTalentActive(kind)) {
+      notes.push(`启用位已满 ${TALENT_ACTIVE_LIMIT} 个，新天赋尚未启用，请到天赋面板调整。`)
+    }
+    if (typeof window !== 'undefined') notify(`天赋提升 · ${title}`, 3400)
+  }
+
+  const next = { ...actionState, day: actionDay }
+  next[kind] = (Number(actionState[kind]) || 0) + 1
+  game.flags.utopiaTraining = next
+  const progressText = level >= TALENTS[kind].maxLevel ? '已满级' : `${progress}%`
+  notes.unshift(`${training.name}完成。熟练度 +${gain}，当前 ${progressText}。`)
+  notes.push(`今日剩余训练次数：${utopiaTrainingLeft(kind)}`)
+  return notes.join('\n')
+}
+
+
+/** 沿街乞讨：1 回合，五档各 20%；盗贼公会奖励翻倍 */
+export function begUtopia() {
+  if (game.dead) return ''
+  if (game.location !== 'utopia-city') return '沿街乞讨在乌托邦城。'
+
+  advanceTurns(1)
+  if (game.dead) return ''
+
+  recordGuildBeg()
+
+  const guild = activeGuild()
+  const multiplier = guild?.beggingMultiplier ?? 1
+  const roll = Math.random()
+
+  if (roll < 0.2) {
+    game.coins += 1 * multiplier
+    return `一个路人丢下 ${1 * multiplier} 枚末日币，没有看你第二眼。`
+  }
+  if (roll < 0.4) {
+    game.dawnCoins += 1 * multiplier
+    return `有人把 ${1 * multiplier} 枚曙光币塞进你手里，像在打发一条野狗。`
+  }
+
+  const category = roll < 0.6 ? 'drink' : roll < 0.8 ? 'food' : 'fruit'
+  const pool = Object.values(ITEMS).filter((item) => {
+    if (item.limited || item.special) return false
+    if (category === 'fruit') return Boolean(item.fruit)
+    if (category === 'food') return item.category === 'food' && !item.fruit
+    return item.category === category
+  })
+  if (!pool.length) return '今天没有人愿意施舍。'
+
+  const item = pool[Math.floor(Math.random() * pool.length)]
+  const qty = 1 * multiplier
+  const leftover = addItem(game.inventory, item.id, qty)
+  const added = qty - leftover
+  if (added <= 0) return `有人递来 ${item.name}，但你的背包已经塞满了。`
+  return `有人递来 ${item.name} ×${added}${leftover > 0 ? '（背包已满）' : ''}。`
+}
+
+/* ===== 乌托邦 · 红灯街区 ===== */
+
+const RED_LIGHT_GOODS = new Set(['food', 'drink', 'medicine'])
+
+/** 从背包随机拿走一份食物 / 饮品 / 药品；没有可偷的东西时返回 null */
+function stealRedLightGoods() {
+  const candidates = []
+  game.inventory.forEach((entry, index) => {
+    if (!entry) return
+    if (!RED_LIGHT_GOODS.has(getItem(entry.id)?.category)) return
+    candidates.push({ index, entry })
+  })
+  if (!candidates.length) return null
+
+  const pick = candidates[Math.floor(Math.random() * candidates.length)]
+  const def = getItem(pick.entry.id)
+  const qty = pick.entry.qty ?? 1
+  if (qty > 1) pick.entry.qty = qty - 1
+  else game.inventory[pick.index] = null
+  return { name: def?.name ?? pick.entry.id, qty: 1 }
+}
+
+/** 治安官罚款：付得起就扣款，付不起就清零货币并劳动改造；持械备案罚款减半 */
+function redLightFine(coins, dawnCoins) {
+  const permit = hasServicePermit('weapon-permit')
+  const fineCoins = permit ? Math.max(1, Math.ceil(coins / 2)) : coins
+  const fineDawn = permit ? Math.max(1, Math.ceil(dawnCoins / 2)) : dawnCoins
+  if (game.coins >= fineCoins && game.dawnCoins >= fineDawn) {
+    game.coins -= fineCoins
+    game.dawnCoins -= fineDawn
+    const note = permit ? '（持械备案减半）' : ''
+    return `治安官的靴子踩在你背上：罚款 ${fineCoins} 末日币 + ${fineDawn} 曙光币${note}。`
+  }
+  game.coins = 0
+  game.dawnCoins = 0
+  adjustStats({ stamina: -30 })
+  if (game.dead) return ''
+  return '你付不起罚款，治安官把你拖去劳动改造：货币清零，体力 -30。'
+}
+
+/** 红灯街区 · 献身自由：1 回合（正常衰减），需任意公会徽章 */
+export function redLightSellBody() {
+  if (game.dead) return ''
+  if (game.location !== 'utopia-city') return '红灯街区在乌托邦城。'
+  if (!activeGuildId()) return '需要任意公会徽章才能进入红灯街区。'
+
+  advanceTurns(1)
+  if (game.dead) return ''
+
+  const roll = Math.random()
+  if (roll < 0.4) return redLightFine(4, 4)
+  if (roll < 0.7) {
+    game.coins += 3
+    game.dawnCoins += 3
+    return '这是见不得光的事情。你躲在暗处数钱，像一只阴暗的老鼠：末日币 +3，曙光币 +3。'
+  }
+  if (roll < 0.9) return '对方并未支付报酬。你上当了。'
+
+  const stolen = stealRedLightGoods()
+  if (!stolen) return '完事了，但是你穷得叮当响，TA 懒得偷你。'
+  return `你的东西被偷走了：${stolen.name} ×${stolen.qty}。`
+}
+
+/** 红灯街区 · 追求自由：先付 3 末日币 + 3 曙光币，1 回合（正常衰减） */
+export function redLightPayForFreedom() {
+  if (game.dead) return ''
+  if (game.location !== 'utopia-city') return '红灯街区在乌托邦城。'
+  if (!activeGuildId()) return '需要任意公会徽章才能进入红灯街区。'
+  if (game.coins < 3 || game.dawnCoins < 3) {
+    return '走进那条巷子需要 3 末日币 + 3 曙光币。'
+  }
+
+  game.coins -= 3
+  game.dawnCoins -= 3
+  advanceTurns(1)
+  if (game.dead) return ''
+
+  const roll = Math.random()
+  if (roll < 0.4) return redLightFine(3, 3)
+  if (roll < 0.7) {
+    adjustStats({ sanity: -20, stamina: -20 })
+    if (game.dead) return ''
+    return '完事后你感到一阵空虚：理智 -20，体力 -20。'
+  }
+  if (roll < 0.9) {
+    const weapon = pickMeleeByTier('普通')
+    if (!weapon) return 'TA 落下了一件东西，但你没能捡起来。'
+    const leftover = addItem(game.inventory, weapon.id, 1)
+    return leftover > 0
+      ? `TA 落下了一把${weapon.name}，但你的背包已经满了。`
+      : `TA 落下了一件东西：${weapon.name}（${weapon.tier}）。`
+  }
+
+  adjustStats({ infection: 90 })
+  if (game.dead) return ''
+  return '你感染了疾病：感染 +90%。'
+}
+
+/** 乌托邦 · 自由酒馆：双币购买，当场喝完，不进入背包、不消耗回合 */
+export function drinkTavernCocktail(cocktailId) {
+  if (game.dead) return ''
+  if (game.location !== 'utopia-city') return '自由酒馆在乌托邦城。'
+  if (!activeGuildId()) return '需要任意公会徽章才能进入自由酒馆。'
+
+  const cocktail = TAVERN_COCKTAILS.find((item) => item.id === cocktailId)
+  if (!cocktail) return ''
+  if (game.coins < cocktail.coins || game.dawnCoins < cocktail.dawnCoins) {
+    return `${cocktail.name} 需要 ${cocktail.coins} 末日币 + ${cocktail.dawnCoins} 曙光币。`
+  }
+
+  game.coins -= cocktail.coins
+  game.dawnCoins -= cocktail.dawnCoins
+  adjustStats(cocktail.effects)
+  if (game.dead) return ''
+  return `${cocktail.name}见底：${cocktail.effectText}。`
+}
+
+/** 乌托邦 · 自由餐馆：双币购买，当场吃完，不进入背包、不消耗回合 */
+export function eatRestaurantDish(dishId) {
+  if (game.dead) return ''
+  if (game.location !== 'utopia-city') return '自由餐馆在乌托邦城。'
+  if (!activeGuildId()) return '需要任意公会徽章才能进入自由餐馆。'
+
+  const dish = RESTAURANT_DISHES.find((item) => item.id === dishId)
+  if (!dish) return ''
+  if (game.coins < dish.coins || game.dawnCoins < dish.dawnCoins) {
+    return `${dish.name} 需要 ${dish.coins} 末日币 + ${dish.dawnCoins} 曙光币。`
+  }
+
+  game.coins -= dish.coins
+  game.dawnCoins -= dish.dawnCoins
+  adjustStats(dish.effects)
+  if (game.dead) return ''
+  return `${dish.name}吃完了：${dish.effectText}。`
+}
+
+/* ===== 乌托邦 · 代理城主 ===== */
+
+/** 拜访当值会长：常规选项人人可选，成员选项只对本公会开放；每天一次、1 回合 */
+export function meetActingMayor(option = 'public') {
+  if (game.dead) return ''
+  if (game.location !== 'utopia-city') return '代理城主办公室在乌托邦城。'
+
+  const mayor = mayorForDay(game.day)
+  if (!mayor) return ''
+  if (Number(game.flags.mayorVisitDay) === game.day) {
+    return '今天已经拜访过代理城主了，明天换人再来。'
+  }
+
+  const memberOnly = option === 'member'
+  if (memberOnly && activeGuildId() !== mayor.guildId) {
+    return `你身上没有「${mayor.guildName}」的徽章，${mayor.name}不会私下见你。`
+  }
+
+  const request = memberOnly ? mayor.member : mayor.public
+  if (!request) return ''
+
+  if (request.serviceIds?.length) {
+    const equipped = request.service === 'clean-ranged' ? game.equipment.ranged : game.equipment.melee
+    if (!equipped || !request.serviceIds.includes(equipped.id)) {
+      const allowed = request.serviceIds.map((id) => getItem(id)?.name ?? id).join('、')
+      return `${mayor.name}摇了摇头：${request.serviceLabel ?? '会长只修'}${allowed}。`
+    }
+  }
+
+  const actionDay = game.day
+  advanceTurns(1)
+  if (game.dead) return ''
+
+  game.flags.mayorVisitDay = actionDay
+  game.flags.mayorLastOption = option
+
+  const notes = [request.text]
+  if (request.effects) adjustStats(request.effects)
+  if (request.coins) game.coins += request.coins
+  if (request.dawnCoins) game.dawnCoins += request.dawnCoins
+  if (request.reputation) game.reputation += request.reputation
+  if (request.contribution) addGuildContribution(mayor.guildId, request.contribution)
+
+  if (request.service === 'clean-ranged') {
+    const equipped = game.equipment.ranged
+    equipped.cleanliness = CLEANLINESS_MAX
+    notes.push(`你的远程武器清洁度已恢复到 ${CLEANLINESS_MAX}。`)
+  } else if (request.service === 'repair-melee') {
+    const equipped = game.equipment.melee
+    const max = getItem(equipped.id)?.weapon?.durability
+    equipped.durability = max
+    notes.push(`你的近战武器耐久已恢复到 ${max}。`)
+  }
+
+  return notes.filter(Boolean).join(' ')
+}
+
+/* ===== 乌托邦 · 自由贸易 ===== */
+
+function tradeListingsArray() {
+  if (!Array.isArray(game.flags.tradeListings)) game.flags.tradeListings = []
+  return game.flags.tradeListings
+}
+
+/** 跨天结算托管摊位：按品质与定价掷出成交，剩余继续挂着 */
+function processTradeSales() {
+  const listings = Array.isArray(game.flags.tradeListings) ? game.flags.tradeListings : []
+  if (!listings.length) return
+
+  const kept = []
+  const sold = []
+  for (const listing of listings) {
+    const def = getItem(listing?.itemId)
+    if (!def?.weapon) continue
+    const days = Math.max(1, game.day - (Number(listing.listedDay) || game.day))
+    const bonus = hasServicePermit('trade-license') ? 0.05 : 0
+    const chance = tradeSaleChance(def, Number(listing.price) || 0, days, bonus)
+    if (chance > 0 && Math.random() < chance) {
+      const price = Number(listing.price) || 0
+      sold.push({ name: def.name, price })
+      game.flags.tradeIncome = Math.max(0, Number(game.flags.tradeIncome) || 0) + price
+    } else {
+      kept.push(listing)
+    }
+  }
+
+  game.flags.tradeListings = kept
+  game.flags.tradeReport = { day: game.day, sales: sold, remaining: kept.length }
+
+  if (!sold.length) return
+  const total = sold.reduce((sum, item) => sum + item.price, 0)
+  tradeNotice.sales.push(...sold)
+  tradeNotice.total += total
+  tradeNotice.day = game.day
+  notify(`自由贸易 · 售出 ${sold.length} 件，收入 ${total} 末日币待领取。`, 3600)
+}
+
+/** 上架背包里的近战 / 远程武器，价格由玩家自定义（末日币） */
+export function listTradeItem(slotIndex, price) {
+  if (game.dead) return ''
+  if (game.location !== 'utopia-city') return '自由贸易在乌托邦城。'
+  if (!activeGuildId()) return '需要任意公会徽章才能进入自由贸易。'
+
+  const listings = tradeListingsArray()
+  if (listings.length >= TRADE_LISTING_LIMIT) {
+    return `摊位最多同时上架 ${TRADE_LISTING_LIMIT} 件，先下架一件。`
+  }
+
+  const entry = game.inventory[slotIndex]
+  if (!entry) return '背包里没有这件东西。'
+  const def = getItem(entry.id)
+  if (def?.category !== 'melee' && def?.category !== 'ranged') {
+    return '自由贸易只接收近战和远程武器。'
+  }
+
+  const value = Math.floor(Number(price))
+  if (!Number.isFinite(value) || value < 1) return '定价至少为 1 末日币。'
+  if (value > 9999) return '单件定价不能超过 9999 末日币。'
+
+  const seq = (Number(game.flags.tradeSeq) || 0) + 1
+  game.flags.tradeSeq = seq
+  const listing = {
+    id: `trade-${seq}`,
+    itemId: entry.id,
+    durability: Number.isFinite(entry.durability) ? entry.durability : null,
+    cleanliness: Number.isFinite(entry.cleanliness) ? entry.cleanliness : null,
+    price: value,
+    listedDay: game.day,
+  }
+  game.flags.tradeListings = [...listings, listing]
+  game.inventory[slotIndex] = null
+
+  const chance = tradeSaleChance(
+    def,
+    value,
+    1,
+    hasServicePermit('trade-license') ? 0.05 : 0,
+  )
+  const chanceText = chance >= 1 ? '必被拿走' : `成交概率 ${Math.round(chance * 100)}%`
+  return `${def.name}已上架，定价 ${value} 末日币，次日${chanceText}。`
+}
+
+/** 下架托管武器，连同当时的耐久 / 清洁度一起放回背包 */
+export function delistTradeItem(listingId) {
+  if (game.dead) return ''
+  if (game.location !== 'utopia-city') return '自由贸易在乌托邦城。'
+  if (!activeGuildId()) return '需要任意公会徽章才能进入自由贸易。'
+
+  const listings = tradeListingsArray()
+  const listing = listings.find((item) => item.id === listingId)
+  if (!listing) return '摊位上没有这件东西。'
+
+  const emptyIndex = game.inventory.findIndex((entry) => !entry)
+  if (emptyIndex === -1) return '背包已满，先腾出一格再下架。'
+
+  const def = getItem(listing.itemId)
+  const entry = { id: listing.itemId, qty: 1 }
+  if (def?.category === 'ranged') {
+    entry.cleanliness = Number.isFinite(listing.cleanliness) ? listing.cleanliness : CLEANLINESS_MAX
+  } else {
+    entry.durability = Number.isFinite(listing.durability)
+      ? listing.durability
+      : (def?.weapon?.durability ?? null)
+  }
+  game.inventory[emptyIndex] = entry
+  game.flags.tradeListings = listings.filter((item) => item.id !== listingId)
+  return `${def?.name ?? '武器'}已下架，回到背包。`
+}
+
+/** 领取自由贸易待入账的末日币 */
+export function collectTradeIncome() {
+  if (game.dead) return ''
+  if (game.location !== 'utopia-city') return '自由贸易的账要在乌托邦城结。'
+  if (!activeGuildId()) return '需要任意公会徽章才能进入自由贸易。'
+
+  const amount = Math.max(0, roundToCents(Number(game.flags.tradeIncome) || 0))
+  if (amount <= 0) return '没有待领取的收入。'
+  game.flags.tradeIncome = 0
+  game.coins += amount
+  return `自由贸易收入入账：末日币 +${amount}。`
+}
+
+/* ===== 乌托邦 · 办事中心 ===== */
+
+export function hasServicePermit(permitId) {
+  return Boolean(game.flags.servicePermits?.[permitId])
+}
+
+function grantServicePermit(permitId) {
+  game.flags.servicePermits = {
+    ...(game.flags.servicePermits ?? {}),
+    [permitId]: true,
+  }
+}
+
+/** 办理证照 / 补办业务：取号消耗 1 回合，加急额外付曙光币但不消耗回合 */
+export function applyServicePermit(permitId, express = false) {
+  if (game.dead) return ''
+  if (game.location !== 'utopia-city') return '办事中心在乌托邦城。'
+
+  const permit = SERVICE_PERMITS.find((item) => item.id === permitId)
+  if (!permit) return ''
+  if (permit.once && hasServicePermit(permitId)) {
+    return `「${permit.name}」已经办过了。`
+  }
+
+  let badgeId = null
+  if (permitId === 'badge-reissue') {
+    if (activeGuildId()) return '你身上已经有公会徽章，不需要补办。'
+    const lastGuildId = game.flags.lastGuildId
+    const lastGuild = GUILD_BY_ID[lastGuildId]
+    if (!lastGuild) return '档案里没有你的公会记录，无法补办。'
+    badgeId = lastGuild.badgeId
+    if (!canFitInventory(badgeId)) return '背包已满，先腾出一格再来补办。'
+  }
+
+  const expressCost = express ? SERVICE_CENTER_EXPRESS_DAWN : 0
+  if (game.coins < permit.coins) {
+    return `末日币不足，办理「${permit.name}」需要 ${permit.coins}。`
+  }
+  if (game.dawnCoins < permit.dawnCoins + expressCost) {
+    return express
+      ? `曙光币不足，办理「${permit.name}」并加急需要 ${permit.dawnCoins + expressCost}。`
+      : `曙光币不足，办理「${permit.name}」需要 ${permit.dawnCoins}。`
+  }
+
+  if (!express) {
+    advanceTurns(1)
+    if (game.dead) return ''
+  }
+
+  game.coins -= permit.coins
+  game.dawnCoins -= permit.dawnCoins + expressCost
+
+  if (badgeId) {
+    addItem(game.inventory, badgeId, 1)
+    const name = getItem(badgeId)?.name ?? '公会徽章'
+    const suffix = express ? '（加急，未消耗回合）' : ''
+    return `${name}补办完成，钢印还没干透${suffix}。`
+  }
+
+  grantServicePermit(permitId)
+  const suffix = express ? `（加急 +${expressCost} 曙光币，未消耗回合）` : ''
+  return `「${permit.name}」办结，钢印落在纸上：${permit.effectText}${suffix}`
+}
+
+/* ===== 乌托邦 · 鱼肉处理与沧龙之刃 ===== */
+
+/** 消耗双币，把一份变异鱼肉处理成无害化鱼肉 */
+export function processMutantFish() {
+  if (game.dead) return ''
+  if (game.location !== 'utopia-city') return '鱼肉处理在乌托邦城。'
+
+  const have = countItem(game.inventory, FISH_PROCESSING.inputId)
+  if (have <= 0) return '背包里没有变异鱼肉。'
+  if (game.coins < FISH_PROCESSING.coins || game.dawnCoins < FISH_PROCESSING.dawnCoins) {
+    return `处理一份变异鱼肉需要 ${FISH_PROCESSING.coins} 末日币 + ${FISH_PROCESSING.dawnCoins} 曙光币。`
+  }
+
+  const copy = game.inventory.map((entry) => (entry ? { ...entry } : null))
+  removeItem(copy, FISH_PROCESSING.inputId, 1)
+  if (addItem(copy, FISH_PROCESSING.outputId, 1) > 0) {
+    return '背包已满，先腾出一格再来处理。'
+  }
+
+  game.coins -= FISH_PROCESSING.coins
+  game.dawnCoins -= FISH_PROCESSING.dawnCoins
+  removeItem(game.inventory, FISH_PROCESSING.inputId, 1)
+  addItem(game.inventory, FISH_PROCESSING.outputId, 1)
+  const output = getItem(FISH_PROCESSING.outputId)
+  return `变异鱼肉处理完成：获得 ${output?.name ?? '无害化鱼肉'} ×1。`
+}
+
+/** 消耗 50 片沧龙鳞片铸造沧龙之刃 */
+export function craftKrakenBlade() {
+  if (game.dead) return ''
+  if (game.location !== 'utopia-city') return '锻造台在乌托邦城。'
+
+  const scales = countItem(game.inventory, KRAKEN_BLADE_CRAFT.scaleId)
+  if (scales < KRAKEN_BLADE_CRAFT.scales) {
+    return `沧龙鳞片不足：需要 ${KRAKEN_BLADE_CRAFT.scales} 片，当前 ${scales} 片。`
+  }
+
+  const copy = game.inventory.map((entry) => (entry ? { ...entry } : null))
+  removeItem(copy, KRAKEN_BLADE_CRAFT.scaleId, KRAKEN_BLADE_CRAFT.scales)
+  if (addItem(copy, KRAKEN_BLADE_CRAFT.itemId, 1) > 0) {
+    return '背包已满，先腾出一格再来铸造。'
+  }
+
+  removeItem(game.inventory, KRAKEN_BLADE_CRAFT.scaleId, KRAKEN_BLADE_CRAFT.scales)
+  addItem(game.inventory, KRAKEN_BLADE_CRAFT.itemId, 1)
+  const blade = getItem(KRAKEN_BLADE_CRAFT.itemId)
+  return `沧龙之刃铸成：${blade?.name ?? '沧龙之刃'} 已放入背包。`
+}
+
+/** 某公会的加入条件明细，供乌托邦界面显示 */
+export function guildRequirementState(guildId) {
+  const guild = GUILD_BY_ID[guildId]
+  if (!guild) return null
+  const active = activeGuild()
+  const requirements = guild.requirement ?? {}
+  const items = (requirements.items ?? []).map((need) => ({
+    id: need.id,
+    name: getItem(need.id)?.name ?? need.id,
+    qty: need.qty ?? 1,
+    have: countItem(game.inventory, need.id),
+  }))
+
+  const kills = requirements.kills ?? 0
+  const thefts = requirements.thefts ?? 0
+  const minIdentity = requirements.minIdentity ?? null
+  const itemsOk = items.every((need) => need.have >= need.qty)
+  const killsOk = game.zombieKills >= kills
+  const theftsOk = (Number(game.flags.cityTheftCount) || 0) >= thefts
+  const identityOk =
+    !minIdentity || identityRank(game.identity) >= identityRank(minIdentity)
+
+  let reason = ''
+  if (active) reason = `你已经是「${active.name}」成员，先退出当前公会。`
+  else if (!itemsOk) reason = '提交物品不足。'
+  else if (!killsOk) reason = `还需要累计击杀 ${kills} 只丧尸（当前 ${game.zombieKills}）。`
+  else if (!theftsOk) {
+    reason = `还需要在都城盗窃 ${thefts} 次（当前 ${Number(game.flags.cityTheftCount) || 0} 次）。`
+  } else if (!identityOk) reason = `需要「${minIdentity}」及以上身份。`
+
+  return {
+    guild,
+    active,
+    items,
+    kills,
+    killsHave: game.zombieKills,
+    thefts,
+    theftsHave: Number(game.flags.cityTheftCount) || 0,
+    minIdentity,
+    canJoin: !active && itemsOk && killsOk && theftsOk && identityOk,
+    reason,
+  }
+}
+
+/** 加入公会：消耗报名物品，放入对应公会徽章 */
+export function joinGuild(guildId) {
+  if (game.dead) return ''
+  if (game.location !== 'utopia-city') return '公会报名在乌托邦城。'
+  const state = guildRequirementState(guildId)
+  if (!state) return '没有这个公会。'
+  if (state.active) return state.reason
+  if (!state.canJoin) return state.reason
+
+  const guild = state.guild
+  const copy = game.inventory.map((entry) => (entry ? { ...entry } : null))
+  for (const need of state.items) removeItem(copy, need.id, need.qty)
+  if (addItem(copy, guild.badgeId, 1) > 0) {
+    return '背包已满，腾出一格再来报名。'
+  }
+
+  for (const need of state.items) removeItem(game.inventory, need.id, need.qty)
+  addItem(game.inventory, guild.badgeId, 1)
+  game.flags.lastGuildId = guildId
+  return `你通过了「${guild.name}」的报名。公会徽章已经放进背包。`
+}
+
+/** 退出当前公会：回收徽章，之后重新加入需要重做报名条件 */
+export function leaveGuild() {
+  const guild = activeGuild()
+  if (!guild) return '你还没有加入任何公会。'
+  if (removeItem(game.inventory, guild.badgeId, 1) > 0) {
+    return '公会徽章不在背包里，退出失败。'
+  }
+  game.flags.lastGuildId = guild.id
+  syncHpCap()
+  return `你退出了「${guild.name}」，公会徽章已被回收。再次加入需要重新完成报名条件。`
+}
+
+/* ===== 公会日常委托 · 商店 · 贡献兑换 ===== */
+
+/** 某公会的公会贡献值 */
+export function guildContribution(guildId) {
+  return Math.max(0, Number(game.flags.guildContribution?.[guildId]) || 0)
+}
+
+function addGuildContribution(guildId, amount) {
+  const map = { ...(game.flags.guildContribution ?? {}) }
+  map[guildId] = (Number(map[guildId]) || 0) + amount
+  game.flags.guildContribution = map
+}
+
+/** 单个公会的委托进度：领取后清零，未领取时跨天累计 */
+function guildProgressFor(guildId) {
+  const state = game.flags.guildProgress
+  const entry = state && typeof state === 'object' ? state[guildId] : null
+  return {
+    kills: Number(entry?.kills) || 0,
+    thefts: Number(entry?.thefts) || 0,
+    begs: Number(entry?.begs) || 0,
+    lastClaimDay: Number(entry?.lastClaimDay) || 0,
+  }
+}
+
+function saveGuildProgress(guildId, entry) {
+  const map = { ...(game.flags.guildProgress ?? {}) }
+  map[guildId] = { ...entry }
+  game.flags.guildProgress = map
+}
+
+function bumpGuildProgress(guildId, key, amount = 1) {
+  const entry = guildProgressFor(guildId)
+  entry[key] = (Number(entry[key]) || 0) + amount
+  saveGuildProgress(guildId, entry)
+}
+
+/** 战斗击杀记录：只有当前公会委托认可的武器才会计数 */
+export function recordGuildKill(weaponId) {
+  const guild = activeGuild()
+  if (!guild || !weaponId) return
+  const weapons = guild.commission?.weaponIds
+  if (!Array.isArray(weapons) || !weapons.includes(weaponId)) return
+  bumpGuildProgress(guild.id, 'kills')
+}
+
+/** 盗贼委托：都城盗窃计数 */
+export function recordGuildTheft() {
+  if (activeGuildId() !== 'rogue') return
+  bumpGuildProgress('rogue', 'thefts')
+}
+
+/** 盗贼委托：沿街乞讨计数 */
+export function recordGuildBeg() {
+  if (activeGuildId() !== 'rogue') return
+  bumpGuildProgress('rogue', 'begs')
+}
+
+/** 统计背包内符合条件的物品总数 */
+function countInventoryWhere(test) {
+  let total = 0
+  for (const entry of game.inventory) {
+    if (!entry) continue
+    if (test(getItem(entry.id), entry)) total += entry.qty ?? 1
+  }
+  return total
+}
+
+/** 从背包里消耗符合条件的物品；返回是否足量扣完 */
+function consumeInventoryWhere(test, amount) {
+  let left = amount
+  for (let index = 0; index < game.inventory.length && left > 0; index += 1) {
+    const entry = game.inventory[index]
+    if (!entry) continue
+    const def = getItem(entry.id)
+    if (!test(def, entry)) continue
+    const take = Math.min(left, entry.qty ?? 1)
+    entry.qty -= take
+    left -= take
+    if (entry.qty <= 0) game.inventory[index] = null
+  }
+  return left === 0
+}
+
+/** 当前公会日常委托的进度与领取状态 */
+export function guildCommissionState(guildId) {
+  const guild = GUILD_BY_ID[guildId]
+  const commission = guild?.commission
+  if (!guild || !commission) return null
+
+  const progress = guildProgressFor(guildId)
+  let lines = []
+  if (commission.type === 'kill') {
+    const need = commission.count ?? 2
+    lines = [
+      {
+        label: '指定武器击杀',
+        have: Math.min(progress.kills, need),
+        need,
+        ok: progress.kills >= need,
+      },
+    ]
+  } else if (commission.type === 'rogue') {
+    const theftNeed = commission.thefts ?? 2
+    const begNeed = commission.begs ?? 2
+    lines = [
+      {
+        label: '都城盗窃',
+        have: Math.min(progress.thefts, theftNeed),
+        need: theftNeed,
+        ok: progress.thefts >= theftNeed,
+      },
+      {
+        label: '沿街乞讨',
+        have: Math.min(progress.begs, begNeed),
+        need: begNeed,
+        ok: progress.begs >= begNeed,
+      },
+    ]
+  } else if (commission.type === 'medicine') {
+    const need = commission.count ?? 5
+    const have = countInventoryWhere((def) => def?.category === 'medicine')
+    lines = [{ label: '背包内药品', have: Math.min(have, need), need, ok: have >= need }]
+  } else if (commission.type === 'wine') {
+    const need = commission.count ?? 3
+    const ids = commission.items ?? []
+    const have = countInventoryWhere((def) => def && ids.includes(def.id))
+    lines = [{ label: '指定酒类', have: Math.min(have, need), need, ok: have >= need }]
+  }
+
+  const claimedToday = progress.lastClaimDay === game.day
+  let reason = ''
+  if (claimedToday) reason = '今天已经领取过这份委托奖励。'
+  else if (!lines.every((line) => line.ok)) reason = '委托进度还没完成。'
+
+  return {
+    guild,
+    lines,
+    claimedToday,
+    canClaim: !claimedToday && lines.every((line) => line.ok),
+    reason,
+    rewardText: `${GUILD_COMMISSION_REWARD.coins} 末日币 + ${GUILD_COMMISSION_REWARD.dawnCoins} 曙光币 + ${GUILD_COMMISSION_REWARD.contribution} 公会贡献`,
+  }
+}
+
+/** 交付公会日常委托：一天一次，提交类委托会消耗物品 */
+export function claimGuildCommission(guildId) {
+  if (game.dead) return ''
+  if (game.location !== 'utopia-city') return '公会委托只能在乌托邦城的公会大厅交付。'
+  const guild = GUILD_BY_ID[guildId]
+  if (!guild?.commission) return '没有这个公会委托。'
+  if (activeGuildId() !== guildId) return `你不在「${guild.name}」，无法领取这里的委托。`
+
+  const state = guildCommissionState(guildId)
+  if (!state) return ''
+  if (!state.canClaim) return state.reason
+
+  if (guild.commission.type === 'medicine') {
+    consumeInventoryWhere((def) => def?.category === 'medicine', guild.commission.count ?? 5)
+  } else if (guild.commission.type === 'wine') {
+    const ids = guild.commission.items ?? []
+    consumeInventoryWhere((def) => def && ids.includes(def.id), guild.commission.count ?? 3)
+  }
+
+  game.coins += GUILD_COMMISSION_REWARD.coins
+  game.dawnCoins += GUILD_COMMISSION_REWARD.dawnCoins
+  addGuildContribution(guildId, GUILD_COMMISSION_REWARD.contribution)
+
+  const progress = guildProgressFor(guildId)
+  progress.kills = 0
+  progress.thefts = 0
+  progress.begs = 0
+  progress.lastClaimDay = game.day
+  saveGuildProgress(guildId, progress)
+
+  return `委托完成：${guild.name}收下了你的交付。获得 ${state.rewardText}。`
+}
+
+/** 背包能否放下一件物品（按堆叠规则模拟一次） */
+function canFitInventory(itemId, qty = 1) {
+  const copy = game.inventory.map((entry) => (entry ? { ...entry } : null))
+  return addItem(copy, itemId, qty) === 0
+}
+
+/** 公会商店购买：需要当前佩戴该公会徽章 */
+export function buyGuildShopItem(guildId, itemId) {
+  if (game.dead) return ''
+  if (game.location !== 'utopia-city') return '公会商店只在乌托邦城营业。'
+  const guild = GUILD_BY_ID[guildId]
+  if (!guild) return '没有这个公会。'
+  if (activeGuildId() !== guildId) return `需要「${guild.name}」徽章才能在这里购买。`
+  const good = guild.shop?.find((entry) => entry.id === itemId)
+  if (!good) return '这家公会不卖这件东西。'
+  if (game.coins < good.coins) return `末日币不足：需要 ${good.coins}，当前 ${game.coins}。`
+  if (game.dawnCoins < good.dawnCoins) {
+    return `曙光币不足：需要 ${good.dawnCoins}，当前 ${game.dawnCoins}。`
+  }
+  if (!canFitInventory(itemId)) return '背包已满，先腾出一格。'
+
+  game.coins -= good.coins
+  game.dawnCoins -= good.dawnCoins
+  addItem(game.inventory, itemId, 1)
+  return `购买 ${getItem(itemId)?.name ?? itemId} ×1，花费 ${good.coins} 末日币 + ${good.dawnCoins} 曙光币。`
+}
+
+/** 贡献商店物品是否已经兑换过 */
+export function guildContributionPurchased(itemId) {
+  return Boolean(game.flags.guildPurchases?.[itemId])
+}
+
+/** 贡献商店兑换：贡献值与双货币复合支付 */
+export function buyGuildContributionItem(guildId, itemId) {
+  if (game.dead) return ''
+  if (game.location !== 'utopia-city') return '贡献商店只在乌托邦城营业。'
+  const guild = GUILD_BY_ID[guildId]
+  if (!guild) return '没有这个公会。'
+  if (activeGuildId() !== guildId) return `需要「${guild.name}」徽章才能在这里兑换。`
+  const good = guild.contributionShop?.find((entry) => entry.id === itemId)
+  if (!good) return '这家公会没有这件兑换物。'
+  if (good.once && guildContributionPurchased(itemId)) {
+    return '这件兑换物每位成员只能兑换一次。'
+  }
+  const contribution = guildContribution(guildId)
+  if (contribution < good.contribution) {
+    return `公会贡献不足：需要 ${good.contribution}，当前 ${contribution}。`
+  }
+  if (game.coins < good.coins) return `末日币不足：需要 ${good.coins}，当前 ${game.coins}。`
+  if (game.dawnCoins < good.dawnCoins) {
+    return `曙光币不足：需要 ${good.dawnCoins}，当前 ${game.dawnCoins}。`
+  }
+  if (!canFitInventory(itemId)) return '背包已满，先腾出一格。'
+
+  const map = { ...(game.flags.guildContribution ?? {}) }
+  map[guildId] = contribution - good.contribution
+  game.flags.guildContribution = map
+  game.coins -= good.coins
+  game.dawnCoins -= good.dawnCoins
+
+  if (good.once) {
+    const purchases = { ...(game.flags.guildPurchases ?? {}) }
+    purchases[itemId] = true
+    game.flags.guildPurchases = purchases
+  }
+
+  addItem(game.inventory, itemId, 1)
+  return `兑换 ${getItem(itemId)?.name ?? itemId} ×1，消耗 ${good.contribution} 公会贡献 + ${good.coins} 末日币 + ${good.dawnCoins} 曙光币。`
+}
+
 
 /* ===== 末日都城 ===== */
 
@@ -1774,15 +2852,17 @@ export function expandBackpack() {
 
 const DEV_HELP = [
   '/help — 查看指令帮助',
+  '/day 数字 — 跳转到指定天数（不消耗回合）',
+  '/tp 地图名字 — 0 回合传送到指定地图',
+  '/get 物品名称 数量 — 获得对应物品',
   '/kill on|off — 开启 / 关闭一击必杀',
   '/lock — 锁定所有状态条，不再恶化',
   '/unlock — 解除状态条锁定',
+  '/lock o — 锁定深海氧气，近战不再消耗氧气',
+  '/unlock o — 解除深海氧气锁定',
   '/backpack — 背包容量提升至 200 格',
-  '/get 物品名称 数量 — 获得对应物品',
   '/talent max — 所有天赋满级',
   '/talent clear — 所有天赋重置为 0',
-  '/tp 地图名字 — 0 回合传送到指定地图',
-  '/tp ship — 0 回合传送到末日飞行船',
   '/Re NPC名字 — 复活指定 NPC（可能影响任务，慎用）',
 ].join('\n')
 
@@ -1839,11 +2919,21 @@ export function runDevCommand(input) {
   }
 
   if (command === '/lock') {
+    const target = (args[0] ?? '').toLowerCase()
+    if (target === 'o' || target === 'oxygen' || target === '氧气') {
+      devState.lockOxygen = true
+      return '氧气已锁定：深海战斗中近战不再消耗氧气。'
+    }
     devState.lockStats = true
     return '状态条已锁定：生命、饱食、口渴、理智、体力不再下降，感染不再上升。'
   }
 
   if (command === '/unlock') {
+    const target = (args[0] ?? '').toLowerCase()
+    if (target === 'o' || target === 'oxygen' || target === '氧气') {
+      devState.lockOxygen = false
+      return '氧气锁定已解除，深海近战恢复每次 20 点消耗。'
+    }
     devState.lockStats = false
     return '状态条已解锁，恢复正常衰减。'
   }
@@ -1899,6 +2989,25 @@ export function runDevCommand(input) {
       return '所有天赋已重置为 0，熟练度与启用列表已清空。'
     }
     return '用法：/talent max 或 /talent clear'
+  }
+
+  if (command === '/day') {
+    const value = Number.parseInt(args[0], 10)
+    if (!Number.isFinite(value) || value < 1) {
+      return '用法：/day 数字（最小为第 1 天）'
+    }
+    if (game.dead) return '你已经死了，无法跳转时间。'
+
+    const before = game.day
+    game.day = value
+    game.phase = 0
+    if (value > before) processTradeSales()
+    if (game.market) ensureStockMarketDay()
+    checkLoanDue()
+    checkAchievements()
+    return game.dead
+      ? `时间从第 ${before} 天跳到第 ${value} 天，借贷逾期同时结算。`
+      : `时间从第 ${before} 天跳转到第 ${value} 天，属性没有产生消耗。`
   }
 
   if (command === '/tp') {
@@ -2057,7 +3166,7 @@ export function repayLoan() {
   return `已还清 ${paid} 末日币，贷款结清。`
 }
 
-/* ===== 都城银行 · 行长金钱堡 ===== */
+/* ===== 都城银行 · 行长钱三爷 ===== */
 
 /** 化债成功：免掉全部利息，只还本金，到期日再宽限 30 天 */
 export function waiveLoanInterest() {
@@ -2072,29 +3181,55 @@ export function waiveLoanInterest() {
   return `行长免去了 ${waived} 币利息：现在只还本金 ${game.loan.principal} 币，到期日顺延至第 ${game.loan.dueDay} 天。`
 }
 
-/** 货币互换：双向都是每 2 枚换 1 枚，零头留在手里 */
+/** 兑换汇率：按两地历史最高身份的日收入购买力计算，1 曙光币 = ? 末日币 */
+export function exchangeRateInfo() {
+  const cityIdentity = game.maxIdentity ?? game.identity ?? '平民'
+  const dawnIdentity = game.maxDawnIdentity ?? game.dawnIdentity ?? '队员'
+  const labor = LABOR_TIERS.find((tier) => tier.identity === cityIdentity)?.coins ?? 0
+  const cityIncome = labor + (PALACE_SALARY[cityIdentity] ?? 0)
+  const dawnIncome =
+    DAWN_SALARY.find((tier) => tier.rank === dawnRank(dawnIdentity))?.coins ?? 0
+  const rate = exchangeRateFromIncome(cityIncome, dawnIncome)
+
+  return {
+    cityIdentity,
+    dawnIdentity,
+    cityIncome,
+    dawnIncome,
+    cityPower: cityIncome / EXCHANGE_BASKET_PRICE,
+    dawnPower: dawnIncome / EXCHANGE_BASKET_PRICE,
+    cityFallback: !game.maxIdentity && !game.identity,
+    dawnFallback: !game.maxDawnIdentity && !game.dawnIdentity,
+    rate,
+  }
+}
+
+/** 货币兑换：按购买力汇率双向结算，金额精确到 0.01 */
 export function exchangeCurrency(direction, amount) {
   if (game.dead) return ''
-  const rate = BANKER.exchangeRate
-  const value = Math.floor(Number(amount))
-  if (!Number.isFinite(value) || value < rate) return `至少需要 ${rate} 枚才能互换。`
+  const { rate } = exchangeRateInfo()
+  if (!Number.isFinite(rate) || rate <= 0) return '当前身份无法计算汇率。'
 
-  const gain = Math.floor(value / rate)
-  const spent = gain * rate
-  const odd = value - spent
-  const tail = odd > 0 ? `零头 ${odd} 币留在手里。` : ''
+  const value = roundToCents(Math.max(0, Number(amount) || 0))
+  if (value < 0.01) return '兑换金额至少 0.01 枚。'
 
   if (direction === 'dawn') {
-    if (game.dawnCoins < spent) return `曙光币不足：换 ${gain} 末日币需要 ${spent} 枚曙光币。`
-    game.dawnCoins -= spent
-    game.coins += gain
-    return `用 ${spent} 曙光币换到 ${gain} 末日币。${tail}`
+    const gain = floorToCents(value * rate)
+    if (game.dawnCoins < value) {
+      return `曙光币不足：兑换需要 ${formatMoney(value)} 枚。`
+    }
+    if (gain <= 0) return '金额太小，换不到 0.01 末日币。'
+    game.dawnCoins = roundToCents(game.dawnCoins - value)
+    game.coins = roundToCents(game.coins + gain)
+    return `用 ${formatMoney(value)} 曙光币换到 ${formatMoney(gain)} 末日币（1 曙光币 = ${formatMoney(rate)} 末日币）。`
   }
 
-  if (game.coins < spent) return `末日币不足：换 ${gain} 曙光币需要 ${spent} 枚末日币。`
-  game.coins -= spent
-  game.dawnCoins += gain
-  return `用 ${spent} 末日币换到 ${gain} 曙光币。${tail}`
+  const gain = floorToCents(value / rate)
+  if (game.coins < value) return `末日币不足：兑换需要 ${formatMoney(value)} 枚。`
+  if (gain <= 0) return '金额太小，换不到 0.01 曙光币。'
+  game.coins = roundToCents(game.coins - value)
+  game.dawnCoins = roundToCents(game.dawnCoins + gain)
+  return `用 ${formatMoney(value)} 末日币换到 ${formatMoney(gain)} 曙光币（1 末日币 = ${formatMoney(1 / rate)} 曙光币）。`
 }
 
 export function buyGood(goodId) {
@@ -2404,6 +3539,14 @@ export function stealPalace() {
   advanceTurns(1)
   if (game.dead) return ''
 
+  game.flags.cityTheftCount = (Number(game.flags.cityTheftCount) || 0) + 1
+  recordGuildTheft()
+
+  if (activeGuildId() === 'rogue') {
+    game.coins += 3
+    return '盗贼公会的徽章让守卫移开了视线：末日币 +3。'
+  }
+
   const roll = Math.random() * 100
   if (roll < 10) {
     game.coins += 3
@@ -2556,7 +3699,7 @@ export function gardenActivity(activityId = 'walk') {
   const lines = [`「${activity.name}」完成。`]
 
   if (activity.fullRestore) {
-    Object.assign(game.stats, DEFAULT_STATS)
+    Object.assign(game.stats, DEFAULT_STATS, { hp: statCap('hp') })
     lines.push('状态全部补满。')
   }
   if (activity.coins) {
@@ -2602,15 +3745,46 @@ export function useItem(slotIndex) {
   const entry = game.inventory[slotIndex]
   if (!entry) return
   const def = getItem(entry.id)
+
+  // 天使宝石：每天免费使用 3 次，使用后不消失
+  if (def?.special === 'angel-gem') {
+    const state = game.flags.angelGem
+    const uses = state?.day === game.day ? Number(state.uses) || 0 : 0
+    if (uses >= 3) {
+      notify('天使宝石今天已经用过 3 次了，明天再来。')
+      return
+    }
+    game.stats.hp = clampStat((game.stats.hp ?? 0) + 30, 'hp')
+    game.flags.angelGem = { day: game.day, uses: uses + 1 }
+    notify(`天使宝石展开光翼 · 生命 +30（今日 ${uses + 1} / 3）`, 3000)
+    return
+  }
+
+  // 时间宝石：每天一次，快进 3 回合且不结算回合消耗
+  if (def?.special === 'time-gem') {
+    if (Number(game.flags.timeGemDay) === game.day) {
+      notify('时间宝石今天已经转动过了。')
+      return
+    }
+    game.flags.timeGemDay = game.day
+    advanceTurns(3, { decay: false })
+    notify('时间宝石转动 · 时间快进 3 回合，没有产生回合消耗。', 3200)
+    return
+  }
+
   if (!def?.effects) {
     notify(`${def?.name ?? '该物品'}暂时无法使用`)
     return
   }
 
+  const guild = activeGuild()
+  const medicineMultiplier =
+    guild?.medicineIds?.includes(entry.id) ? (guild.medicineMultiplier ?? 1) : 1
   const changes = []
   for (const [key, delta] of Object.entries(def.effects)) {
-    game.stats[key] = clampStat((game.stats[key] ?? 0) + delta)
-    changes.push(`${STAT_LABELS[key] ?? key} ${delta > 0 ? '+' : ''}${delta}`)
+    const applied = delta * medicineMultiplier
+    game.stats[key] = clampStat((game.stats[key] ?? 0) + applied, key)
+    changes.push(`${STAT_LABELS[key] ?? key} ${applied > 0 ? '+' : ''}${applied}`)
   }
   checkStatDeaths()
 
@@ -2642,6 +3816,13 @@ export function discardItem(slotIndex) {
     return
   }
 
+  if (def?.category === 'guild') {
+    game.flags.lastGuildId = def.guildId
+    syncHpCap()
+    notify(`已丢弃 ${def.name} · 你放弃了「${GUILD_BY_ID[def.guildId]?.name ?? '公会'}」身份`, 3000)
+    return
+  }
+
   notify(`已丢弃 ${def?.name ?? '物品'} ×1`)
 }
 
@@ -2665,6 +3846,7 @@ export function equipMelee(slotIndex) {
     durability: entry.durability ?? def.weapon.durability,
   }
 
+  syncHpCap()
   notify(`已装备 ${def.name}`)
 }
 
@@ -2686,6 +3868,7 @@ export function unequipMelee() {
   }
   game.equipment.melee = null
 
+  syncHpCap()
   notify(`已卸下 ${def?.name ?? '武器'} · 赤手空拳`)
 }
 
@@ -2748,8 +3931,17 @@ export function consumeRangedCleanliness() {
   if (!equipped) return { current: 0, empty: true, name: '' }
 
   const def = getItem(equipped.id)
+  const guild = activeGuild()
+  const doubled =
+    guild?.cleanlinessCostMultiplier &&
+    guild.weaponIds?.includes(equipped.id)
+      ? guild.cleanlinessCostMultiplier
+      : 1
   const current = Number.isFinite(equipped.cleanliness) ? equipped.cleanliness : CLEANLINESS_MAX
-  equipped.cleanliness = Math.max(0, current - CLEANLINESS_PER_SHOT)
+  equipped.cleanliness = Math.max(
+    0,
+    current - CLEANLINESS_PER_SHOT * doubled,
+  )
 
   if (equipped.cleanliness <= 0 && current > 0) {
     notify(`${def?.name ?? '远程武器'}清洁度归零，需要保养后才能开火`, 3000)
@@ -2825,11 +4017,17 @@ export function consumeMeleeDurability() {
   const max = def?.weapon?.durability
   if (!Number.isFinite(max)) return { broken: false, name: def?.name ?? '' }
 
+  const guild = activeGuild()
+  const doubled =
+    guild?.durabilityCostMultiplier && guild.weaponIds?.includes(equipped.id)
+      ? guild.durabilityCostMultiplier
+      : 1
   const current = Number.isFinite(equipped.durability) ? equipped.durability : max
-  equipped.durability = Math.max(0, current - 1)
+  equipped.durability = Math.max(0, current - doubled)
   if (equipped.durability > 0) return { broken: false, name: def?.name ?? '' }
 
   game.equipment.melee = null
+  syncHpCap()
   notify(`${def?.name ?? '武器'}已经彻底损坏`, 3000)
   return { broken: true, name: def?.name ?? '' }
 }
@@ -2840,6 +4038,7 @@ const DAWN_NPC_OWNERS = ['nutritionist', 'mechanic', 'mercenary', 'agronomist']
 
 function questOwnerReady(owner) {
   if (owner === 'mafei') return !game.dead && game.location === MAFEI.mapId
+  if (owner === 'alex') return !game.dead && game.location === 'long-beach-harbor'
   if (['schika', 'nubi', 'moran'].includes(owner)) {
     return !game.dead && game.location === AIRSHIP.mapId
   }
@@ -2897,6 +4096,10 @@ export function questLineLocked(owner) {
 
   if (owner === 'mafei') {
     return game.flags.mafeiKilled ? '马斐已经不在了。' : ''
+  }
+
+  if (owner === 'alex') {
+    return game.flags.alexKilled ? '亚历克斯船长已经不在了。' : ''
   }
 
   if (['schika', 'nubi', 'moran'].includes(owner)) {

@@ -11,11 +11,17 @@ import {
   MAFEI,
   MERMAID,
   ORCHARD,
+  QUEST_OWNERS,
   ROCKET,
   ROTTEN_SEED,
+  SEA_OXYGEN_BLESSED,
+  SEA_OXYGEN_COST,
+  SEA_OXYGEN_DEFAULT,
+  SEA_TIERS,
   STRANGE_BARBECUE,
   YANRAN,
   ZOMBIE_ABILITY_LABELS,
+  ALEX_QUESTS,
   canStoreItems,
   countItem,
   expandPriceAtSize,
@@ -79,11 +85,19 @@ import {
   takeRottenSeed,
   yanranDaysLeft,
 } from '../game/store'
-import { battle, resetBattle, startFieldCombat } from '../game/battle'
+import {
+  battle,
+  continueHarborMutiny,
+  resetBattle,
+  startFieldCombat,
+  startHarborMutiny,
+  startSeaDive,
+} from '../game/battle'
 import AssassinationCard from './AssassinationCard.vue'
 import BattleView from './BattleView.vue'
 import MapMenuList from './MapMenuList.vue'
 import ModalShell from './ModalShell.vue'
+import NpcIntro from './NpcIntro.vue'
 import QuestLinePanel from './QuestLinePanel.vue'
 import StatusHud from './StatusHud.vue'
 
@@ -115,6 +129,24 @@ const isCore = computed(() => map.value?.id === YANRAN.mapId || map.value?.id ==
 const isHospital = computed(() => map.value?.id === LULU.mapId)
 const isLab = computed(() => map.value?.id === DOCTOR.mapId)
 const isSpaceport = computed(() => map.value?.id === ROCKET.mapId)
+const isHarbor = computed(() => map.value?.id === 'long-beach-harbor')
+const alexQuestDone = computed(
+  () => ALEX_QUESTS.filter((quest) => isQuestDone(quest.id)).length,
+)
+const alexKilled = computed(() => Boolean(game.flags.alexKilled))
+const alexTag = computed(() =>
+  alexKilled.value
+    ? '已死亡'
+    : game.finale === '远洋航行'
+      ? '已启航'
+      : `${alexQuestDone.value} / ${ALEX_QUESTS.length}`,
+)
+const mermaidBlessed = computed(
+  () => (Number(game.flags.mermaidStage) || 0) >= MERMAID.stages.length,
+)
+const seaOxygenMax = computed(() =>
+  mermaidBlessed.value ? SEA_OXYGEN_BLESSED : SEA_OXYGEN_DEFAULT,
+)
 const isBarracks = computed(() => map.value?.id === MAFEI.mapId)
 const mafeiKilled = computed(() => Boolean(game.flags.mafeiKilled))
 const mafeiQuest10Done = computed(() => isQuestDone('mafei-10'))
@@ -176,6 +208,7 @@ const devGiftTaken = computed(
   () => noviceGiftTaken.value && knightGiftTaken.value && healingGiftTaken.value && candyGiftTaken.value,
 )
 const devDuelWon = computed(() => Boolean(game.flags[DEV_SHOP.duel.doneFlag]))
+const devNpc = computed(() => npcById(DEV_SHOP.duel.npcId))
 const devMenuTag = computed(() => {
   if (!devGiftTaken.value) return '可领取'
   return devDuelWon.value ? '已完成' : '可角斗'
@@ -331,7 +364,7 @@ const fieldMenu = computed(() => {
       },
       {
         id: 'dev',
-        name: '游戏开发者',
+        name: devNpc.value?.name ?? '游戏开发者',
         desc: '一次性补给、背包扩容与生死角斗。',
         tag: devMenuTag.value,
       },
@@ -430,6 +463,22 @@ const fieldMenu = computed(() => {
     }
     return items
   }
+  if (isHarbor.value) {
+    return [
+      {
+        id: 'cruise',
+        name: '巨型邮轮',
+        desc: '亚历克斯船长的十档启航任务。',
+        tag: alexTag.value,
+      },
+      {
+        id: 'deep-sea',
+        name: '潜入深海',
+        desc: '变异海洋生物、氧气与深海掉落。',
+        tag: '可下潜',
+      },
+    ]
+  }
   return []
 })
 
@@ -524,12 +573,49 @@ function startDevDuel() {
     feed.value = game.deathReason
     return
   }
-  if (startFieldCombat(DEV_SHOP.duel, DEV_SHOP.mapId, 'dev-duel')) {
-    feed.value = DEV_SHOP.duel.intro
+  const dev = devNpc.value
+  if (!dev) return
+  if (startFieldCombat(dev, DEV_SHOP.mapId, 'dev-duel')) {
+    feed.value = dev.duelIntro
   }
 }
 
+function startMutiny() {
+  if (game.dead || battle.active) return
+  const line = startHarborMutiny()
+  if (game.dead) {
+    feed.value = game.deathReason
+    return
+  }
+  if (line) feed.value = line
+}
+
+function startDive() {
+  if (game.dead || battle.active) return
+  const line = startSeaDive()
+  if (game.dead) {
+    feed.value = game.deathReason
+    return
+  }
+  if (line) feed.value = line
+}
+
 function battleDone() {
+  if (battle.kind === 'deep-sea') {
+    const summary = battle.summary
+    resetBattle()
+    feed.value = summary || '你浮回海面，氧气表重新归零。'
+    return
+  }
+
+  if (battle.kind === 'mutiny') {
+    const summary = battle.summary
+    if (battle.mutinyNext && continueHarborMutiny()) return
+    resetBattle()
+    feed.value = summary || '甲板安静下来。'
+    return
+  }
+
   const wasMaSan = battle.kind === 'npc'
   const wasYanran = battle.kind === 'yanran'
   const wasPuppet = battle.kind === 'puppet'
@@ -570,6 +656,10 @@ function battleDone() {
 function closePanel() {
   if (battle.active) {
     notify('战斗中无法离开：先逃跑，或者把它打倒')
+    return
+  }
+  if (battle.kind === 'mutiny' && battle.mutinyNext) {
+    notify('船员还堵着舷梯，必须先迎战下一位')
     return
   }
   if (battle.finished) resetBattle()
@@ -655,6 +745,82 @@ function closePanel() {
               }}
             </button>
           </div>
+        </article>
+
+        <article v-else-if="view === 'cruise'" class="extra">
+          <header class="extra__head">
+            <h4 class="extra__title">巨型邮轮</h4>
+            <span class="extra__tag">{{ alexTag }}</span>
+          </header>
+
+          <div v-if="!alexKilled" class="mutiny-start">
+            <p class="extra__desc">
+              舷梯下的船员已经堵住退路。动手之后要连续打穿九名死士，才能见到船长。
+            </p>
+            <button
+              type="button"
+              class="btn extra__deadly mutiny-start__btn"
+              :disabled="battle.active"
+              @click="startMutiny"
+            >
+              杀害船长
+            </button>
+          </div>
+
+          <NpcIntro npc-id="alex">
+            <p class="extra__desc">
+              {{ alexKilled ? npcById('alex').deathLine : QUEST_OWNERS.alex.intro }}
+            </p>
+          </NpcIntro>
+          <div class="chips">
+            <span>长任务线 {{ alexQuestDone }} / {{ ALEX_QUESTS.length }}</span>
+            <span>最终奖励：结局「远洋航行」</span>
+          </div>
+          <QuestLinePanel v-if="!alexKilled" owner="alex" @feedback="feed = $event" />
+        </article>
+
+        <article v-else-if="view === 'deep-sea'" class="extra">
+          <header class="extra__head">
+            <h4 class="extra__title">潜入深海</h4>
+            <span class="extra__tag">{{ mermaidBlessed ? '人鱼祝福' : '普通潜水' }}</span>
+          </header>
+          <p class="extra__desc">
+            邮轮残骸外侧是一片沉没的城区。海床上的东西已经不再是原来的样子，水压和黑暗都让它们变了形。
+          </p>
+          <div class="chips">
+            <span>氧气 {{ seaOxygenMax }}</span>
+            <span>近战每次 -{{ SEA_OXYGEN_COST }} 氧气</span>
+            <span>远程禁用</span>
+            <span>逃跑 {{ mermaidBlessed ? '80%' : '50%' }}</span>
+          </div>
+          <div class="sea-tiers">
+            <div v-for="tier in SEA_TIERS" :key="tier.id" class="sea-tier">
+              <span class="sea-tier__rate">
+                {{ tier.name }} {{ Math.round(tier.rate * 100) }}%
+              </span>
+              <span class="sea-tier__names">
+                {{ tier.creatures.map((creature) => creature.name).join(' / ') }}
+              </span>
+            </div>
+          </div>
+          <p class="cure__note">
+            {{
+              mermaidBlessed
+                ? '人鱼的祝福仍在你身上，氧气上限为 200。'
+                : '完成人鱼传说后，氧气上限会提升到 200。'
+            }}
+          </p>
+          <p class="extra__desc">
+            普通海生物掉落变异鱼肉；冥渊沧龙掉落沧龙鳞片。氧气耗尽会溺水。
+          </p>
+          <button
+            type="button"
+            class="btn btn--primary extra__action"
+            :disabled="battle.active"
+            @click="startDive"
+          >
+            下潜 · 1 回合
+          </button>
         </article>
 
         <article v-else-if="view === 'orchard'" class="extra">
@@ -769,10 +935,12 @@ function closePanel() {
               }}
             </span>
           </header>
-          <p class="extra__desc">
-            {{ MA_SAN.intro }}
-            <q>{{ maSanLine }}</q>
-          </p>
+          <NpcIntro npc-id="ma-san">
+            <p class="extra__desc">
+              {{ MA_SAN.intro }}
+              <q>{{ maSanLine }}</q>
+            </p>
+          </NpcIntro>
           <div v-if="ateStrangeMeat && !maSanKilled" class="chips">
             <span v-if="maSanStage === 0">白威啤酒 {{ beerCount }} / {{ MA_SAN.beerCount }}</span>
             <span v-else-if="maSanStage === 1">水果 {{ fruitCount }} / {{ MA_SAN.fruitCount }}</span>
@@ -830,10 +998,12 @@ function closePanel() {
             <h4 class="extra__title">马斐</h4>
             <span class="extra__tag">{{ mafeiKilled ? '已死亡' : '名单' }}</span>
           </header>
-          <p class="extra__desc">
-            {{ mafeiKilled ? MAFEI.killedLine : MAFEI.intro }}
-            <q v-if="!mafeiKilled">{{ MAFEI.whisperLine }}</q>
-          </p>
+          <NpcIntro npc-id="mafei">
+            <p class="extra__desc">
+              {{ mafeiKilled ? MAFEI.killedLine : MAFEI.intro }}
+              <q v-if="!mafeiKilled">{{ MAFEI.whisperLine }}</q>
+            </p>
+          </NpcIntro>
           <div v-if="!mafeiKilled" class="chips">
             <span>高能炸药 {{ explosiveCount }} 块</span>
             <span>任务十{{ mafeiQuest10Done ? '已完成' : '未完成' }}</span>
@@ -883,14 +1053,16 @@ function closePanel() {
               }}
             </span>
           </header>
-          <p class="extra__desc">
-            <template v-if="mermaidDead">水族箱里已经没有动静，只剩一层发白的盐霜。</template>
-            <template v-else-if="mermaidDone">她只留下一道水痕，和那柄三叉戟。</template>
-            <template v-else>
-              {{ MERMAID.intro }}
-              <q v-if="mermaidHint">{{ mermaidHint }}</q>
-            </template>
-          </p>
+          <NpcIntro npc-id="mermaid">
+            <p class="extra__desc">
+              <template v-if="mermaidDead">水族箱里已经没有动静，只剩一层发白的盐霜。</template>
+              <template v-else-if="mermaidDone">她只留下一道水痕，和那柄三叉戟。</template>
+              <template v-else>
+                {{ MERMAID.intro }}
+                <q v-if="mermaidHint">{{ mermaidHint }}</q>
+              </template>
+            </p>
+          </NpcIntro>
           <div v-if="!mermaidDead" class="chips">
             <template v-if="mermaidDone">
               <span>已获得 {{ mermaidRewardName }}</span>
@@ -918,10 +1090,12 @@ function closePanel() {
             <h4 class="extra__title">游戏开发者</h4>
             <span class="extra__tag">{{ devMenuTag }}</span>
           </header>
-          <p class="extra__desc">
-            他蹲在卖场角落，面前摆着一台亮着屏幕的旧电脑。
-            <q>「缺什么就说。我这儿的东西只发一次。」</q>
-          </p>
+          <NpcIntro npc-id="game-developer">
+            <p class="extra__desc">
+              {{ devNpc?.shopIntro }}
+              <q>{{ devNpc?.shopLine }}</q>
+            </p>
+          </NpcIntro>
 
           <div class="dev-gift">
             <header class="extra__head">
@@ -1043,10 +1217,10 @@ function closePanel() {
               <h4 class="extra__title">进行生死角斗</h4>
               <span class="extra__tag">{{ devDuelWon ? '已获胜' : '99999 生命' }}</span>
             </header>
-            <p class="extra__desc">{{ DEV_SHOP.duel.description }}</p>
+            <p class="extra__desc">{{ devNpc?.description }}</p>
             <div class="chips">
-              <span>对手生命 {{ DEV_SHOP.duel.hp }}</span>
-              <span>攻击 {{ DEV_SHOP.duel.attack }}</span>
+              <span>对手生命 {{ devNpc?.hp }}</span>
+              <span>攻击 {{ devNpc?.attack }}</span>
               <span>消耗 1 回合</span>
               <span>胜利掉落：十字剑-圣战</span>
             </div>
@@ -1082,12 +1256,14 @@ function closePanel() {
               }}
             </span>
           </header>
-          <p class="extra__desc">
-            <template v-if="yanranRescued">嫣然在安全屋等你。</template>
-            <template v-else-if="yanranKilled">{{ YANRAN.killedLine }}</template>
-            <template v-else-if="yanranMutated">{{ YANRAN.lostLine }}</template>
-            <template v-else>{{ YANRAN.intro }}</template>
-          </p>
+          <NpcIntro npc-id="yanran">
+            <p class="extra__desc">
+              <template v-if="yanranRescued">嫣然在安全屋等你。</template>
+              <template v-else-if="yanranKilled">{{ YANRAN.killedLine }}</template>
+              <template v-else-if="yanranMutated">{{ YANRAN.lostLine }}</template>
+              <template v-else>{{ YANRAN.intro }}</template>
+            </p>
+          </NpcIntro>
           <div
             v-if="yanranSeen && !yanranRescued && !yanranMutated && !yanranKilled"
             class="chips"
@@ -1209,9 +1385,11 @@ function closePanel() {
             <h4 class="extra__title">饥饿丧尸露露</h4>
             <span class="extra__tag">{{ luluRescued ? '已入队' : '未投喂' }}</span>
           </header>
-          <p class="extra__desc">
-            {{ luluRescued ? LULU.rescuedLine : LULU.intro }}
-          </p>
+          <NpcIntro npc-id="lulu">
+            <p class="extra__desc">
+              {{ luluRescued ? LULU.rescuedLine : LULU.intro }}
+            </p>
+          </NpcIntro>
           <div class="chips">
             <span>罐头 {{ cans }} / {{ LULU.cannedCount }}</span>
             <span v-if="!luluRescued">消耗 1 回合</span>
@@ -1233,15 +1411,17 @@ function closePanel() {
             <h4 class="extra__title">陈博士</h4>
             <span class="extra__tag">{{ doctorTag }}</span>
           </header>
-          <p class="extra__desc">
-            <template v-if="doctorDead">{{ npcById('doctor').deathLine }}</template>
-            <template v-else-if="doctorReady">{{ DOCTOR.readyLine }}</template>
-            <template v-else-if="!doctorTradeDone">{{ DOCTOR.intro }}</template>
-            <template v-else-if="!puppetDefeated">{{ DOCTOR.needPuppetLine }}</template>
-            <template v-else-if="!doctorQuest1Done">{{ DOCTOR.quest1Line }}</template>
-            <template v-else-if="!doctorQuest2Done">{{ DOCTOR.quest2Line }}</template>
-            <template v-else>{{ DOCTOR.quest3Line }}</template>
-          </p>
+          <NpcIntro npc-id="doctor">
+            <p class="extra__desc">
+              <template v-if="doctorDead">{{ npcById('doctor').deathLine }}</template>
+              <template v-else-if="doctorReady">{{ DOCTOR.readyLine }}</template>
+              <template v-else-if="!doctorTradeDone">{{ DOCTOR.intro }}</template>
+              <template v-else-if="!puppetDefeated">{{ DOCTOR.needPuppetLine }}</template>
+              <template v-else-if="!doctorQuest1Done">{{ DOCTOR.quest1Line }}</template>
+              <template v-else-if="!doctorQuest2Done">{{ DOCTOR.quest2Line }}</template>
+              <template v-else>{{ DOCTOR.quest3Line }}</template>
+            </p>
+          </NpcIntro>
 
           <template v-if="!doctorDead">
           <div class="chips">
@@ -1674,6 +1854,46 @@ function closePanel() {
   margin-top: 6px;
   color: var(--text-dim);
   font-style: normal;
+}
+
+.mutiny-start {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(193, 74, 50, 0.4);
+  background: rgba(193, 74, 50, 0.08);
+}
+
+.mutiny-start__btn {
+  align-self: stretch;
+}
+
+.sea-tiers {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.sea-tier {
+  display: flex;
+  gap: 8px;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.sea-tier__rate {
+  flex: none;
+  width: 72px;
+  font-family: var(--font-mono);
+  color: var(--bone);
+}
+
+.sea-tier__names {
+  color: var(--text-mute);
 }
 
 .extra__warn {

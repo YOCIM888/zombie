@@ -4,7 +4,9 @@ import { STAT_DEFS } from '../game/config'
 import {
   CLEANLINESS_MAX,
   DAWN_FLEE_CHANCE,
+  HARBOR_MUTINY,
   RANGED_BASE,
+  SEA_OXYGEN_COST,
   UNARMED,
   ZOMBIE_ABILITY_LABELS,
   cleanlinessJamChance,
@@ -87,14 +89,57 @@ const hpPercent = computed(() =>
     : 0,
 )
 
-const resultTitle = computed(
-  () =>
-    ({
+const isSeaBattle = computed(() => battle.kind === 'deep-sea')
+const oxygenPercent = computed(() =>
+  battle.oxygenMax
+    ? Math.max(0, Math.min(100, (battle.oxygen / battle.oxygenMax) * 100))
+    : 0,
+)
+const fleeChance = computed(() =>
+  battle.kind === 'world-boss'
+    ? 1
+    : isSeaBattle.value && battle.mermaidBlessed
+      ? 0.8
+      : DAWN_FLEE_CHANCE,
+)
+const oceanGem = computed(() =>
+  game.inventory.some((entry) => entry?.id === 'ocean-gem'),
+)
+const oxygenCost = computed(() =>
+  oceanGem.value ? Math.max(1, Math.ceil(SEA_OXYGEN_COST / 2)) : SEA_OXYGEN_COST,
+)
+const worldBossDamage = computed(() =>
+  battle.kind === 'world-boss'
+    ? Math.max(0, battle.zombie.maxHp - battle.zombie.hp)
+    : 0,
+)
+const enemyAttackText = computed(() => {
+  const { attackMin, attackMax, attack } = battle.zombie
+  return Number.isFinite(attackMin) && Number.isFinite(attackMax)
+    ? `${attackMin}-${attackMax}`
+    : attack
+})
+const rangedLocked = computed(() => isSeaBattle.value || !ranged.value.canFire)
+const meleeHint = computed(() =>
+  isSeaBattle.value
+    ? `攻击 ${melee.value.attackText} · 氧气 -${oxygenCost.value}`
+    : `攻击 ${melee.value.attackText}`,
+)
+
+const resultTitle = computed(() => {
+  if (battle.kind === 'world-boss' && battle.result === 'flee') {
+    return '世界BOSS · 已撤退'
+  }
+  return (
+    {
       victory: '战斗结束 · 胜利',
       flee: '你逃掉了',
       dead: '你倒下了',
-    })[battle.result] ?? '战斗结束',
-)
+      'spar-win': '切磋结束 · 你赢了',
+      'spar-loss': '切磋结束 · 你输了',
+    }[battle.result] ?? '战斗结束'
+  )
+})
 
 const abilityLabels = computed(() =>
   (battle.zombie.abilities ?? []).map((key) => ZOMBIE_ABILITY_LABELS[key] ?? key),
@@ -103,11 +148,17 @@ const abilityLabels = computed(() =>
 const finishLabel = computed(() => {
   if (battle.kind === 'banker') return '返回银行'
   if (battle.kind === 'field') return '继续探索'
+  if (battle.kind === 'deep-sea') return '返回海面'
+  if (battle.kind === 'mutiny') return battle.mutinyNext ? '迎战下一位' : '返回甲板'
   if (battle.kind === 'airship-coup') return battle.coupNext ? '迎战下一位' : '返回高台'
   if (battle.kind === 'airship-commission') return '返回委托板'
   if (battle.kind === 'airship-cargo') return '返回机务舱'
+  if (battle.kind === 'spar') return '返回城主办公室'
+  if (battle.kind === 'world-boss') return '返回乌托邦城'
   return '返回阵地'
 })
+
+const fleeLocked = computed(() => battle.kind === 'mutiny')
 
 function effectText(def) {
   return Object.entries(def.effects)
@@ -128,23 +179,58 @@ function finish() {
 <template>
   <div class="battle">
     <section class="zombie">
-      <header class="zombie__head">
-        <div>
-          <span class="eyebrow">遭遇</span>
-          <h3 class="zombie__name">{{ battle.zombie.name }}</h3>
-        </div>
-        <span class="zombie__hp">生命 {{ battle.zombie.hp }} / {{ battle.zombie.maxHp }}</span>
-      </header>
-      <div class="bar">
-        <div class="bar__fill" :style="{ width: hpPercent + '%' }" />
+      <div v-if="battle.zombie.image" class="zombie__portrait">
+        <img :src="battle.zombie.image" :alt="battle.zombie.name" />
       </div>
-      <p class="zombie__desc">{{ battle.zombie.description }}</p>
-      <div class="meta">
-        <span>攻击 {{ battle.zombie.attack }}</span>
-        <span v-if="battle.zombie.infection > 0">命中感染 +{{ battle.zombie.infection }}%</span>
-        <span v-if="battle.zombie.hpFloor" class="meta__ability">锁血 {{ battle.zombie.hpFloor }}</span>
-        <span v-for="label in abilityLabels" :key="label" class="meta__ability">{{ label }}</span>
-        <span>回合 {{ battle.round }}</span>
+      <div class="zombie__info">
+        <header class="zombie__head">
+          <div>
+            <span class="eyebrow">
+              {{
+                battle.kind === 'spar'
+                  ? '切磋'
+                  : battle.kind === 'world-boss'
+                    ? '世界BOSS'
+                    : '遭遇'
+              }}
+            </span>
+            <h3 class="zombie__name">{{ battle.zombie.name }}</h3>
+          </div>
+          <div class="zombie__stats">
+            <span class="zombie__hp">生命 {{ battle.zombie.hp }} / {{ battle.zombie.maxHp }}</span>
+            <span v-if="battle.kind === 'world-boss'" class="zombie__damage">
+              累计伤害 {{ worldBossDamage }}
+            </span>
+          </div>
+        </header>
+        <div class="bar">
+          <div class="bar__fill" :style="{ width: hpPercent + '%' }" />
+        </div>
+        <div v-if="isSeaBattle" class="oxygen">
+          <div class="oxygen__head">
+            <span>氧气</span>
+            <span>{{ battle.oxygen }} / {{ battle.oxygenMax }}</span>
+          </div>
+          <div class="bar bar--oxygen">
+            <div class="bar__fill" :style="{ width: oxygenPercent + '%' }" />
+          </div>
+          <p v-if="battle.mermaidBlessed" class="oxygen__bless">
+            人鱼的祝福仍在，氧气上限提升至 200。
+          </p>
+        </div>
+        <p class="zombie__desc">{{ battle.zombie.description }}</p>
+        <div class="meta">
+          <span>攻击 {{ enemyAttackText }}</span>
+          <span v-if="battle.zombie.infection > 0">命中感染 +{{ battle.zombie.infection }}%</span>
+          <span v-if="battle.kind === 'spar'" class="meta__ability">切磋 · 双方锁血 1</span>
+          <span v-if="battle.kind === 'world-boss'" class="meta__ability">世界BOSS · 逃跑必定成功</span>
+          <span v-if="battle.zombie.hpFloor" class="meta__ability">锁血 {{ battle.zombie.hpFloor }}</span>
+          <span v-for="label in abilityLabels" :key="label" class="meta__ability">{{ label }}</span>
+          <span v-if="battle.kind === 'mutiny'">
+            第 {{ battle.mutinyStage + 1 }} / {{ HARBOR_MUTINY.crewCount + 1 }} 轮
+          </span>
+          <span>回合 {{ battle.round }}</span>
+        </div>
       </div>
     </section>
 
@@ -154,6 +240,9 @@ function finish() {
       <span>远程 <b>{{ ranged.name }}</b></span>
       <span v-if="game.equipment.ranged">清洁度 <b>{{ ranged.cleanliness }}</b></span>
       <span v-if="ranged.jamChance > 0">卡壳 <b>{{ formatPercent(ranged.jamChance) }}</b></span>
+      <span v-if="battle.magicStacks > 0">
+        魔化 <b>{{ battle.magicStacks }} 层</b> · 暴击 +{{ battle.magicStacks * 2 }}%
+      </span>
     </section>
 
     <section class="log">
@@ -165,17 +254,19 @@ function finish() {
     <section v-if="battle.active" class="actions">
       <button type="button" class="btn btn--primary" @click="meleeAttack">
         近战攻击
-        <span class="actions__hint">攻击 {{ melee.attackText }}</span>
+        <span class="actions__hint">{{ meleeHint }}</span>
       </button>
-      <button type="button" class="btn" :disabled="!ranged.canFire" @click="rangedAttack">
+      <button type="button" class="btn" :disabled="rangedLocked" @click="rangedAttack">
         远程攻击
         <span class="actions__hint">
           {{
-            !game.equipment.ranged
-              ? '未装备'
-              : ranged.canFire
-                ? `攻击 ${ranged.effectiveAttack} · 清洁 ${ranged.cleanliness}`
-                : '需保养'
+            isSeaBattle
+              ? '水下无法开枪'
+              : !game.equipment.ranged
+                ? '未装备'
+                : ranged.canFire
+                  ? `攻击 ${ranged.effectiveAttack} · 清洁 ${ranged.cleanliness}`
+                  : '需保养'
           }}
         </span>
       </button>
@@ -183,10 +274,16 @@ function finish() {
         打开背包
         <span class="actions__hint">{{ usableItems.length }} 件可用</span>
       </button>
-      <button type="button" class="btn" @click="fleeBattle">
+      <button type="button" class="btn" :disabled="fleeLocked" @click="fleeBattle">
         逃跑
         <span class="actions__hint">
-          {{ battle.kind === 'airship-coup' ? '100%' : formatPercent(DAWN_FLEE_CHANCE) }}
+          {{
+            fleeLocked
+              ? '无路可逃'
+              : battle.kind === 'airship-coup'
+                ? '100%'
+                : formatPercent(fleeChance)
+          }}
         </span>
       </button>
     </section>
@@ -238,9 +335,35 @@ function finish() {
 }
 
 .zombie {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
   padding: 14px;
   border: 1px solid var(--line);
   background: rgba(0, 0, 0, 0.24);
+}
+
+.zombie__portrait {
+  width: 96px;
+  flex: none;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.55);
+}
+
+.zombie__portrait img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(0.9) contrast(1.05);
+}
+
+.zombie__info {
+  flex: 1;
+  min-width: 0;
 }
 
 .zombie__head {
@@ -259,11 +382,25 @@ function finish() {
   color: var(--text);
 }
 
+.zombie__stats {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
 .zombie__hp {
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.06em;
   color: var(--bone);
+}
+
+.zombie__damage {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--rust-soft);
 }
 
 .bar {
@@ -277,6 +414,36 @@ function finish() {
   height: 100%;
   background: linear-gradient(90deg, var(--rust), var(--rust-soft));
   transition: width 0.4s ease;
+}
+
+.oxygen {
+  margin-top: 9px;
+}
+
+.oxygen__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: var(--text-mute);
+}
+
+.oxygen .bar {
+  margin-top: 5px;
+}
+
+.bar--oxygen .bar__fill {
+  background: linear-gradient(90deg, #2f6f96, #6fb4dd);
+}
+
+.oxygen__bless {
+  margin: 6px 0 0;
+  font-size: 9.5px;
+  letter-spacing: 0.03em;
+  color: #6fb4dd;
 }
 
 .zombie__desc {
@@ -319,8 +486,10 @@ function finish() {
 }
 
 .log {
-  max-height: 150px;
+  height: 150px;
+  flex: none;
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 12px 14px;
   border-left: 2px solid var(--line-strong);
   background: rgba(0, 0, 0, 0.22);
@@ -346,6 +515,7 @@ function finish() {
   bottom: 0;
   z-index: 2;
   display: grid;
+  flex: none;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   margin-top: auto;
@@ -498,6 +668,14 @@ function finish() {
 }
 
 @media (max-width: 720px) {
+  .zombie {
+    gap: 10px;
+  }
+
+  .zombie__portrait {
+    width: 72px;
+  }
+
   .actions {
     grid-template-columns: 1fr 1fr;
   }

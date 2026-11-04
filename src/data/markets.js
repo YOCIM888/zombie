@@ -1,31 +1,50 @@
 // 全游戏定价总表：所有商店、服务、活动与动态价格规则都在这里
 // 改价只需要改这个文件；其余模块只引用这里的常量，不再保留价格数字
 
+/* ===== 武器定价 ===== */
+
+/** 近战每回合期望伤害：攻击 × (1 + 暴击 × (暴伤 - 1)) / (1 - 连击) */
+function meleeDpa(weapon) {
+  const attack = Number(weapon?.attack) || 0
+  const crit = Number(weapon?.crit) || 0
+  const critDamage = Number(weapon?.critDamage) || 1
+  const combo = Number(weapon?.combo) || 0
+  return (attack * (1 + crit * (critDamage - 1))) / (1 - combo)
+}
+
+/** 近战定价：DPA + 耐久/20，取整；coefficient 用于整体调价 */
+export function meleePrice(weapon, coefficient = 1) {
+  const durability = Number(weapon?.durability) || 0
+  return Math.round((meleeDpa(weapon) + durability / 20) * coefficient)
+}
+
+/** 远程每回合期望伤害：攻击 × (1 + 暴击 × (暴伤 - 1)) */
+function rangedDpa(weapon) {
+  const attack = Number(weapon?.attack) || 0
+  const crit = Number(weapon?.crit) || 0
+  const critDamage = Number(weapon?.critDamage) || 1
+  return attack * (1 + crit * (critDamage - 1))
+}
+
+/** 远程定价：DPA + 闪避 × 20，取整；coefficient 用于整体调价 */
+export function rangedPrice(weapon, coefficient = 1) {
+  const dodge = Number(weapon?.dodge) || 0
+  return Math.round((rangedDpa(weapon) + dodge * 20) * coefficient)
+}
+
 /* ===== 末日都城 ===== */
 
-/** 都城集市：补给与普通近战（按物品 id 定价，末日币） */
+/** 都城集市：基础补给（按物品 id 定价，末日币） */
 export const CITY_MARKET_PRICES = {
   'mineral-water': 1,
   'compressed-biscuit': 1,
-  'fruit-knife': 9,
-  nunchaku: 10,
-  knuckle: 11,
-  'frying-pan': 11,
-  'kitchen-knife': 12,
-  'baton': 13,
-  'claw-hammer': 14,
-  'pipe-wrench': 15,
-  'karambit-classic': 17,
-  'baseball-bat': 18,
-  'dagger': 20,
-  crowbar: 50,
 }
 
-/** 都城集市：未单独定价的普通近战默认价（末日币） */
-export const CITY_MARKET_DEFAULT_PRICE = 10
+/** 撬棍：私奔线道具，固定剧情价（末日币） */
+export const CROWBAR_PRICE = 50
 
 /** 身份办理：骑士身份（末日币） */
-export const KNIGHT_COST = 30
+export const KNIGHT_COST = 20
 
 /** 王宫贵族商店：限定武器与饮食，按物品 id 定价（末日币） */
 export const PALACE_SHOP_PRICES = {
@@ -44,19 +63,24 @@ export const PALACE_ACTIVITY_PRICES = {
 
 /* ===== 曙光阵地 ===== */
 
-/** 曙光市场：按物品 id 定价（曙光币） */
+/** 曙光市场：补给按物品 id 定价（曙光币）；远程武器按 rangedPrice 计算 */
 export const DAWN_MARKET_PRICES = {
   bandage: 1,
   painkiller: 1,
   'canned-meat': 1,
   'canned-fish': 1,
-  'hunting-bow': 19,
-  glock: 20,
-  pm: 20,
-  usp: 21,
-  cz75: 22,
-  'luger-08': 24,
-  m1911: 28,
+}
+
+/* ===== 货币兑换 ===== */
+
+/** 购买力基准：两地标准口粮都按 2 币/份计 */
+export const EXCHANGE_BASKET_PRICE = 2
+
+/** 汇率：1 曙光币 = ? 末日币，按两地每日购买力之比计算 */
+export function exchangeRateFromIncome(cityIncome, dawnIncome) {
+  const city = Math.max(0, Number(cityIncome) || 0)
+  const dawn = Math.max(0, Number(dawnIncome) || 0)
+  return dawn > 0 ? city / dawn : 0
 }
 
 /** 羁绊商店统一价：额外提交对应纪念徽章（曙光币） */

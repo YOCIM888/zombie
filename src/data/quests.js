@@ -56,6 +56,11 @@ export const QUEST_OWNERS = {
     intro:
       '漠然坐在觐见厅最里面的位置，手边只有一杯没动过的酒。他等你先开口，也等你先低头。',
   },
+  alex: {
+    name: '亚历克斯船长',
+    intro:
+      '亚历克斯船长站在邮轮舷梯下，海风把旧制服吹得猎猎作响。他没有问你从哪来，只把舱单翻到最后一页：「这艘船还能走，但得先把人、水和油都备齐。」',
+  },
 }
 
 /** 国王任务：严格顺序，骑士以上才会开口 */
@@ -83,8 +88,8 @@ export const KING_QUESTS = [
     owner: 'king',
     no: '02',
     name: '长生灵药',
-    desc: '国王的旧伤在阴天里发疼。他要五份万能灵药，别的药一概不要。',
-    require: { items: [{ id: 'panacea', qty: 5 }] },
+    desc: '国王的旧伤在阴天里发疼。他要六份万能灵药，别的药一概不要。',
+    require: { items: [{ id: 'panacea', qty: 6 }] },
     reward: { identity: '子爵', coins: 30 },
   },
   {
@@ -94,7 +99,7 @@ export const KING_QUESTS = [
     name: '所向披靡',
     desc: '国王要你替他清出一片干净的地。接取之后，去杀五十只行尸。',
     hint: '击杀只在曙光阵地结算；都城徽章会阻止你进入曙光，出发前需要先摘下徽章。',
-    require: { kills: 50 },
+    require: { kills: 30 },
     reward: { identity: '伯爵', coins: 40 },
   },
   {
@@ -216,9 +221,9 @@ export const YIYANG_QUESTS = [
     desc: '补给站的账目对不上。三份肉罐头、三份鱼罐头、三份压缩饼干，先把这个月的缺口填上。',
     require: {
       items: [
-        { id: 'canned-meat', qty: 3 },
-        { id: 'canned-fish', qty: 3 },
-        { id: 'compressed-biscuit', qty: 3 },
+        { id: 'canned-meat', qty: 5 },
+        { id: 'canned-fish', qty: 5 },
+        { id: 'compressed-biscuit', qty: 5 },
       ],
     },
     reward: { dawnCoins: 6 },
@@ -375,9 +380,9 @@ export const MERCENARY_QUESTS = [
     id: 'mercenary-2',
     owner: 'mercenary',
     no: '02',
-    name: '一把顺手的弓',
-    desc: '薇尔看上了猎弓。她不说要做什么，只把空出来的枪架擦了一遍。',
-    require: { items: [{ id: 'hunting-bow', qty: 1 }] },
+    name: '一把顺手的枪',
+    desc: '薇尔看上了马卡洛夫手枪。她不说要做什么，只把空出来的枪架擦了一遍。',
+    require: { items: [{ id: 'pm', qty: 1 }] },
     reward: { dawnCoins: 20 },
   },
   {
@@ -662,11 +667,11 @@ export const MORAN_QUESTS = [
     owner: 'moran',
     no: '01',
     name: '觐见',
-    desc: '漠然不喝劣酒。威士忌与白兰地各两瓶，摆到觐见厅的桌上，他才愿意先听你说完一句话。',
+    desc: '漠然不喝劣酒。威士忌与白兰地各八瓶，摆到觐见厅的桌上，他才愿意先听你说完一句话。',
     require: {
       items: [
-        { id: 'whiskey', qty: 2 },
-        { id: 'brandy', qty: 2 },
+        { id: 'whiskey', qty: 8 },
+        { id: 'brandy', qty: 8 },
       ],
     },
     reward: { coins: 50, reputation: 3 },
@@ -698,6 +703,119 @@ export const MORAN_QUESTS = [
   },
 ]
 
+/** 亚历克斯船长：长滩海港·巨型邮轮的十档启航任务 */
+export const ALEX_QUESTS = [
+  {
+    id: 'alex-1',
+    owner: 'alex',
+    no: '01',
+    name: '船员战备',
+    desc: '邮轮上能用枪的人太少。亚历克斯要五把 M1911，把守舷梯的船员武装起来。',
+    require: { items: [{ id: 'm1911', qty: 5 }] },
+    reward: { items: [{ id: 'knuckle-silver', qty: 1 }] },
+  },
+  {
+    id: 'alex-2',
+    owner: 'alex',
+    no: '02',
+    name: '感染治疗',
+    desc: '船舱里有人开始发烧。亚历克斯要二十支抗感染针，先把最危险的那批人压下去。',
+    require: { items: [{ id: 'anti-infection-shot', qty: 20 }] },
+    reward: { items: [{ id: 'knuckle-gold', qty: 1 }] },
+  },
+  {
+    id: 'alex-3',
+    owner: 'alex',
+    no: '03',
+    name: '安抚人心',
+    desc: '船员在夜里互相提防。亚历克斯要二十支肾上腺素，让守夜的人还能撑住。',
+    require: { items: [{ id: 'adrenaline', qty: 20 }] },
+    reward: { items: [{ id: 'butterfly-silver', qty: 1 }] },
+  },
+  {
+    id: 'alex-4',
+    owner: 'alex',
+    no: '04',
+    name: '海难患者',
+    desc: '底舱躺着从海难里捞上来的人。亚历克斯要二十个医疗箱，能救一个算一个。',
+    require: { items: [{ id: 'medical-kit', qty: 20 }] },
+    reward: { items: [{ id: 'butterfly-gold', qty: 1 }] },
+  },
+  {
+    id: 'alex-5',
+    owner: 'alex',
+    no: '05',
+    name: '食物储备',
+    desc: '启航前必须把肚子填饱。亚历克斯要五百份压缩饼干。',
+    require: { items: [{ id: 'compressed-biscuit', qty: 500 }] },
+    reward: { items: [{ id: 'katana-raikiri', qty: 1 }] },
+  },
+  {
+    id: 'alex-6',
+    owner: 'alex',
+    no: '06',
+    name: '水源储备',
+    desc: '淡水比油更金贵。亚历克斯要五百瓶矿泉水。',
+    require: { items: [{ id: 'mineral-water', qty: 500 }] },
+    reward: { items: [{ id: 'katana-raikiri', qty: 1 }] },
+  },
+  {
+    id: 'alex-7',
+    owner: 'alex',
+    no: '07',
+    name: '医疗储备',
+    desc: '伤口可以缝，感染不能等。亚历克斯要五百卷绷带。',
+    require: { items: [{ id: 'bandage', qty: 500 }] },
+    reward: { items: [{ id: 'keel-blade', qty: 1 }] },
+  },
+  {
+    id: 'alex-8',
+    owner: 'alex',
+    no: '08',
+    name: '邮轮修理',
+    desc: '动力舱还在漏水。亚历克斯要十把羊角锤、十把管钳和十根撬棍，把舱门和管线重新固定。',
+    hint: '工具不堆叠，三种工具各十件，共需要 30 格背包空间。',
+    require: {
+      items: [
+        { id: 'claw-hammer', qty: 10 },
+        { id: 'pipe-wrench', qty: 10 },
+        { id: 'crowbar', qty: 10 },
+      ],
+    },
+    reward: { items: [{ id: 'longsword-rose-dark', qty: 1 }] },
+  },
+  {
+    id: 'alex-9',
+    owner: 'alex',
+    no: '09',
+    name: '动力准备',
+    desc: '主机需要一次彻底点火。亚历克斯要五百桶汽油和一台小核能发电机。',
+    hint: '汽油可堆叠，小核能发电机单独占一格。',
+    require: {
+      items: [
+        { id: 'gasoline', qty: 500 },
+        { id: 'small-nuclear-generator', qty: 1 },
+      ],
+    },
+    reward: { items: [{ id: 'mosin', qty: 1 }] },
+  },
+  {
+    id: 'alex-10',
+    owner: 'alex',
+    no: '10',
+    name: '准备启航',
+    desc: '甲板已经清空，舷梯正在收起。亚历克斯把最后一张航线图铺在桌上：一百瓶伏特加、一百瓶威士忌，够所有人喝到离岸。',
+    hint: '完成后达成不可继续结局「远洋航行」。',
+    require: {
+      items: [
+        { id: 'vodka', qty: 100 },
+        { id: 'whiskey', qty: 100 },
+      ],
+    },
+    reward: { finale: '远洋航行' },
+  },
+]
+
 export const QUEST_LINES = {
   king: KING_QUESTS,
   queen: QUEEN_QUESTS,
@@ -710,6 +828,7 @@ export const QUEST_LINES = {
   schika: SCHIKA_QUESTS,
   nubi: NUBI_QUESTS,
   moran: MORAN_QUESTS,
+  alex: ALEX_QUESTS,
 }
 
 export const QUESTS = Object.fromEntries(
@@ -790,5 +909,16 @@ export const FINALES = {
     title: '作弊者',
     text:
       '开发者的血条终于见底。他把十字剑推到你面前，又回头看了一眼后台日志，像是在确认某个不该存在的数字。\n\n「我没开挂。」你说。\n\n他点点头，点得很慢，仿佛在给自己的职业生涯做最后的心理建设：「嗯。你没开挂。你只是刚好每一刀都命中，刚好伤害高了一点，刚好那个 99999 也刚好不够用。……你开心就好。」\n\n他关掉调试面板，转身时小声补了一句：「下次记得把测试数值藏好，别让玩家看见。」\n\n——你赢了。以一种所有人心知肚明、但谁也不打算拆穿的方式。',
+  },
+  远洋航行: {
+    title: '远洋航行',
+    terminal: true,
+    text:
+      '最后一箱补给被吊上甲板，舷梯收起，汽笛在长滩海港上空拉出一声长长的回响。\n\n亚历克斯船长站在驾驶台前，把那份写满名字的舱单折好，塞进你的口袋：「从今天起，这艘船归你指挥。」\n\n邮轮缓缓离岸。搁浅的货轮、断掉的防波堤、还站在码头上的丧尸，都一点点退到船尾。海风带着盐味灌进衣领，有人打开第一瓶伏特加，甲板上响起久违的笑声。\n\n你不知道前方有没有陆地，但至少这一刻，船在走，人在呼吸，灯火还亮着。\n\n——你带着一整船的人，驶向了没有被末日吞掉的海平线。',
+  },
+  油轮沉没: {
+    title: '油轮沉没',
+    text:
+      '亚历克斯倒在驾驶台前。第一声爆炸从动力舱深处传来，整艘邮轮像被人从下面踹了一脚。\n\n有人在你身后喊：「船要沉了，他也别想走！」\n\n你撞开舷梯口的两个人，翻过栏杆落进海里。身后是接连不断的闷响，火光把长滩的夜照得通红。邮轮慢慢倾斜，甲板上的灯一盏接一盏熄灭，最后连桅杆也被海水吞掉。\n\n你游到浅滩上，回头时只剩一片漂着油污的黑水。你活下来了，但港口的人会记住你的脸。\n\n——从今天起，都城、曙光和乌托邦城都不会再为你开门。',
   },
 }

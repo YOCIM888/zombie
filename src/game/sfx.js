@@ -32,6 +32,7 @@ const MELEE_SFX = {
     'knight-sword', 'tang-dao', 'noble-shortsword', 'keel-blade',
     'crusader-cross-sword', 'scarlet-greatsword', 'longsword-rose-dark',
     'longsword-frost', 'longsword-silver-rose', 'frost-greatsword',
+    'kraken-blade',
   ]),
   blunt: idsFor([
     'baseball-bat', 'pipe-wrench', 'baton', 'frying-pan', 'claw-hammer',

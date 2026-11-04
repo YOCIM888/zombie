@@ -1,17 +1,47 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { MAPS } from '../game/config'
-import { enterMap } from '../game/store'
-import { ENTRY_COST } from '../data'
+import { enterMap, game } from '../game/store'
+import { ENTRY_COST, HARBOR_MUTINY } from '../data'
 import ModalShell from './ModalShell.vue'
 
 const emit = defineEmits(['close', 'enter'])
 const displayed = ref('')
 const visibleMaps = computed(() => MAPS.filter((item) => !item.hidden))
+const portBanLeft = computed(() =>
+  Math.max(0, (Number(game.flags.portBanUntilDay) || 0) - game.day),
+)
+
+function mapPortBanned(map) {
+  return portBanLeft.value > 0 && HARBOR_MUTINY.banMapIds.includes(map.id)
+}
+
+function mapAvailable(map) {
+  if (!map.open) return false
+  if (map.unlockDay && game.day < map.unlockDay) return false
+  if (mapPortBanned(map)) return false
+  return true
+}
+
+function enterLabel(map) {
+  if (!map.open) return '尚未开放'
+  if (mapPortBanned(map)) return `${portBanLeft.value} 天后解禁`
+  if (map.unlockDay && game.day < map.unlockDay) {
+    return `第 ${map.unlockDay} 天开放`
+  }
+  return '进入区域'
+}
 
 function enter(map) {
-  if (!map.open) {
-    displayed.value = `「${map.name}」尚未开放：探索事件、战斗与掉落将在下一阶段接入。`
+  if (mapPortBanned(map)) {
+    displayed.value = `油轮沉没后你的名声臭了：还有 ${portBanLeft.value} 天无法进入「${map.name}」。`
+    return
+  }
+  if (!mapAvailable(map)) {
+    displayed.value =
+      map.open && map.unlockDay
+        ? `「${map.name}」要到第 ${map.unlockDay} 天后才会开放（当前第 ${game.day} 天）。`
+        : `「${map.name}」尚未开放：探索事件、战斗与掉落将在下一阶段接入。`
     return
   }
   if (enterMap(map.id)) emit('enter')
@@ -25,7 +55,7 @@ function enter(map) {
         v-for="map in visibleMaps"
         :key="map.id"
         class="map"
-        :class="{ 'map--locked': !map.open }"
+        :class="{ 'map--locked': !mapAvailable(map) }"
       >
         <header class="map__head">
           <span class="map__level">{{ map.level }}</span>
@@ -47,6 +77,13 @@ function enter(map) {
           {{ map.lootNote }} · 遭遇率 {{ Math.round(map.encounterRate * 100) }}%
         </p>
 
+        <p v-if="mapPortBanned(map)" class="map__unlock">
+          名声受损：还有 {{ portBanLeft }} 天无法进入
+        </p>
+        <p v-else-if="map.unlockDay && !mapAvailable(map)" class="map__unlock">
+          解锁：第 {{ map.unlockDay }} 天后（当前第 {{ game.day }} 天）
+        </p>
+
         <p class="map__entry">
           进入消耗：口渴 {{ ENTRY_COST.thirst }} / 饱食 {{ ENTRY_COST.hunger }} / 体力
           {{ ENTRY_COST.stamina }}
@@ -57,11 +94,11 @@ function enter(map) {
           <button
             type="button"
             class="btn"
-            :class="{ 'btn--primary': map.open }"
-            :disabled="!map.open"
+            :class="{ 'btn--primary': mapAvailable(map) }"
+            :disabled="!mapAvailable(map)"
             @click="enter(map)"
           >
-            {{ map.open ? '进入区域' : '尚未开放' }}
+            {{ enterLabel(map) }}
           </button>
         </div>
       </article>
@@ -157,6 +194,15 @@ function enter(map) {
   line-height: 1.6;
   letter-spacing: 0.03em;
   color: var(--text-mute);
+}
+
+.map__unlock {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  line-height: 1.6;
+  letter-spacing: 0.03em;
+  color: var(--rust-soft);
 }
 
 .map__name {

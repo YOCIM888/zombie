@@ -41,7 +41,7 @@ export const globalStats = reactive({
 export const settings = reactive({
   volume: Number.isFinite(storedSettings.volume) ? storedSettings.volume : 0.7,
   muted: Boolean(storedSettings.muted),
-  track: typeof storedSettings.track === 'string' ? storedSettings.track : 'backmusic',
+  track: typeof storedSettings.track === 'string' ? storedSettings.track : 'background',
   survivalHints: storedSettings.survivalHints !== false,
 })
 

@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
-import { STAT_DEFS, STAT_MAX } from '../game/config'
-import { game } from '../game/store'
+import { STAT_DEFS } from '../game/config'
+import { game, statCap } from '../game/store'
 import { formatMoney } from '../data'
 
 const RING_SIZE = 34
@@ -12,12 +12,14 @@ const RING_CENTER = RING_SIZE / 2
 
 const stats = computed(() =>
   STAT_DEFS.map((def) => {
-    const value = Math.max(0, Math.min(STAT_MAX, Math.round(Number(game.stats[def.key]) || 0)))
-    const percent = Math.round((value / STAT_MAX) * 100)
+    const cap = statCap(def.key)
+    const value = Math.max(0, Math.min(cap, Math.round(Number(game.stats[def.key]) || 0)))
+    const percent = Math.round((value / cap) * 100)
     const filled = (percent / 100) * RING_CIRCUMFERENCE
     return {
       ...def,
       value,
+      cap,
       percent,
       filled,
       gap: RING_CIRCUMFERENCE - filled,

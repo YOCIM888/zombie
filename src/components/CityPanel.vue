@@ -5,6 +5,7 @@ import {
   BANKER,
   GARDEN,
   IDENTITY_LEVELS,
+  KNIGHT_COST,
   LABOR_TIERS,
   LOAN_TERM_DAYS,
   PALACE_COOLDOWN,
@@ -20,6 +21,7 @@ import {
   TALENTS,
   TALENT_EFFECT_LABELS,
   TREATMENT_TIERS,
+  floorToCents,
   formatMoney,
   identityInfo,
   identityRank,
@@ -48,6 +50,7 @@ import {
   currentPhase,
   deliverQueenLetter,
   exchangeCurrency,
+  exchangeRateInfo,
   exploreCity,
   game,
   isNpcDead,
@@ -71,6 +74,7 @@ import AssassinationCard from './AssassinationCard.vue'
 import BattleView from './BattleView.vue'
 import MapMenuList from './MapMenuList.vue'
 import ModalShell from './ModalShell.vue'
+import NpcIntro from './NpcIntro.vue'
 import QuestLinePanel from './QuestLinePanel.vue'
 import StatusHud from './StatusHud.vue'
 
@@ -79,8 +83,8 @@ const emit = defineEmits(['close'])
 const MENU = [
   { id: 'explore', no: '01', name: '在此探索', desc: '花 1 回合搜刮废墟，可能找到食物或饮品。' },
   { id: 'palace', no: '02', name: '进入王宫', desc: '骑士以上身份可直接进入王宫深处；身份不足会被守卫拦下。' },
-  { id: 'bank', no: '03', name: '都城银行', desc: '按身份额度、利率与宽限借贷；逾期后果各不相同。' },
-  { id: 'identity', no: '04', name: '身份办理', desc: '投靠都城、补办身份牌，或花 30 末日币成为骑士。' },
+  { id: 'bank', no: '03', name: '都城银行', desc: '按身份额度借贷，或按两地最高身份的购买力兑换货币。' },
+  { id: 'identity', no: '04', name: '身份办理', desc: `投靠都城、补办身份牌，或花 ${KNIGHT_COST} 末日币成为骑士。` },
   { id: 'labor', no: '05', name: '进行劳动', desc: '八档身份活计，每天一份，身份越高越轻、越赚。' },
   { id: 'market', no: '06', name: '贫民集市', desc: '所有普通近战武器与基础补给，明码标价。' },
 ]
@@ -105,8 +109,8 @@ const view = ref('menu')
 const feed = ref('城门在身后合拢，铁链拖过地面。你站在都城的阴影里。')
 const loanAmount = ref(1)
 const palaceView = ref('menu')
-const tradeCoins = ref(2)
-const tradeDawn = ref(2)
+const tradeCoins = ref(1)
+const tradeDawn = ref(1)
 
 const identity = computed(() => identityInfo(game.identity))
 const loanDaysLeft = computed(() => (game.loan ? game.loan.dueDay - game.day : 0))
@@ -197,11 +201,15 @@ const debtState = computed(() => {
     can: true,
   }
 })
-const previewCoins = computed(() =>
-  Math.floor(Math.max(0, Number(tradeCoins.value) || 0) / BANKER.exchangeRate),
-)
+const rateInfo = computed(() => exchangeRateInfo())
+const reverseRate = computed(() => (rateInfo.value.rate > 0 ? 1 / rateInfo.value.rate : 0))
+const previewCoins = computed(() => {
+  const rate = rateInfo.value.rate
+  if (!(rate > 0)) return 0
+  return floorToCents(Math.max(0, Number(tradeCoins.value) || 0) / rate)
+})
 const previewDawn = computed(() =>
-  Math.floor(Math.max(0, Number(tradeDawn.value) || 0) / BANKER.exchangeRate),
+  floorToCents(Math.max(0, Number(tradeDawn.value) || 0) * rateInfo.value.rate),
 )
 const queenCanDeliver = computed(
   () =>
@@ -221,6 +229,11 @@ function weekly(key) {
 
 function rateText(tier) {
   return `${Math.round(tier.rate * 100)}%`
+}
+
+/** 汇率固定显示两位小数 */
+function formatRate(value) {
+  return Number(value || 0).toFixed(2)
 }
 
 /** 贷款剩余天数文案：到期当天不再显示「剩 0 天」 */
@@ -639,7 +652,9 @@ function closePanel() {
         <p v-if="kingDead" class="pane__desc">{{ npcById('king').deathLine }}</p>
         <p v-else-if="kingGate" class="pane__desc">{{ kingGate }}</p>
         <template v-else>
-          <p class="pane__desc">{{ QUEST_OWNERS.king.intro }}</p>
+          <NpcIntro npc-id="king">
+            <p class="pane__desc">{{ QUEST_OWNERS.king.intro }}</p>
+          </NpcIntro>
           <QuestLinePanel owner="king" @feedback="feed = $event" />
         </template>
         <AssassinationCard npc-id="king" @feedback="feed = $event" />
@@ -647,16 +662,20 @@ function closePanel() {
 
       <template v-else-if="palaceView === 'queen'">
         <template v-if="queenCanDeliver">
-          <p class="pane__desc">
-            皇后米娅的目光落在你手里那封信上。信封上的蜡印已经磨损，字迹却是她认得的。
-          </p>
+          <NpcIntro npc-id="queen">
+            <p class="pane__desc">
+              皇后米娅的目光落在你手里那封信上。信封上的蜡印已经磨损，字迹却是她认得的。
+            </p>
+          </NpcIntro>
           <button type="button" class="btn btn--primary pane__action" @click="deliverLetter">
             把信交给她
           </button>
         </template>
         <p v-else-if="queenGate" class="pane__desc">{{ queenGate }}</p>
         <template v-else>
-          <p class="pane__desc">{{ QUEST_OWNERS.queen.intro }}</p>
+          <NpcIntro npc-id="queen">
+            <p class="pane__desc">{{ QUEST_OWNERS.queen.intro }}</p>
+          </NpcIntro>
           <p v-if="game.flags.dawnLeaderKilled" class="cure__note">
             羿阳已经不在了。皇后没有再提新的事，但你手上已经接下的，她仍会认。
           </p>
@@ -815,10 +834,48 @@ function closePanel() {
         </p>
       </div>
 
+      <section class="deal">
+        <header class="deal__head">
+          <h4 class="deal__title">货币兑换</h4>
+          <span class="deal__tag">1 曙光币 = {{ formatRate(rateInfo.rate) }} 末日币</span>
+        </header>
+        <p class="deal__desc">
+          汇率按你在两个阵营的历史最高身份计算：身份越高，日收入购买力越强，换汇也越值钱。
+        </p>
+        <div class="deal__stats">
+          <span>都城 · {{ rateInfo.cityIdentity }} · {{ rateInfo.cityIncome }} 末日币/日</span>
+          <span>曙光 · {{ rateInfo.dawnIdentity }} · {{ rateInfo.dawnIncome }} 曙光币/日</span>
+          <span>口粮购买力 {{ formatMoney(rateInfo.cityPower) }} : {{ formatMoney(rateInfo.dawnPower) }} 份/日（2 币/份）</span>
+        </div>
+        <p class="deal__hint">
+          1 曙光币 = {{ formatRate(rateInfo.rate) }} 末日币 · 1 末日币 ≈ {{ formatRate(reverseRate) }} 曙光币
+          <br />
+          持有：末日币 {{ formatMoney(game.coins) }} · 曙光币 {{ formatMoney(game.dawnCoins) }}
+          <br v-if="rateInfo.cityFallback || rateInfo.dawnFallback" />
+          <span v-if="rateInfo.cityFallback || rateInfo.dawnFallback">
+            未加入的阵营按最低身份（平民 / 队员）保底计算。
+          </span>
+        </p>
+
+        <div class="trade">
+          <label for="trade-coins">末日币 → 曙光币</label>
+          <input id="trade-coins" v-model.number="tradeCoins" type="number" min="0.01" step="0.01" />
+          <span class="trade__preview">可得 {{ formatMoney(previewCoins) }} 曙光币</span>
+          <button type="button" class="btn" @click="exchangeCoins">兑换</button>
+        </div>
+        <div class="trade">
+          <label for="trade-dawn">曙光币 → 末日币</label>
+          <input id="trade-dawn" v-model.number="tradeDawn" type="number" min="0.01" step="0.01" />
+          <span class="trade__preview">可得 {{ formatMoney(previewDawn) }} 末日币</span>
+          <button type="button" class="btn" @click="exchangeDawn">兑换</button>
+        </div>
+        <p class="deal__hint">金额精确到 0.01，结果向下取整；汇率按日收入购买力实时变化。</p>
+      </section>
+
       <article class="banker-card">
         <div class="banker-card__main">
-          <h4>子选项 · 行长金钱堡</h4>
-          <p>柜台后真正的行长。可以谈化债，也可以互换末日币与曙光币。</p>
+          <h4>行长钱三爷</h4>
+          <p>柜台后真正的行长。欠他的钱，只能亲自谈化债。</p>
         </div>
         <button type="button" class="btn" @click="go('banker')">见他</button>
       </article>
@@ -826,12 +883,14 @@ function closePanel() {
 
     <section v-else-if="view === 'banker'" class="pane">
       <header class="pane__head">
-        <h3 class="pane__title">行长金钱堡</h3>
+        <h3 class="pane__title">行长钱三爷</h3>
         <button type="button" class="link" @click="go('bank')">← 返回银行</button>
       </header>
 
-      <p class="pane__desc">{{ BANKER.intro }}</p>
-      <p class="cure__note">{{ BANKER.debtHint }}</p>
+      <NpcIntro npc-id="banker">
+        <p class="pane__desc">{{ BANKER.intro }}</p>
+        <p class="cure__note">{{ BANKER.debtHint }}</p>
+      </NpcIntro>
 
       <section class="deal">
         <header class="deal__head">
@@ -861,30 +920,6 @@ function closePanel() {
         <BattleView v-if="bankerBattle" @done="bankerDone" />
       </section>
 
-      <section class="deal">
-        <header class="deal__head">
-          <h4 class="deal__title">货币互换</h4>
-          <span class="deal__tag">2 : 1</span>
-        </header>
-        <p class="deal__desc">{{ BANKER.exchangeLine }}</p>
-        <p class="deal__hint">
-          持有：末日币 {{ formatMoney(game.coins) }} · 曙光币 {{ formatMoney(game.dawnCoins) }}
-        </p>
-
-        <div class="trade">
-          <label for="trade-coins">末日币 → 曙光币</label>
-          <input id="trade-coins" v-model.number="tradeCoins" type="number" min="2" step="1" />
-          <span class="trade__preview">可得 {{ previewCoins }} 曙光币</span>
-          <button type="button" class="btn" @click="exchangeCoins">互换</button>
-        </div>
-        <div class="trade">
-          <label for="trade-dawn">曙光币 → 末日币</label>
-          <input id="trade-dawn" v-model.number="tradeDawn" type="number" min="2" step="1" />
-          <span class="trade__preview">可得 {{ previewDawn }} 末日币</span>
-          <button type="button" class="btn" @click="exchangeDawn">互换</button>
-        </div>
-        <p class="deal__hint">每 2 枚换 1 枚；输入奇数时，零头会留在手里。</p>
-      </section>
     </section>
 
     <section v-else-if="view === 'identity'" class="pane">

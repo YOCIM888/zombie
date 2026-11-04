@@ -119,8 +119,8 @@ const MELEE_LIST = [
     '出鞘时有细微电弧，刀身亮得刺眼。'),
   melee('keel-blade', '龙骨剑', '传说', { attack: 88, crit: 0.26, critDamage: 2.25, combo: 0.28, durability: 240 },
     '剑脊像一段脊椎，沉得必须双手握。'),
-  melee('trident', '三叉戟-海歌', '传说', { attack: 90, crit: 0.25, critDamage: 2.2, combo: 0.24, durability: 230 },
-    '三叉上缠着贝壳和藤条，靠近能听见水声。'),
+  melee('trident', '三叉戟-海歌', '限定', { attack: 90, crit: 0.25, critDamage: 2.2, combo: 0.24, durability: 230 },
+    '三叉上缠着贝壳和藤条，靠近能听见水声。在水下对海洋生物额外造成 50% 伤害。', { limited: true }),
 
   /* ===== 神话 ===== */
   melee('crusader-cross-sword', '十字剑-圣战', '神话', { attack: 100, crit: 0.36, critDamage: 2.55, combo: 0.32, durability: 280 },
@@ -144,6 +144,16 @@ const MELEE_LIST = [
     '剑身是从一整块冰晶里凿出来的，握久了掌心会留下霜痕。', {
       limited: true,
       image: '/image/曙光阵地限定/寒霜大剑-冰晶.webp',
+    }),
+  melee('might-axe', '威能战斧', '限定', { attack: 80, crit: 0.01, critDamage: 1.01, combo: 0.5, durability: 500 },
+    '斧刃宽得像一面小盾，挥动时带起沉闷的风声。', {
+      limited: true,
+      image: '/image/公会限定武器/威能战斧.webp',
+    }),
+  melee('kraken-blade', '沧龙之刃', '限定', { attack: 130, crit: 0.38, critDamage: 2.5, combo: 0.4, durability: 400 },
+    '整条剑身像从沧龙脊背上剥下来的黑鳞，边缘却薄得能切开风。', {
+      limited: true,
+      image: '/image/近战武器/沧龙之刃.webp',
     }),
 ]
 

@@ -71,9 +71,11 @@ export const INVENTORY_SORT_CATEGORIES = [
   'ranged',
   'melee',
   'medicine',
+  'gem',
   'food',
   'drink',
   'identity',
+  'guild',
   'memento',
   'quest',
 ]

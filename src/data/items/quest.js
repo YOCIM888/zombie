@@ -13,7 +13,12 @@ function questItem(id, name, description, extra = {}) {
 
 const QUEST_LIST = [
   questItem(
-    'rotten-seed',
+    'dragon-scale',
+    '沧龙鳞片',
+    '一片巴掌大的黑铁色鳞片，边缘还带着海水的咸味。冥渊沧龙身上剥下来的东西，压手得不像生物组织。',
+    { image: '/image/任务道具/沧龙鳞片.webp', stackable: true, maxStack: 999 },
+  ),
+  questItem('rotten-seed',
     '腐烂种子',
     '一枚发黑的果核，表皮已经烂穿，裂口里却顶出一点白。',
     { image: '/image/任务道具/腐烂种子.webp' },
@@ -24,7 +29,7 @@ const QUEST_LIST = [
   questItem('gasoline', '汽油', '铁皮桶里晃荡着半桶刺鼻的液体。', {
     image: '/image/任务道具/汽油.webp',
     stackable: true,
-    maxStack: 99,
+    maxStack: 999,
   }),
   questItem(
     'small-nuclear-generator',

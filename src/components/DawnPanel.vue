@@ -64,6 +64,7 @@ import AssassinationCard from './AssassinationCard.vue'
 import BattleView from './BattleView.vue'
 import MapMenuList from './MapMenuList.vue'
 import ModalShell from './ModalShell.vue'
+import NpcIntro from './NpcIntro.vue'
 import QuestLinePanel from './QuestLinePanel.vue'
 import StatusHud from './StatusHud.vue'
 
@@ -694,7 +695,9 @@ function closePanel() {
       </template>
 
       <template v-else>
-        <p class="pane__desc">{{ leaderIntro }}</p>
+        <NpcIntro npc-id="yiyang">
+          <p class="pane__desc">{{ leaderIntro }}</p>
+        </NpcIntro>
 
         <QuestLinePanel owner="yiyang" @feedback="feed = $event" />
 
@@ -725,9 +728,11 @@ function closePanel() {
         <h3 class="pane__title">营养师·苏涵</h3>
         <button type="button" class="link" @click="backToMenu">← 返回选项</button>
       </header>
-      <p class="pane__desc">
-        {{ nutritionistDead ? npcById('nutritionist').deathLine : QUEST_OWNERS.nutritionist.intro }}
-      </p>
+      <NpcIntro npc-id="nutritionist">
+        <p class="pane__desc">
+          {{ nutritionistDead ? npcById('nutritionist').deathLine : QUEST_OWNERS.nutritionist.intro }}
+        </p>
+      </NpcIntro>
 
       <div v-if="!nutritionistDead" class="service">
         <h4 class="service__title">每日配餐</h4>
@@ -758,9 +763,11 @@ function closePanel() {
         <h3 class="pane__title">机械师·莉莉</h3>
         <button type="button" class="link" @click="backToMenu">← 返回选项</button>
       </header>
-      <p class="pane__desc">
-        {{ mechanicDead ? npcById('mechanic').deathLine : QUEST_OWNERS.mechanic.intro }}
-      </p>
+      <NpcIntro npc-id="mechanic">
+        <p class="pane__desc">
+          {{ mechanicDead ? npcById('mechanic').deathLine : QUEST_OWNERS.mechanic.intro }}
+        </p>
+      </NpcIntro>
 
       <div v-if="!mechanicDead" class="service">
         <h4 class="service__title">药剂调配</h4>
@@ -818,9 +825,11 @@ function closePanel() {
         <h3 class="pane__title">雇佣兵·薇尔</h3>
         <button type="button" class="link" @click="backToMenu">← 返回选项</button>
       </header>
-      <p class="pane__desc">
-        {{ mercenaryDead ? npcById('mercenary').deathLine : QUEST_OWNERS.mercenary.intro }}
-      </p>
+      <NpcIntro npc-id="mercenary">
+        <p class="pane__desc">
+          {{ mercenaryDead ? npcById('mercenary').deathLine : QUEST_OWNERS.mercenary.intro }}
+        </p>
+      </NpcIntro>
 
       <div v-if="!mercenaryDead" class="service">
         <h4 class="service__title">训练</h4>
@@ -850,9 +859,11 @@ function closePanel() {
         <h3 class="pane__title">农学家·苗苗</h3>
         <button type="button" class="link" @click="backToMenu">← 返回选项</button>
       </header>
-      <p class="pane__desc">
-        {{ agronomistDead ? npcById('agronomist').deathLine : QUEST_OWNERS.agronomist.intro }}
-      </p>
+      <NpcIntro npc-id="agronomist">
+        <p class="pane__desc">
+          {{ agronomistDead ? npcById('agronomist').deathLine : QUEST_OWNERS.agronomist.intro }}
+        </p>
+      </NpcIntro>
 
       <div v-if="!agronomistDead" class="service">
         <h4 class="service__title">照看实验田</h4>

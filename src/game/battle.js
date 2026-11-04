@@ -10,7 +10,15 @@ import {
   DAWN_ZOMBIE,
   DEV_SHOP,
   GIANT_PUPPET,
+  HARBOR_MUTINY,
   MA_SAN,
+  MERMAID,
+  SEA_LOOT,
+  SEA_OXYGEN_BLESSED,
+  SEA_OXYGEN_COST,
+  SEA_OXYGEN_DEFAULT,
+  UTOPIA_TRAINING_BY_KIND,
+  pickSeaCreature,
   UNARMED,
   YANRAN,
   addItem,
@@ -21,23 +29,29 @@ import {
   identityRank,
   isFistTalentWeapon,
   mafeiQuestForTarget,
+  mayorForDay,
   npcById,
   pickDawnLoot,
   pickZombieLoot,
   talentBonus,
   talentEffects,
+  worldBossById,
   zombieById,
 } from '../data'
 import {
   advanceTurns,
+  activeGuild,
   applyStatChanges,
   consumeMeleeDurability,
   consumeRangedCleanliness,
   cooldownLeft,
   devState,
+  drownPlayer,
   game,
   isTalentActive,
   questStatus,
+  recordGuildKill,
+  statCap,
   useItem,
   waiveLoanInterest,
   notify,
@@ -83,6 +97,13 @@ export const battle = reactive({
   summoned: false,
   coupStage: 0,
   coupNext: false,
+  mutinyStage: 0,
+  mutinyNext: false,
+  tenacityPending: false,
+  magicStacks: 0,
+  oxygen: 0,
+  oxygenMax: SEA_OXYGEN_DEFAULT,
+  mermaidBlessed: false,
 })
 
 let logSeq = 0
@@ -112,11 +133,18 @@ export function resetBattle(enemy = DAWN_ZOMBIE, kind = 'zombie', mapId = null) 
   battle.summoned = false
   battle.coupStage = 0
   battle.coupNext = false
+  battle.mutinyStage = 0
+  battle.mutinyNext = false
+  battle.tenacityPending = false
+  battle.magicStacks = 0
+  battle.oxygen = 0
+  battle.oxygenMax = SEA_OXYGEN_DEFAULT
+  battle.mermaidBlessed = false
   battle.zombie = {
     ...enemy,
     abilities: Array.isArray(enemy.abilities) ? [...enemy.abilities] : [],
     dodge: Number(enemy.dodge) || 0,
-    maxHp: enemy.hp,
+    maxHp: Number.isFinite(enemy.maxHp) ? enemy.maxHp : enemy.hp,
   }
 }
 
@@ -132,6 +160,12 @@ function enemyDefeated() {
 
 function damageEnemy(amount) {
   battle.zombie.hp = Math.max(enemyFloor(), battle.zombie.hp - Math.max(1, amount))
+  if (battle.zombie.isWorldBoss && battle.zombie.bossId) {
+    game.flags.worldBossHp = {
+      ...(game.flags.worldBossHp ?? {}),
+      [battle.zombie.bossId]: battle.zombie.hp,
+    }
+  }
 }
 
 /**
@@ -160,6 +194,75 @@ export function startFieldCombat(enemy, mapId, kind = 'field') {
   battle.active = true
   pushLog(`${enemy.name}从阴影里扑了出来。`)
   return true
+}
+
+/**
+ * 代理城主切磋：与当值会长打一场，双方都在 1 点生命时收手。
+ * 每天一次，与面谈共用次数；失败不会死亡。
+ */
+export function startMayorSpar() {
+  if (game.dead || battle.active) return ''
+  if (game.location !== 'utopia-city') return '切磋在乌托邦城的市政厅。'
+  if (Number(game.flags.mayorVisitDay) === game.day) return '今天已经拜访过代理城主了。'
+  if ((Number(game.stats.hp) || 0) <= 1) return '你只剩一口气，先去处理伤口再来切磋。'
+
+  const mayor = mayorForDay(game.day)
+  if (!mayor) return ''
+  const npc = npcById(`guild-leader-${mayor.id}`)
+  if (!npc) return ''
+
+  const actionDay = game.day
+  advanceTurns(1)
+  if (game.dead) return ''
+
+  game.flags.mayorVisitDay = actionDay
+  game.flags.mayorLastOption = 'spar'
+  resetBattle(npc, 'spar', 'utopia-city')
+  battle.zombie.hpFloor = 1
+  battle.active = true
+  pushLog(`${npc.name}把外套搭在椅背上，走到市政厅的空地上。`)
+  pushLog('“点到为止。”')
+  return ''
+}
+
+/**
+ * 世界BOSS：尸化魔龙 / 火龙 / 海妖 / 妖精
+ * 5 万生命，剩余血量写入存档；随时可以逃跑；击杀掉落对应宝石。
+ */
+export function startWorldBossBattle(bossId) {
+  if (game.dead || battle.active) return ''
+  if (game.location !== 'utopia-city') return '世界BOSS的裂缝在乌托邦城。'
+
+  const boss = worldBossById(bossId)
+  if (!boss) return ''
+  if (game.flags.worldBossDefeated?.[boss.id]) return `${boss.name}已经倒下了。`
+  if (!game.inventory.some((entry) => !entry)) return '背包已满，至少腾出一格再来挑战。'
+
+  const saved = Number(game.flags.worldBossHp?.[boss.id])
+  const hp = Number.isFinite(saved) && saved > 0 ? Math.min(boss.hp, saved) : boss.hp
+  const enemy = {
+    id: `world-boss-${boss.id}`,
+    name: boss.name,
+    hp,
+    maxHp: boss.hp,
+    attack: Math.round((boss.attackMin + boss.attackMax) / 2),
+    attackMin: boss.attackMin,
+    attackMax: boss.attackMax,
+    infection: 0,
+    dodge: 0,
+    abilities: [],
+    image: boss.image,
+    description: boss.description,
+    isWorldBoss: true,
+    bossId: boss.id,
+    gemId: boss.gemId,
+  }
+
+  resetBattle(enemy, 'world-boss', 'utopia-city')
+  battle.active = true
+  pushLog(`${boss.name}从市政厅地下的裂缝里爬了出来。`)
+  pushLog(`生命 ${hp} / ${boss.hp}。它记得你造成的每一道伤。`)
+  return ''
 }
 
 /** 国王任务六：在曙光阵地刺杀首领羿阳 */
@@ -301,6 +404,92 @@ export function continueAirshipCoup() {
   return startCoupStage(nextIndex)
 }
 
+/* ===== 长滩海港 · 巨型邮轮：杀害船长 ===== */
+
+function harborCrewEnemy(index) {
+  const { crewHpMin, crewHpMax, crewAttackMin, crewAttackMax } = HARBOR_MUTINY
+  return {
+    id: `harbor-crew-${index + 1}`,
+    name: HARBOR_MUTINY.crewName,
+    hp: crewHpMin + Math.floor(Math.random() * (crewHpMax - crewHpMin + 1)),
+    attack: crewAttackMin + Math.floor(Math.random() * (crewAttackMax - crewAttackMin + 1)),
+    infection: 0,
+    dodge: 0,
+    abilities: [],
+    image: HARBOR_MUTINY.crewImage,
+    description: HARBOR_MUTINY.crewDescription,
+  }
+}
+
+function startMutinyStage(index) {
+  const enemy =
+    index < HARBOR_MUTINY.crewCount
+      ? harborCrewEnemy(index)
+      : npcById(HARBOR_MUTINY.captainId)
+  if (!enemy) return false
+
+  resetBattle(enemy, 'mutiny', HARBOR_MUTINY.mapId)
+  battle.mutinyStage = index
+  battle.mutinyNext = false
+  battle.active = true
+
+  if (index === 0) {
+    pushLog(HARBOR_MUTINY.startLine)
+  } else if (index < HARBOR_MUTINY.crewCount) {
+    pushLog(`第 ${index + 1} 名${HARBOR_MUTINY.crewName}从货舱后面走了出来。`)
+  } else {
+    pushLog('最后一名船员倒下了。亚历克斯船长站在驾驶台前，手里握着那把旧拆信刀。')
+  }
+  pushLog(enemy.description)
+  return true
+}
+
+/** 巨型邮轮：杀害船长，连续十轮死斗；中途无法逃跑 */
+export function startHarborMutiny() {
+  if (game.dead || battle.active) return ''
+  if (game.location !== HARBOR_MUTINY.mapId) return '巨型邮轮停在长滩海港。'
+  if (game.flags.alexKilled) return '亚历克斯船长已经不在了。'
+
+  advanceTurns(1)
+  if (game.dead) return ''
+
+  if (!startMutinyStage(0)) return ''
+  return ''
+}
+
+/** 战胜一名死士后继续下一轮 */
+export function continueHarborMutiny() {
+  if (game.dead || battle.active) return false
+  const next = battle.mutinyStage + 1
+  if (next >= HARBOR_MUTINY.crewCount + 1) return false
+  return startMutinyStage(next)
+}
+
+/* ===== 长滩海港 · 潜入深海 ===== */
+
+/** 下潜一次：按危险等级抽取海洋生物，并重置本次氧气 */
+export function startSeaDive() {
+  if (game.dead || battle.active) return ''
+  if (game.location !== HARBOR_MUTINY.mapId) return '潜水点在长滩海港。'
+
+  advanceTurns(1)
+  if (game.dead) return ''
+
+  const enemy = pickSeaCreature()
+  const blessed = (Number(game.flags.mermaidStage) || 0) >= MERMAID.stages.length
+
+  resetBattle(enemy, 'deep-sea', HARBOR_MUTINY.mapId)
+  battle.oxygenMax = blessed ? SEA_OXYGEN_BLESSED : SEA_OXYGEN_DEFAULT
+  battle.oxygen = battle.oxygenMax
+  battle.mermaidBlessed = blessed
+  battle.active = true
+
+  pushLog('你从邮轮残骸边翻下水，冰冷的海水没过胸口。')
+  if (blessed) pushLog('人鱼的祝福护住了你的肺，氧气上限提升至 200。')
+  pushLog(`${enemy.name}从暗处游了出来。`)
+  return ''
+}
+
 /**
  * 马斐委托：刺杀指定 NPC
  * 需要对应委托处于进行中、目标还活着，并且玩家就在目标所在地
@@ -340,6 +529,120 @@ function hasAbility(key) {
   return battle.zombie.abilities.includes(key)
 }
 
+/** 当前启用天赋的实际效果，未启用返回空对象 */
+function activeTalentEffects(kind) {
+  return isTalentActive(kind) ? talentEffects(kind, game.talents[kind] || 0) : {}
+}
+
+/** 背包里是否有某件宝石（宝石放在背包内即被动生效） */
+function hasGem(itemId) {
+  return game.inventory.some((entry) => entry?.id === itemId)
+}
+
+/** 魔化宝石：每层提供 2% 临时暴击率 */
+function magicCritBonus() {
+  return hasGem('magic-gem') ? battle.magicStacks * 0.02 : 0
+}
+
+/** 焚血宝石：生命低于 50% / 20% 时的伤害倍率 */
+function bloodGemMultiplier() {
+  if (!hasGem('blood-gem')) return 1
+  const ratio = (Number(game.stats.hp) || 0) / statCap('hp')
+  if (ratio < 0.2) return 1.4
+  if (ratio < 0.5) return 1.2
+  return 1
+}
+
+/** 魔化层数结算：本次攻击出现过暴击就清空，否则叠加一层 */
+function updateMagicStacks(critted) {
+  if (!hasGem('magic-gem')) return
+  if (critted) {
+    if (battle.magicStacks > 0) {
+      pushLog(`暴击撕开了魔化，${battle.magicStacks} 层全部清空。`)
+    }
+    battle.magicStacks = 0
+    return
+  }
+  battle.magicStacks = Math.min(50, battle.magicStacks + 1)
+  pushLog(`魔化 +1 层：暴击率临时 +2%（当前 ${battle.magicStacks} 层）。`)
+}
+
+/** 世界BOSS的攻击在 40-60 之间浮动 */
+function enemyAttackValue() {
+  const zombie = battle.zombie
+  const min = Number(zombie.attackMin)
+  const max = Number(zombie.attackMax)
+  if (Number.isFinite(min) && Number.isFinite(max) && max >= min) {
+    return min + Math.floor(Math.random() * (max - min + 1))
+  }
+  return Number(zombie.attack) || 0
+}
+
+/**
+ * 敌方伤害结算：守护宝石全伤害减免 10%，坚毅宝石首次致死伤害留 1 点生命；
+ * 装备指定近战且启用格挡天赋时，再按格挡档位减伤。
+ */
+function blockIncomingDamage(amount) {
+  let value = amount
+  if (battle.kind === 'spar') {
+    const hp = Number(game.stats.hp) || 0
+    if (hp <= 1) return 0
+    if (hasGem('guardian-gem')) {
+      value = Math.max(1, Math.round(value * 0.9))
+    }
+    return Math.max(1, Math.min(value, hp - 1))
+  }
+  if (hasGem('guardian-gem')) {
+    value = Math.max(1, Math.round(value * 0.9))
+  }
+  let justSaved = false
+  if (value > 0 && hasGem('tenacity-gem') && !battle.tenacityPending) {
+    const hp = Number(game.stats.hp) || 0
+    if (value >= hp) {
+      battle.tenacityPending = true
+      justSaved = true
+      pushLog('坚毅宝石裂开一道光，你没有立刻倒下。下一次攻击仍会带走你。')
+      value = Math.max(0, hp - 1)
+    }
+  }
+  if (value > 0 && battle.tenacityPending && !justSaved) {
+    pushLog('坚毅宝石的光暗了下去，这一次没人能再替你挡住。')
+    return Math.max(1, Number(game.stats.hp) || 0)
+  }
+  if (value <= 0) return 0
+  if (!isTalentActive('block')) return value
+  const effects = talentEffects('block', game.talents.block || 0)
+  const weaponId = game.equipment.melee?.id
+  if (!weaponId || !UTOPIA_TRAINING_BY_KIND.block.weaponIds.includes(weaponId)) {
+    return value
+  }
+  if (Math.random() >= (effects.blockChance ?? 0)) return value
+  const reduced = Math.max(1, Math.round(value * (1 - (effects.blockReduction ?? 0))))
+  pushLog(`你横起武器格挡，伤害 ${value} → ${reduced}。`)
+  return reduced
+}
+
+/** 深海近战每次点击扣氧；海洋宝石让消耗减半；返回本次是否扣到 0（仍允许这一击结算） */
+function consumeSeaOxygen() {
+  if (battle.kind !== 'deep-sea' || devState.lockOxygen) return false
+  const cost = hasGem('ocean-gem')
+    ? Math.max(1, Math.ceil(SEA_OXYGEN_COST / 2))
+    : SEA_OXYGEN_COST
+  battle.oxygen = Math.max(0, battle.oxygen - cost)
+  return battle.oxygen <= 0
+}
+
+/** 这一击结算后若氧气归零，触发溺水死亡 */
+function checkDrowning(pending) {
+  if (!pending || game.dead) return
+  drownPlayer()
+  battle.active = false
+  battle.finished = true
+  battle.result = 'dead'
+  battle.summary = '氧气耗尽。你向海面挣扎，但四肢已经不听使唤。'
+  pushLog(battle.summary)
+}
+
 /** 绊倒 / 致盲：返回 true 表示这一击被跳过 */
 function attackBlocked() {
   if (battle.tripped) {
@@ -363,12 +666,16 @@ function attackBlocked() {
 /** 丧尸闪避后的反扑：跳跃尸借势撞击，幽灵潜行尸从背后偷袭 */
 function counterOnDodge() {
   if (hasAbility('leap')) {
-    const damage = Math.max(1, Math.round(battle.zombie.attack * ABILITY.leapMult))
+    const damage = blockIncomingDamage(
+      Math.max(1, Math.round(battle.zombie.attack * ABILITY.leapMult)),
+    )
     applyStatChanges({ hp: -damage })
     pushLog(`跳跃尸借势反扑，把你撞退了两步：生命 -${damage}。`)
   }
   if (hasAbility('cloak')) {
-    const damage = Math.max(1, Math.round(battle.zombie.attack * ABILITY.cloakCounter))
+    const damage = blockIncomingDamage(
+      Math.max(1, Math.round(battle.zombie.attack * ABILITY.cloakCounter)),
+    )
     applyStatChanges({ hp: -damage })
     pushLog(`幽灵潜行尸遁入暗影，从背后划了一刀：生命 -${damage}。`)
   }
@@ -378,11 +685,12 @@ function counterOnDodge() {
 function deathThroes() {
   const zombie = battle.zombie
   if (hasAbility('selfDestruct')) {
-    applyStatChanges({ hp: -zombie.attack })
-    pushLog(`${zombie.name}的尸体炸开了，冲击波把你掀翻：生命 -${zombie.attack}。`)
+    const damage = blockIncomingDamage(zombie.attack)
+    applyStatChanges({ hp: -damage })
+    pushLog(`${zombie.name}的尸体炸开了，冲击波把你掀翻：生命 -${damage}。`)
   }
   if (hasAbility('explosive')) {
-    const damage = Math.round(zombie.attack * ABILITY.explosiveMult)
+    const damage = blockIncomingDamage(Math.round(zombie.attack * ABILITY.explosiveMult))
     applyStatChanges({ hp: -damage })
     pushLog(`爆裂尸的尸体猛然炸开，碎片四溅：生命 -${damage}。`)
   }
@@ -398,9 +706,13 @@ export function meleeAttack() {
   if (!battle.active || game.dead) return
   battle.mode = 'melee'
   playWeaponSfx(currentMelee().def)
+  const drowning = consumeSeaOxygen()
+  const seaTrident = battle.kind === 'deep-sea' && currentMelee().def?.id === 'trident'
+  if (seaTrident) pushLog('三叉戟-海歌在水中低鸣，对海洋生物伤害 +50%。')
 
   if (attackBlocked()) {
     zombieTurn()
+    checkDrowning(drowning)
     return
   }
 
@@ -409,6 +721,7 @@ export function meleeAttack() {
     counterOnDodge()
     if (game.dead) return
     zombieTurn()
+    checkDrowning(drowning)
     return
   }
 
@@ -419,20 +732,55 @@ export function meleeAttack() {
   let loops = 0
   const armored = hasAbility('armor')
   const frozen = battle.frozen
+  const guild = activeGuild()
+  const initialMelee = currentMelee().def
+  const drawTalent = activeTalentEffects('draw')
+  const drawWeapon =
+    initialMelee && UTOPIA_TRAINING_BY_KIND.draw.weaponIds.includes(initialMelee.id)
+  const swordTalent = activeTalentEffects('sword')
+  const swordWeapon =
+    initialMelee && UTOPIA_TRAINING_BY_KIND.sword.weaponIds.includes(initialMelee.id)
+  const swordExecute =
+    swordWeapon && Math.random() < (swordTalent.executeChance ?? 0)
   if (frozen) battle.frozen = false
 
   while (loops < 500) {
     loops += 1
-    const { weapon } = currentMelee()
+    const { def, weapon } = currentMelee()
     const arena =
       isFistTalentWeapon(game.equipment.melee) && isTalentActive('arena')
         ? talentEffects('arena', game.talents.arena)
         : {}
-    const crit = Math.random() < (weapon.crit ?? 0) && (weapon.critDamage ?? 0) >= 1
+    const knight = guild?.id === 'knight' && def?.id === 'knight-sword'
+    const warrior = guild?.id === 'warrior' && guild.weaponIds?.includes(def?.id)
+    const critChance = Math.min(
+      1,
+      (weapon.crit ?? 0) + (knight ? (guild.critBonus ?? 0) : 0) + magicCritBonus(),
+    )
+    const crit = Math.random() < critChance && (weapon.critDamage ?? 0) >= 1
     const attack = (weapon.attack ?? 0) + (arena.damage ?? 0)
-    let damage = Math.max(1, Math.round(attack * (crit ? weapon.critDamage : 1)))
+    const seaBonus = battle.kind === 'deep-sea' && def?.id === 'trident' ? 1.5 : 1
+    const guildBonus = warrior ? (guild.damageBonus ?? 0) : 0
+    let damage = Math.max(
+      1,
+      Math.round(attack * (crit ? weapon.critDamage : 1) * seaBonus),
+    )
     if (armored) damage = Math.max(1, Math.floor(damage * ABILITY.armorMult))
     if (frozen && hits === 0) damage = Math.max(1, Math.floor(damage * ABILITY.frozenMult))
+    if (guildBonus) damage += guildBonus
+    if (hasGem('guardian-gem') && def?.id === 'knight-sword') damage += 20
+    const bloodMult = bloodGemMultiplier()
+    if (bloodMult > 1) damage = Math.round(damage * bloodMult)
+    if (swordExecute && hits === 0) {
+      damage = battle.zombie.isWorldBoss
+        ? Math.min(500, battle.zombie.hp)
+        : battle.zombie.hp
+      pushLog(
+        battle.zombie.isWorldBoss
+          ? '致命一击被厚重的尸壳挡住，只撕开 500 点伤口。'
+          : '致命一击：剑尖找到了那一瞬间的空门。',
+      )
+    }
     if (devState.oneHitKill) damage = battle.zombie.hp
 
     hits += 1
@@ -449,9 +797,10 @@ export function meleeAttack() {
     const meleeTalent = isTalentActive('melee')
       ? talentBonus('melee', game.talents.melee)
       : 0
+    const knightCombo = knight ? (guild.comboBonus ?? 0) : 0
     const comboChance = Math.min(
       1,
-      (weapon.combo ?? 0) + meleeTalent + (arena.combo ?? 0),
+      (weapon.combo ?? 0) + meleeTalent + (arena.combo ?? 0) + knightCombo,
     )
     if (Math.random() >= comboChance) break
   }
@@ -464,13 +813,27 @@ export function meleeAttack() {
     pushLog(`你连续挥出 ${hits} 击${crits ? `（暴击 ${crits} 次）` : ''}，共 ${total} 点伤害。`)
   }
   if (broken) pushLog(`${broken}在最后一次挥砍中断成了两截。`)
+  updateMagicStacks(crits > 0)
   companionAssist()
+
+  if (
+    !enemyDefeated() &&
+    drawWeapon &&
+    !broken &&
+    Math.random() < (drawTalent.cutChance ?? 0)
+  ) {
+    let cut = Math.max(1, Math.ceil(battle.zombie.maxHp * 0.2))
+    if (battle.zombie.isWorldBoss) cut = Math.min(cut, 200)
+    damageEnemy(cut)
+    pushLog(`拔刀斩触发切割，追加 ${cut} 点真实伤害。`)
+  }
 
   if (enemyDefeated()) {
     winBattle()
     return
   }
   zombieTurn()
+  checkDrowning(drowning)
 }
 
 /**
@@ -479,6 +842,10 @@ export function meleeAttack() {
  */
 export function rangedAttack() {
   if (!battle.active || game.dead) return
+  if (battle.kind === 'deep-sea') {
+    pushLog('水下无法开枪，枪膛里灌满了海水。')
+    return
+  }
   const equipped = game.equipment.ranged
   if (!equipped) return
 
@@ -519,24 +886,76 @@ export function rangedAttack() {
   const rangedTalent = isTalentActive('ranged')
     ? talentBonus('ranged', game.talents.ranged)
     : 0
-  const critChance = Math.min(1, (weapon.crit ?? 0) + rangedTalent)
-  const crit = Math.random() < critChance && (weapon.critDamage ?? 0) >= 1
+  const pistolTalent = activeTalentEffects('pistol')
+  const pistolWeapon =
+    pistolTalent.crit && UTOPIA_TRAINING_BY_KIND.pistol.weaponIds.includes(def.id)
+  const sniperTalent = activeTalentEffects('sniper')
+  const sniperWeapon =
+    sniperTalent.pierceChance &&
+    UTOPIA_TRAINING_BY_KIND.sniper.weaponIds.includes(def.id)
+  const sprayTalent = activeTalentEffects('spray')
+  const sprayWeapon =
+    sprayTalent.sprayChance &&
+    UTOPIA_TRAINING_BY_KIND.spray.weaponIds.includes(def.id)
+  const pistolCrit = pistolWeapon ? (pistolTalent.crit ?? 0) : 0
+  const pistolCritDamage = pistolWeapon ? (pistolTalent.critDamage ?? 0) : 0
+  const critChance = Math.min(
+    1,
+    (weapon.crit ?? 0) + rangedTalent + pistolCrit + magicCritBonus(),
+  )
+  const effectiveCritDamage = (weapon.critDamage ?? 1) + pistolCritDamage
+  const crit = Math.random() < critChance && effectiveCritDamage >= 1
   const frozen = battle.frozen
   if (frozen) battle.frozen = false
-  let multiplier = (crit ? weapon.critDamage : 1) * cleanlinessMultiplier(cleanliness)
+  const guild = activeGuild()
+  const hunter = guild?.id === 'hunter' && guild.weaponIds?.includes(def.id)
+  const hunterBonus = hunter ? (guild.damageBonus ?? 0) : 0
+  let multiplier =
+    (crit ? effectiveCritDamage : 1) *
+    (hunter ? 1 : cleanlinessMultiplier(cleanliness))
   if (hasAbility('armor')) multiplier *= ABILITY.armorMult
   if (frozen) multiplier *= ABILITY.frozenMult
-  const damage = devState.oneHitKill
+  let damage = devState.oneHitKill
     ? battle.zombie.hp
-    : Math.max(1, Math.round((weapon.attack ?? 0) * multiplier))
+    : Math.max(1, Math.round((weapon.attack ?? 0) * multiplier) + hunterBonus)
+  const bloodMult = bloodGemMultiplier()
+  if (bloodMult > 1) damage = Math.round(damage * bloodMult)
 
   damageEnemy(damage)
 
-  const dry = cleanlinessMultiplier(cleanliness) < 0.8 ? '（枪身发涩，威力下降）' : ''
+  const dry =
+    !hunter && cleanlinessMultiplier(cleanliness) < 0.8 ? '（枪身发涩，威力下降）' : ''
   pushLog(`你用${def.name}${crit ? '命中要害' : '命中'}，造成 ${damage} 点伤害。${dry}`)
   if (hasAbility('armor')) pushLog('子弹打在它的铁甲上，威力削弱了一半。')
   if (frozen) pushLog('寒气让你的手抖了一下，这一枪威力减半。')
+
+  let extraDamage = 0
+  let sprayProc = false
+  if (!enemyDefeated() && sniperWeapon && Math.random() < sniperTalent.pierceChance) {
+    const pierce = Math.max(1, Math.round((weapon.attack ?? 0) * 0.5))
+    extraDamage += pierce
+    pushLog(`贯穿触发：子弹穿过目标，额外造成 ${pierce} 点伤害。`)
+  }
+  if (!enemyDefeated() && sprayWeapon && Math.random() < sprayTalent.sprayChance) {
+    const threeShots =
+      Math.max(1, Math.round((weapon.attack ?? 0) * 0.3)) +
+      Math.max(1, Math.round((weapon.attack ?? 0) * 0.2)) +
+      Math.max(1, Math.round((weapon.attack ?? 0) * 0.1))
+    extraDamage += threeShots
+    sprayProc = true
+    pushLog(`泼射触发：追加三发，额外造成 ${threeShots} 点伤害。`)
+  }
+  if (extraDamage > 0) damageEnemy(extraDamage)
+  updateMagicStacks(crit)
+
   const condition = consumeRangedCleanliness()
+  if (sprayProc) {
+    const current = Number.isFinite(equipped.cleanliness)
+      ? equipped.cleanliness
+      : CLEANLINESS_MAX
+    equipped.cleanliness = Math.max(0, current - 1)
+    pushLog('泼射额外消耗 1 点清洁度。')
+  }
   if (condition.empty && !enemyDefeated()) {
     pushLog('清洁度归零，需要保养后才能继续开火。')
   }
@@ -562,6 +981,11 @@ export function rangedAttack() {
 export function fleeBattle() {
   if (!battle.active || game.dead) return
 
+  if (battle.kind === 'mutiny') {
+    pushLog('船员堵死了舷梯，退路已经被封住。')
+    return
+  }
+
   // 政变中逃跑必定成功，但算政变失败并清空声望
   if (battle.kind === 'airship-coup') {
     battle.active = false
@@ -575,11 +999,27 @@ export function fleeBattle() {
     return
   }
 
-  if (Math.random() < DAWN_FLEE_CHANCE) {
+  // 世界BOSS：随时可以撤退，血量已经按每次伤害记录
+  if (battle.kind === 'world-boss') {
     battle.active = false
     battle.finished = true
     battle.result = 'flee'
-    pushLog('你转身冲进废墟，脚步声渐渐远了。逃跑没有战利品。')
+    battle.summary = '你退出裂缝。它的血条停在原处，下一次还会从那里继续。'
+    pushLog('你撤出了世界BOSS的领域，累计伤害已记录。')
+    return
+  }
+
+  const fleeChance =
+    battle.kind === 'deep-sea' && battle.mermaidBlessed ? 0.8 : DAWN_FLEE_CHANCE
+  if (Math.random() < fleeChance) {
+    battle.active = false
+    battle.finished = true
+    battle.result = 'flee'
+    pushLog(
+      battle.kind === 'deep-sea'
+        ? '你拼命蹬水，朝有光的方向游去。'
+        : '你转身冲进废墟，脚步声渐渐远了。逃跑没有战利品。',
+    )
     battle.summary =
       battle.kind === 'yanran'
         ? '你退出了商场深处，身后那声嘶吼没有追上来。'
@@ -589,11 +1029,15 @@ export function fleeBattle() {
             ? GIANT_PUPPET.fleeLine
             : battle.kind === 'assassination'
               ? '你退开了几步，杀意还没来得及落下。'
-              : battle.kind === 'field'
-                ? '你从地图深处退了出来，这一趟什么也没带回去。'
-                : battle.kind === 'npc'
-                  ? '你退出了烧烤摊，阿三没有追出来。'
-                  : '你活着离开了废墟，但这一趟什么也没带回去。'
+              : battle.kind === 'deep-sea'
+                ? '你蹬水退回海面，身后那道影子没有追上来。'
+                : battle.kind === 'field'
+                  ? '你从地图深处退了出来，这一趟什么也没带回去。'
+                  : battle.kind === 'npc'
+                    ? '你退出了烧烤摊，阿三没有追出来。'
+                    : battle.kind === 'spar'
+                      ? '你退后两步，抬手认输。对方也收了手。'
+                      : '你活着离开了废墟，但这一趟什么也没带回去。'
     return
   }
 
@@ -647,12 +1091,22 @@ function corrodeWeapon() {
   pushLog(`酸液咬住了${def?.name ?? '近战武器'}：耐久 -${ABILITY.corrodeLoss}（${next}/${max}）。`)
 }
 
+/** 切磋落败：玩家被逼到 1 点生命，对手收手，不会死亡 */
+function finishSparLoss() {
+  game.stats.hp = 1
+  battle.active = false
+  battle.finished = true
+  battle.result = 'spar-loss'
+  battle.summary = `${battle.zombie.name}在你只剩一口气时收住了手。“到此为止。”你扶着膝盖，喘得说不出话。`
+  pushLog('切磋结束：你被逼到 1 点生命，对手主动停手。')
+}
+
 function zombieTurn() {
   if (!battle.active || game.dead) return
 
   battle.round += 1
   const zombie = battle.zombie
-  const attack = zombie.attack
+  const attack = enemyAttackValue()
 
   if (hasAbility('screech') && battle.round % 2 === 0) {
     applyStatChanges({ stamina: -ABILITY.screechStamina })
@@ -663,18 +1117,23 @@ function zombieTurn() {
     }
   }
 
-  const changes = { hp: -attack }
+  const changes = { hp: -blockIncomingDamage(attack) }
   if (zombie.infection > 0) changes.infection = zombie.infection
   applyStatChanges(changes)
 
   if (zombie.infection > 0) {
-    pushLog(`${zombie.name}抓中了你：生命 -${attack}，感染 +${zombie.infection}%。`)
+    pushLog(`${zombie.name}抓中了你：生命 -${-changes.hp}，感染 +${zombie.infection}%。`)
   } else {
-    pushLog(`${zombie.name}击中了你：生命 -${attack}。`)
+    pushLog(`${zombie.name}击中了你：生命 -${-changes.hp}。`)
   }
 
   if (game.dead) {
     markPlayerDead()
+    return
+  }
+
+  if (battle.kind === 'spar' && game.stats.hp <= 1) {
+    finishSparLoss()
     return
   }
 
@@ -684,15 +1143,17 @@ function zombieTurn() {
   }
   if (hasAbility('corrode')) corrodeWeapon()
   if (hasAbility('acid')) {
-    const damage =
-      ABILITY.acidMin + Math.floor(Math.random() * (ABILITY.acidMax - ABILITY.acidMin + 1))
+    const damage = blockIncomingDamage(
+      ABILITY.acidMin + Math.floor(Math.random() * (ABILITY.acidMax - ABILITY.acidMin + 1)),
+    )
     applyStatChanges({ hp: -damage })
     pushLog(`酸液泼在你身上，皮肉发出滋滋声：额外生命 -${damage}。`)
   }
   if (hasAbility('summon') && !battle.summoned) {
     battle.summoned = true
-    applyStatChanges({ hp: -ABILITY.summonDamage })
-    pushLog(`群居尸母召唤了两只游荡丧尸，它们同时扑上来：生命 -${ABILITY.summonDamage}。`)
+    const damage = blockIncomingDamage(ABILITY.summonDamage)
+    applyStatChanges({ hp: -damage })
+    pushLog(`群居尸母召唤了两只游荡丧尸，它们同时扑上来：生命 -${damage}。`)
   }
   if (hasAbility('trip')) {
     battle.tripped = true
@@ -703,14 +1164,21 @@ function zombieTurn() {
     pushLog('冰霜尸的寒气侵入身体，你的动作变得迟缓。')
   }
   if (hasAbility('impale')) {
-    const damage = Math.max(1, Math.round(attack * ABILITY.impaleMult))
+    const damage = blockIncomingDamage(Math.max(1, Math.round(attack * ABILITY.impaleMult)))
     applyStatChanges({ hp: -damage })
     pushLog(`骨刺深深扎进你的身体：额外生命 -${damage}。`)
   }
   if (hasAbility('cloak') && Math.random() < ABILITY.cloakAmbushRate) {
-    const damage = Math.max(1, Math.round(attack * ABILITY.cloakAmbushMult))
+    const damage = blockIncomingDamage(
+      Math.max(1, Math.round(attack * ABILITY.cloakAmbushMult)),
+    )
     applyStatChanges({ hp: -damage })
     pushLog(`幽灵潜行尸从暗影里补了一刀：额外生命 -${damage}。`)
+  }
+
+  if (battle.kind === 'spar' && game.stats.hp <= 1) {
+    finishSparLoss()
+    return
   }
 
   if (game.dead) markPlayerDead()
@@ -748,6 +1216,13 @@ function companionAssist() {
   pushLog(`嫣然从侧后方补了一下，造成 ${COMPANIONS.yanran.assistDamage} 点伤害。`)
 }
 
+/** 结算击杀时最后一击使用的武器 */
+function killWeaponId() {
+  return battle.mode === 'melee'
+    ? (game.equipment.melee?.id ?? null)
+    : (game.equipment.ranged?.id ?? null)
+}
+
 /** 普通丧尸胜利的通用结算：死亡自爆、露露回血、击杀计数 */
 function resolveZombieVictory() {
   if (deathThroes()) return false
@@ -755,6 +1230,7 @@ function resolveZombieVictory() {
   battle.result = 'victory'
   luluHeal()
   game.zombieKills += 1
+  recordGuildKill(killWeaponId())
   pushLog(`${battle.zombie.name}终于不动了。`)
   return true
 }
@@ -776,6 +1252,40 @@ function winBattle() {
     const commission = AIRSHIP.commission.battle
     game.reputation += commission.reputation
     battle.summary = `${commission.doneLine}（声望 +${commission.reputation}，当前 ${game.reputation}）`
+    pushLog(battle.summary)
+    return
+  }
+
+  if (battle.kind === 'deep-sea') {
+    battle.result = 'victory'
+    const rewardId = battle.zombie.isBoss ? SEA_LOOT.boss : SEA_LOOT.normal
+    const reward = getItem(rewardId)
+    const rewardName = reward?.name ?? '战利品'
+    const leftover = addItem(game.inventory, rewardId, 1)
+    battle.summary =
+      leftover > 0
+        ? `你击退了${battle.zombie.name}，但背包已满，${rewardName}只能留在海里。`
+        : `你击退了${battle.zombie.name}，获得 ${rewardName} ×1。`
+    pushLog(battle.summary)
+    return
+  }
+
+  if (battle.kind === 'mutiny') {
+    battle.result = 'victory'
+    const stage = battle.mutinyStage
+
+    if (stage < HARBOR_MUTINY.crewCount) {
+      battle.mutinyNext = true
+      battle.summary = `第 ${stage + 1} 名${HARBOR_MUTINY.crewName}倒下了。舷梯那头的脚步声没有停。`
+      pushLog(battle.summary)
+      return
+    }
+
+    battle.mutinyNext = false
+    game.flags.alexKilled = true
+    game.flags.portBanUntilDay = game.day + HARBOR_MUTINY.banDays
+    game.finale = HARBOR_MUTINY.finale
+    battle.summary = `${HARBOR_MUTINY.captainDeathLine}\n\n结局达成 · ${HARBOR_MUTINY.finale}`
     pushLog(battle.summary)
     return
   }
@@ -875,10 +1385,41 @@ function winBattle() {
     if (unlockAchievement('no-cheat') && typeof window !== 'undefined') {
       notify('成就解锁 · 我没开挂')
     }
+    const dev = npcById(DEV_SHOP.duel.npcId)
+    const line = dev?.victoryLine ?? '开发者的血条终于见底。'
     const leftover = addItem(game.inventory, DEV_SHOP.duel.rewardItemId, 1)
     battle.summary = leftover
-      ? `${DEV_SHOP.duel.victoryLine} 可你的背包已经塞满，剑只能先留在桌上。`
-      : DEV_SHOP.duel.victoryLine
+      ? `${line} 可你的背包已经塞满，剑只能先留在桌上。`
+      : line
+    pushLog(battle.summary)
+    return
+  }
+
+  if (battle.kind === 'world-boss') {
+    battle.result = 'victory'
+    const bossId = battle.zombie.bossId
+    game.flags.worldBossDefeated = {
+      ...(game.flags.worldBossDefeated ?? {}),
+      [bossId]: true,
+    }
+    game.flags.worldBossHp = {
+      ...(game.flags.worldBossHp ?? {}),
+      [bossId]: 0,
+    }
+    const gem = getItem(battle.zombie.gemId)
+    const leftover = addItem(game.inventory, battle.zombie.gemId, 1)
+    battle.summary =
+      leftover > 0
+        ? `${battle.zombie.name}倒下了，但你的背包已满，${gem?.name ?? '宝石'}只能留在灰烬里。`
+        : `${battle.zombie.name}倒下了。你从它的残骸里取出 ${gem?.name ?? '宝石'}。`
+    pushLog(battle.summary)
+    return
+  }
+
+  if (battle.kind === 'spar') {
+    battle.result = 'spar-win'
+    game.reputation += 2
+    battle.summary = `${battle.zombie.name}退后一步，收住了手。“你赢了。”声望 +2（当前 ${game.reputation}）。`
     pushLog(battle.summary)
     return
   }
@@ -888,6 +1429,7 @@ function winBattle() {
   battle.result = 'victory'
   luluHeal()
   game.zombieKills += 1
+  recordGuildKill(killWeaponId())
   pushLog(`${battle.zombie.name}终于不动了。`)
 
   if (battle.kind === 'field') {

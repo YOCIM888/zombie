@@ -135,6 +135,13 @@ button {
   overflow: auto;
 }
 
+/* 战斗视图：父级下内边距会让 sticky 操作栏在滚到底部时被向上顶起 */
+.pane:has(.battle),
+.deal:has(.battle),
+.assassin:has(.battle) {
+  padding-bottom: 0 !important;
+}
+
 .modal-card::before {
   content: "";
   position: absolute;

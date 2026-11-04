@@ -162,6 +162,12 @@ const RANGED_LIST = [
     limited: true,
     image: '/image/曙光阵地限定/流光狙击-白昼.webp',
   }),
+  ranged('starfall-bow', '天星之弓', '限定', {
+    attack: 100, crit: 0.22, critDamage: 1.5, dodge: 0.32,
+  }, '弓臂上嵌着一线银光，拉满时像有一粒星子停在弦上。', {
+    limited: true,
+    image: '/image/公会限定武器/天星之弓.webp',
+  }),
 ]
 
 export const RANGED_ITEMS = Object.fromEntries(RANGED_LIST.map((item) => [item.id, item]))

@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { COMPANIONS } from '../data'
+import { COMPANIONS, npcById } from '../data'
 import { cooldownLeft, game, harvestLulu, harvestYanran } from '../game/store'
 import ModalShell from './ModalShell.vue'
 
@@ -22,6 +22,7 @@ const partners = computed(() => [
   {
     id: 'yanran',
     avatar: '嫣',
+    image: npcById('yanran')?.image,
     name: '嫣然',
     joined: yanranJoined.value,
     left: yanranLeft.value,
@@ -34,6 +35,7 @@ const partners = computed(() => [
   {
     id: 'lulu',
     avatar: '露',
+    image: npcById('lulu')?.image,
     name: '露露',
     joined: luluJoined.value,
     left: luluLeft.value,
@@ -71,7 +73,10 @@ function claim(action) {
         :class="{ 'is-off': !partner.joined }"
       >
         <header class="partner__head">
-          <span class="partner__avatar">{{ partner.avatar }}</span>
+          <span class="partner__avatar">
+            <img v-if="partner.image" :src="partner.image" :alt="partner.name" />
+            <template v-else>{{ partner.avatar }}</template>
+          </span>
           <div class="partner__id">
             <h3 class="partner__name">{{ partner.name }}</h3>
             <span
@@ -141,17 +146,26 @@ function claim(action) {
 }
 
 .partner__avatar {
-  width: 42px;
-  height: 42px;
+  width: 64px;
+  height: 64px;
   flex: none;
   display: grid;
   place-items: center;
+  overflow: hidden;
   font-family: var(--font-title);
   font-size: 18px;
   letter-spacing: 0.08em;
   color: var(--bone);
   border: 1px solid var(--line-strong);
-  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.partner__avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(0.9) contrast(1.05);
 }
 
 .partner__id {
