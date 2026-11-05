@@ -125,6 +125,34 @@ export const TALENTS = {
       { sprayChance: 0.25 },
     ],
   },
+  blunt: {
+    key: 'blunt',
+    label: '碎骨天赋',
+    primary: 'boneChance',
+    stat: '碎骨概率',
+    maxLevel: 4,
+    titles: ['破颅高手', '破颅大师', '破颅宗师', '破颅战神'],
+    effects: [
+      { boneChance: 0.1 },
+      { boneChance: 0.15 },
+      { boneChance: 0.2 },
+      { boneChance: 0.25 },
+    ],
+  },
+  assassinate: {
+    key: 'assassinate',
+    label: '偷袭天赋',
+    primary: 'backstabChance',
+    stat: '背刺概率',
+    maxLevel: 4,
+    titles: ['偷袭高手', '偷袭大师', '偷袭宗师', '偷袭王者'],
+    effects: [
+      { backstabChance: 0.2 },
+      { backstabChance: 0.3 },
+      { backstabChance: 0.4 },
+      { backstabChance: 0.5 },
+    ],
+  },
 }
 
 export const TALENT_ACTIVE_LIMIT = 2
@@ -141,9 +169,11 @@ export const TALENT_EFFECT_LABELS = {
   blockReduction: '格挡减伤',
   critDamage: '暴击伤害',
   sprayChance: '泼射概率',
+  boneChance: '碎骨概率',
+  backstabChance: '背刺概率',
 }
 
-/** 乌托邦六种训练：对应天赋、可选武器、消耗与每日次数 */
+/** 乌托邦专项训练：对应天赋、可选武器、消耗与每日次数 */
 export const UTOPIA_TRAININGS = [
   {
     kind: 'draw',
@@ -171,22 +201,49 @@ export const UTOPIA_TRAININGS = [
     desc: '练的是距离、节奏和那一瞬间的致命空门。',
   },
   {
-    kind: 'sniper',
-    name: '狙击训练',
-    weaponSlot: 'ranged',
-    costType: 'cleanliness',
-    weaponIds: ['m700', 'svd', 't3x', 'awm', 'm82a1', 'daylight-sniper'],
-    weaponText: 'M700 / SVD / T3X / AWM / M82A1 / 流光狙击-白昼',
-    desc: '呼吸、准星与扳机，一遍遍压到同一条线上。',
+    kind: 'blunt',
+    name: '钝击训练',
+    weaponSlot: 'melee',
+    costType: 'durability',
+    weaponIds: [
+      'baseball-bat',
+      'claw-hammer',
+      'pipe-wrench',
+      'baton',
+      'crowbar',
+      'royal-scepter',
+    ],
+    weaponText: '棒球棍 / 羊角锤 / 管钳 / 警棍 / 撬棍 / 皇家权杖',
+    desc: '抡圆了砸，练的是骨裂声出现的那一瞬间。',
   },
   {
     kind: 'block',
     name: '格挡训练',
     weaponSlot: 'melee',
     costType: 'durability',
-    weaponIds: ['frying-pan', 'scarlet-greatsword', 'frost-greatsword'],
-    weaponText: '平底锅 / 猩红巨剑 / 寒霜大剑-冰晶',
+    weaponIds: ['frying-pan', 'entrenching-tool', 'scarlet-greatsword', 'frost-greatsword'],
+    weaponText: '平底锅 / 工兵铲 / 猩红巨剑 / 寒霜大剑-冰晶',
     desc: '把兵器横在身前，学会在冲击到来时卸掉力道。',
+  },
+  {
+    kind: 'assassinate',
+    name: '暗杀训练',
+    weaponSlot: 'melee',
+    costType: 'durability',
+    weaponIds: [
+      'fruit-knife',
+      'karambit-classic',
+      'triangular-bayonet',
+      'knuckle-blade',
+      'kukri',
+      'butterfly-silver',
+      'karambit-ghost',
+      'spring-knife-aurora',
+      'butterfly-gold',
+    ],
+    weaponText:
+      '水果刀 / 爪刀-经典 / 三棱军刺 / 信条刀 / 廓尔喀弯刀 / 蝴蝶刀-银蝶 / 爪刀-幽灵 / 弹簧刀-极光 / 蝴蝶刀-金蝶',
+    desc: '贴近、转身、收刀，练的是不惊动任何人的那一刀。',
   },
   {
     kind: 'pistol',
@@ -216,6 +273,15 @@ export const UTOPIA_TRAININGS = [
     weaponIds: ['mac10', 'uzi', 'mp5', 'ump45', 'victor'],
     weaponText: 'MAC10 / UZI / MP5 / UMP45 / Victor',
     desc: '压住枪口，把一梭子子弹泼成一片火线。',
+  },
+  {
+    kind: 'sniper',
+    name: '狙击训练',
+    weaponSlot: 'ranged',
+    costType: 'cleanliness',
+    weaponIds: ['m700', 'svd', 't3x', 'awm', 'm82a1', 'daylight-sniper'],
+    weaponText: 'M700 / SVD / T3X / AWM / M82A1 / 流光狙击-白昼',
+    desc: '呼吸、准星与扳机，一遍遍压到同一条线上。',
   },
 ]
 

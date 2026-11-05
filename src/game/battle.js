@@ -90,7 +90,7 @@ export const battle = reactive({
   mode: 'melee',
   summary: '',
   log: [],
-  zombie: { ...DAWN_ZOMBIE, maxHp: DAWN_ZOMBIE.hp, abilities: [], dodge: 0 },
+  zombie: { ...DAWN_ZOMBIE, maxHp: DAWN_ZOMBIE.hp, abilities: [], dodge: 0, boneStacks: 0 },
   tripped: false,
   blinded: false,
   frozen: false,
@@ -147,6 +147,7 @@ export function resetBattle(enemy = DAWN_ZOMBIE, kind = 'zombie', mapId = null) 
     abilities: Array.isArray(enemy.abilities) ? [...enemy.abilities] : [],
     dodge: Number(enemy.dodge) || 0,
     maxHp: Number.isFinite(enemy.maxHp) ? enemy.maxHp : enemy.hp,
+    boneStacks: 0,
   }
 }
 
@@ -740,6 +741,14 @@ export function meleeAttack() {
     initialMelee && UTOPIA_TRAINING_BY_KIND.sword.weaponIds.includes(initialMelee.id)
   const swordExecute =
     swordWeapon && Math.random() < (swordTalent.executeChance ?? 0)
+  const bluntTalent = activeTalentEffects('blunt')
+  const bluntWeapon =
+    initialMelee && UTOPIA_TRAINING_BY_KIND.blunt.weaponIds.includes(initialMelee.id)
+  const boneChance = bluntWeapon ? (bluntTalent.boneChance ?? 0) : 0
+  const assassinateTalent = activeTalentEffects('assassinate')
+  const assassinateWeapon =
+    initialMelee &&
+    UTOPIA_TRAINING_BY_KIND.assassinate.weaponIds.includes(initialMelee.id)
   if (frozen) battle.frozen = false
 
   while (loops < 500) {
@@ -772,6 +781,10 @@ export function meleeAttack() {
     if (hasGem('ocean-gem') && battle.kind === 'deep-sea') damage += 20
     const bloodMult = bloodGemMultiplier()
     if (bloodMult > 1) damage = Math.round(damage * bloodMult)
+    const boneStacks = Math.min(10, Number(battle.zombie.boneStacks) || 0)
+    if (bluntWeapon && boneStacks > 0) {
+      damage = Math.round(damage * (1 + boneStacks * 0.1))
+    }
     if (swordExecute && hits === 0) {
       damage = battle.zombie.isWorldBoss
         ? Math.min(500, battle.zombie.hp)
@@ -793,6 +806,16 @@ export function meleeAttack() {
     total += damage
     if (crit) crits += 1
     damageEnemy(damage)
+
+    if (!enemyDefeated() && bluntWeapon && boneChance && Math.random() < boneChance) {
+      const before = Number(battle.zombie.boneStacks) || 0
+      if (before < 10) {
+        battle.zombie.boneStacks = before + 1
+        pushLog(
+          `碎骨触发：${battle.zombie.name}身上裂开一处骨头（${before + 1} / 10 层）。`,
+        )
+      }
+    }
 
     const result = consumeMeleeDurability()
     if (enemyDefeated()) break
@@ -832,6 +855,34 @@ export function meleeAttack() {
     if (battle.zombie.isWorldBoss) cut = Math.min(cut, 200)
     damageEnemy(cut)
     pushLog(`拔刀斩触发切割，追加 ${cut} 点真实伤害。`)
+  }
+
+  if (
+    !enemyDefeated() &&
+    assassinateWeapon &&
+    !broken &&
+    Math.random() < (assassinateTalent.backstabChance ?? 0)
+  ) {
+    const { weapon } = currentMelee()
+    const backCritChance = Math.min(1, (weapon.crit ?? 0) + magicCritBonus())
+    const backCritDamage = weapon.critDamage ?? 1
+    let backTotal = 0
+    let backCrits = 0
+    for (const ratio of [0.3, 0.2, 0.1]) {
+      const backCrit = Math.random() < backCritChance && backCritDamage >= 1
+      backTotal += Math.max(
+        1,
+        Math.round((weapon.attack ?? 0) * ratio * (backCrit ? backCritDamage : 1)),
+      )
+      if (backCrit) backCrits += 1
+    }
+    damageEnemy(backTotal)
+    pushLog(
+      `背刺触发：三段暗刃追加 ${backTotal} 点伤害${backCrits ? `（暴击 ${backCrits} 段）` : ''}。`,
+    )
+    const extra = consumeMeleeDurability()
+    pushLog('背刺额外消耗 1 点耐久。')
+    if (extra.broken) pushLog(`${extra.name}在背刺后彻底损坏。`)
   }
 
   if (enemyDefeated()) {

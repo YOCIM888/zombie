@@ -175,6 +175,20 @@ const talentChips = computed(() => {
       `格挡 ${formatPercent(block.blockChance)} · 减伤 ${formatPercent(block.blockReduction)}`,
     )
   }
+  if (isTalentActive('blunt') && UTOPIA_TRAINING_BY_KIND.blunt.weaponIds.includes(meleeId)) {
+    const blunt = talentEffects('blunt', game.talents.blunt)
+    const stacks = Number(battle.zombie.boneStacks) || 0
+    chips.push(
+      `碎骨 ${formatPercent(blunt.boneChance)}${stacks ? ` · ${stacks} 层` : ''}`,
+    )
+  }
+  if (
+    isTalentActive('assassinate') &&
+    UTOPIA_TRAINING_BY_KIND.assassinate.weaponIds.includes(meleeId)
+  ) {
+    const assassinate = talentEffects('assassinate', game.talents.assassinate)
+    chips.push(`背刺 ${formatPercent(assassinate.backstabChance)}`)
+  }
   return chips
 })
 

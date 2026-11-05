@@ -218,6 +218,8 @@ export const game = reactive({
     block: 0,
     pistol: 0,
     spray: 0,
+    blunt: 0,
+    assassinate: 0,
   },
   training: {
     melee: 0,
@@ -230,6 +232,8 @@ export const game = reactive({
     block: 0,
     pistol: 0,
     spray: 0,
+    blunt: 0,
+    assassinate: 0,
   },
   activeTalents: [],
   market: null,
@@ -1021,7 +1025,7 @@ function utopiaTrainingGuard(kind) {
   return ''
 }
 
-/** 乌托邦六种专项训练：1 回合、10 消耗、每天 2 次（训练许可后 3 次）、每次 5-10 进度 */
+/** 乌托邦专项训练：1 回合、10 消耗、每天 2 次（训练许可后 3 次）、每次 5-10 进度 */
 export function utopiaTrain(kind) {
   const blocked = utopiaTrainingGuard(kind)
   if (blocked) return blocked
