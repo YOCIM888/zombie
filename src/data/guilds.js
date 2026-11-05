@@ -11,7 +11,7 @@ export const GUILDS = [
     badgeId: 'guild-hunter',
     requirementText: '上交猎弓、复合弓、十字弩各一把',
     buffText:
-      '猎弓 / 复合弓 / 十字弩 / 天星之弓伤害 +20；清洁度不再降低伤害，但清洁度消耗翻倍。',
+      '猎弓 / 复合弓 / 十字弩 / 天星之弓伤害 +25；清洁度不再降低伤害，但清洁度消耗翻倍。',
     requirement: {
       items: [
         { id: 'hunting-bow', qty: 1 },
@@ -20,7 +20,7 @@ export const GUILDS = [
       ],
     },
     weaponIds: ['hunting-bow', 'compound-bow', 'crossbow', 'starfall-bow'],
-    damageBonus: 20,
+    damageBonus: 25,
     noCleanlinessDecay: true,
     cleanlinessCostMultiplier: 2,
     commission: {
@@ -49,10 +49,10 @@ export const GUILDS = [
     name: '战士公会',
     badgeId: 'guild-warrior',
     requirementText: '累计击杀 30 只丧尸',
-    buffText: '战术匕首 / 长矛 / 手斧 / 威能战斧伤害 +20，但耐久消耗翻倍。',
+    buffText: '战术匕首 / 长矛 / 手斧 / 威能战斧伤害 +25，但耐久消耗翻倍。',
     requirement: { kills: 30 },
     weaponIds: ['dagger', 'spear', 'hand-axe', 'might-axe'],
-    damageBonus: 20,
+    damageBonus: 25,
     durabilityCostMultiplier: 2,
     commission: {
       type: 'kill',
@@ -80,7 +80,8 @@ export const GUILDS = [
     name: '牧师公会',
     badgeId: 'guild-priest',
     requirementText: '提交 3 支肾上腺素 + 3 支体能针',
-    buffText: '绷带 / 止痛药 / 抗生素的效果翻倍。',
+    buffText:
+      '绷带 / 止痛药 / 抗生素的效果翻倍；使用食物或饮品时，50% 概率额外恢复 10 点体力。',
     requirement: {
       items: [
         { id: 'adrenaline', qty: 3 },
@@ -89,6 +90,8 @@ export const GUILDS = [
     },
     medicineIds: ['bandage', 'painkiller', 'antibiotic'],
     medicineMultiplier: 2,
+    mealStaminaChance: 0.5,
+    mealStaminaBonus: 10,
     commission: {
       type: 'medicine',
       count: 5,
@@ -114,7 +117,8 @@ export const GUILDS = [
     name: '盗贼公会',
     badgeId: 'guild-rogue',
     requirementText: '在末日都城进行盗窃 10 次',
-    buffText: '都城偷窃 100% 产出 3 币；沿街乞讨奖励翻倍。',
+    buffText:
+      '都城盗窃 60% 产出 3 币、30% 产出白兰地、10% 产出普通近战武器；沿街乞讨奖励翻倍。',
     requirement: { thefts: 10 },
     theftCoins: 3,
     beggingMultiplier: 2,
@@ -144,9 +148,9 @@ export const GUILDS = [
     name: '诗人公会',
     badgeId: 'guild-poet',
     requirementText: '提交 10 瓶白兰地',
-    buffText: '饱食 / 口渴 / 理智 / 体力归零后不会直接死亡，每回合扣 25 生命。',
+    buffText: '饱食 / 口渴 / 理智 / 体力归零后不会直接死亡，每回合扣 20 生命。',
     requirement: { items: [{ id: 'brandy', qty: 10 }] },
-    zeroStatDrain: 25,
+    zeroStatDrain: 20,
     commission: {
       type: 'wine',
       items: ['brandy', 'whiskey', 'gin', 'vodka', 'tequila', 'rum'],
@@ -173,14 +177,16 @@ export const GUILDS = [
     badgeId: 'guild-knight',
     requirementText: '持有都城「骑士」及以上身份，并提交 2 把骑士剑',
     buffText:
-      '装备骑士剑时，生命上限 +20、暴击率 +16%、骑士剑连击 +22%。',
+      '装备骑士剑时，生命上限 +20、伤害 +20、暴击率 +26%、连击 +22%、爆伤 +40%。',
     requirement: {
       minIdentity: '骑士',
       items: [{ id: 'knight-sword', qty: 2 }],
     },
     weaponIds: ['knight-sword'],
     maxHpBonus: 20,
-    critBonus: 0.16,
+    damageBonus: 20,
+    critBonus: 0.26,
+    critDamageBonus: 0.4,
     comboBonus: 0.22,
     commission: {
       type: 'kill',

@@ -10,14 +10,14 @@ import {
   isFistTalentWeapon,
   talentBonus,
   talentEffects,
+  UTOPIA_TRAINING_BY_KIND,
 } from '../data'
 import {
   formatCritDamage,
   formatPercent,
-  formatPercentWithBonus,
-  formatValueWithBonus,
 } from '../game/format'
 import {
+  activeGuild,
   game,
   isTalentActive,
   unequipMelee,
@@ -35,6 +35,36 @@ const equippedDef = computed(() => {
 
 const isEquipped = computed(() => Boolean(game.equipment.melee))
 const melee = computed(() => equippedDef.value.weapon)
+const activeGuildInfo = computed(() => activeGuild())
+const hasItem = (id) => game.inventory.some((entry) => entry?.id === id)
+
+/** 数值加成：10 + 5 -> 10（+5 拳头） */
+function valueBreakdown(base, parts) {
+  const active = parts.filter(([, value]) => Number(value) > 0)
+  const text = active
+    .map(([label, value]) => `+${Math.round(Number(value))} ${label}`)
+    .join(' ')
+  return active.length ? `${Math.round(Number(base) || 0)}（${text}）` : `${Math.round(Number(base) || 0)}`
+}
+
+/** 百分比加成：10% + 5% -> 10%（+5% 远程） */
+function percentBreakdown(base, parts) {
+  const active = parts.filter(([, value]) => Number(value) > 0)
+  const text = active
+    .map(([label, value]) => `+${formatPercent(Number(value))} ${label}`)
+    .join(' ')
+  return active.length ? `${formatPercent(base)}（${text}）` : formatPercent(base)
+}
+
+/** 爆伤加成：1.6 + 0.4 -> 1.6×（+0.4 骑士公会） */
+function timesBreakdown(base, parts) {
+  const active = parts.filter(([, value]) => Number(value) > 0)
+  const text = active
+    .map(([label, value]) => `+${Number(value)} ${label}`)
+    .join(' ')
+  return active.length ? `${formatCritDamage(base)}（${text}）` : formatCritDamage(base)
+}
+
 const activeMeleeBonus = computed(() =>
   isTalentActive('melee') ? talentBonus('melee', game.talents.melee) : 0,
 )
@@ -43,15 +73,48 @@ const activeArena = computed(() =>
     ? talentEffects('arena', game.talents.arena)
     : {},
 )
-const meleeAttackText = computed(() =>
-  formatValueWithBonus(melee.value.attack ?? 0, activeArena.value.damage ?? 0),
+const knightMelee = computed(
+  () =>
+    activeGuildInfo.value?.id === 'knight' &&
+    game.equipment.melee?.id === 'knight-sword',
 )
-const meleeComboText = computed(() =>
-  formatPercentWithBonus(
-    melee.value.combo ?? 0,
-    activeMeleeBonus.value + (activeArena.value.combo ?? 0),
-  ),
+const warriorMelee = computed(
+  () =>
+    activeGuildInfo.value?.id === 'warrior' &&
+    activeGuildInfo.value.weaponIds?.includes(game.equipment.melee?.id),
 )
+const meleeAttackText = computed(() => {
+  const parts = []
+  if (activeArena.value.damage) parts.push(['拳头', activeArena.value.damage])
+  if ((knightMelee.value || warriorMelee.value) && activeGuildInfo.value?.damageBonus) {
+    parts.push([activeGuildInfo.value.name, activeGuildInfo.value.damageBonus])
+  }
+  if (knightMelee.value && hasItem('guardian-gem')) parts.push(['守护', 40])
+  return valueBreakdown(melee.value.attack ?? 0, parts)
+})
+const meleeCritText = computed(() => {
+  const parts =
+    knightMelee.value && activeGuildInfo.value?.critBonus
+      ? [[activeGuildInfo.value.name, activeGuildInfo.value.critBonus]]
+      : []
+  return percentBreakdown(melee.value.crit ?? 0, parts)
+})
+const meleeCritDamageText = computed(() => {
+  const parts =
+    knightMelee.value && activeGuildInfo.value?.critDamageBonus
+      ? [[activeGuildInfo.value.name, activeGuildInfo.value.critDamageBonus]]
+      : []
+  return timesBreakdown(melee.value.critDamage ?? 0, parts)
+})
+const meleeComboText = computed(() => {
+  const parts = []
+  if (activeMeleeBonus.value > 0) parts.push(['近战', activeMeleeBonus.value])
+  if (activeArena.value.combo) parts.push(['拳头', activeArena.value.combo])
+  if (knightMelee.value && activeGuildInfo.value?.comboBonus) {
+    parts.push([activeGuildInfo.value.name, activeGuildInfo.value.comboBonus])
+  }
+  return percentBreakdown(melee.value.combo ?? 0, parts)
+})
 const usedSlots = computed(() => countUsedSlots(game.inventory))
 
 const durabilityText = computed(() => {
@@ -72,22 +135,52 @@ const rangedCleanliness = computed(() => {
   return Number.isFinite(value) ? value : CLEANLINESS_MAX
 })
 const rangedDamageScale = computed(() => cleanlinessMultiplier(rangedCleanliness.value))
-const rangedEffectiveAttack = computed(() =>
-  Math.round((rangedWeapon.value?.attack ?? 0) * rangedDamageScale.value),
-)
 const rangedJam = computed(() => cleanlinessJamChance(rangedCleanliness.value))
-const rangedCritText = computed(() =>
-  formatPercentWithBonus(
-    rangedWeapon.value?.crit ?? 0,
-    isTalentActive('ranged') ? talentBonus('ranged', game.talents.ranged) : 0,
-  ),
+const rangedHunter = computed(
+  () =>
+    activeGuildInfo.value?.id === 'hunter' &&
+    activeGuildInfo.value.weaponIds?.includes(game.equipment.ranged?.id),
 )
-const rangedDodgeText = computed(() =>
-  formatPercentWithBonus(
-    rangedWeapon.value?.dodge ?? 0,
-    isTalentActive('corridor') ? talentBonus('corridor', game.talents.corridor) : 0,
-  ),
+const rangedPistol = computed(() =>
+  UTOPIA_TRAINING_BY_KIND.pistol.weaponIds.includes(game.equipment.ranged?.id) &&
+  isTalentActive('pistol')
+    ? talentEffects('pistol', game.talents.pistol)
+    : {},
 )
+const rangedAttackText = computed(() => {
+  const base = Math.round(
+    (rangedWeapon.value?.attack ?? 0) *
+      (rangedHunter.value ? 1 : rangedDamageScale.value),
+  )
+  const parts =
+    rangedHunter.value && activeGuildInfo.value?.damageBonus
+      ? [[activeGuildInfo.value.name, activeGuildInfo.value.damageBonus]]
+      : []
+  return valueBreakdown(base, parts)
+})
+const rangedCritText = computed(() => {
+  const parts = []
+  const rangedTalent = isTalentActive('ranged')
+    ? talentBonus('ranged', game.talents.ranged)
+    : 0
+  if (rangedTalent > 0) parts.push(['远程', rangedTalent])
+  if (rangedPistol.value.crit) parts.push(['手枪', rangedPistol.value.crit])
+  return percentBreakdown(rangedWeapon.value?.crit ?? 0, parts)
+})
+const rangedCritDamageText = computed(() => {
+  const parts =
+    rangedPistol.value.critDamage > 0
+      ? [['手枪', rangedPistol.value.critDamage]]
+      : []
+  return timesBreakdown(rangedWeapon.value?.critDamage ?? 0, parts)
+})
+const rangedDodgeText = computed(() => {
+  const corridor = isTalentActive('corridor')
+    ? talentBonus('corridor', game.talents.corridor)
+    : 0
+  const parts = corridor > 0 ? [['闪避', corridor]] : []
+  return percentBreakdown(rangedWeapon.value?.dodge ?? 0, parts)
+})
 const rangedState = computed(() => {
   if (!isRangedEquipped.value) return '空 · 无法开火'
   if (rangedCleanliness.value <= 0) return '需保养'
@@ -95,8 +188,39 @@ const rangedState = computed(() => {
   return '已装备'
 })
 
+/** 当前装备能触发的天赋，显示在面板中 */
+const talentChips = computed(() => {
+  const meleeId = game.equipment.melee?.id
+  const rangedId = game.equipment.ranged?.id
+  const chips = []
+  if (isTalentActive('draw') && UTOPIA_TRAINING_BY_KIND.draw.weaponIds.includes(meleeId)) {
+    chips.push(`拔刀切割 ${formatPercent(talentEffects('draw', game.talents.draw).cutChance)}`)
+  }
+  if (isTalentActive('sword') && UTOPIA_TRAINING_BY_KIND.sword.weaponIds.includes(meleeId)) {
+    chips.push(
+      `致命一击 ${formatPercent(talentEffects('sword', game.talents.sword).executeChance)}`,
+    )
+  }
+  if (isTalentActive('sniper') && UTOPIA_TRAINING_BY_KIND.sniper.weaponIds.includes(rangedId)) {
+    chips.push(
+      `贯穿 ${formatPercent(talentEffects('sniper', game.talents.sniper).pierceChance)}`,
+    )
+  }
+  if (isTalentActive('spray') && UTOPIA_TRAINING_BY_KIND.spray.weaponIds.includes(rangedId)) {
+    chips.push(
+      `泼射 ${formatPercent(talentEffects('spray', game.talents.spray).sprayChance)}`,
+    )
+  }
+  if (isTalentActive('block') && UTOPIA_TRAINING_BY_KIND.block.weaponIds.includes(meleeId)) {
+    const block = talentEffects('block', game.talents.block)
+    chips.push(
+      `格挡 ${formatPercent(block.blockChance)} · 减伤 ${formatPercent(block.blockReduction)}`,
+    )
+  }
+  return chips
+})
+
 const percent = formatPercent
-const critDamage = formatCritDamage
 </script>
 
 <template>
@@ -144,11 +268,11 @@ const critDamage = formatCritDamage
         </div>
         <div class="stat">
           <span>暴击</span>
-          <b>{{ percent(melee.crit) }}</b>
+          <b>{{ meleeCritText }}</b>
         </div>
         <div class="stat">
           <span>暴伤</span>
-          <b>{{ critDamage(melee.critDamage) }}</b>
+          <b>{{ meleeCritDamageText }}</b>
         </div>
         <div class="stat">
           <span>连击</span>
@@ -208,7 +332,7 @@ const critDamage = formatCritDamage
         </div>
         <div class="stat">
           <span>实际伤害</span>
-          <b>{{ rangedEffectiveAttack }}</b>
+          <b>{{ rangedAttackText }}</b>
         </div>
         <div class="stat">
           <span>暴击</span>
@@ -216,7 +340,7 @@ const critDamage = formatCritDamage
         </div>
         <div class="stat">
           <span>暴伤</span>
-          <b>{{ critDamage(rangedWeapon.critDamage) }}</b>
+          <b>{{ rangedCritDamageText }}</b>
         </div>
         <div class="stat">
           <span>闪避</span>
@@ -228,10 +352,16 @@ const critDamage = formatCritDamage
         </div>
         <div class="stat stat--wide">
           <span>清洁度</span>
-          <b>{{ rangedCleanliness }} / {{ CLEANLINESS_MAX }} · 伤害 {{ percent(rangedDamageScale) }}</b>
+          <b>
+            {{ rangedCleanliness }} / {{ CLEANLINESS_MAX }} · 伤害
+            {{ rangedHunter ? '100%（猎人公会不衰减）' : percent(rangedDamageScale) }}
+          </b>
         </div>
       </div>
     </section>
+    <div v-if="talentChips.length" class="talents">
+      <span v-for="chip in talentChips" :key="chip" class="talent">{{ chip }}</span>
+    </div>
     </div>
   </aside>
 </template>
@@ -433,6 +563,26 @@ const critDamage = formatCritDamage
   font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 500;
+  color: var(--bone);
+}
+
+.talents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.loadout--wide .talents {
+  grid-column: span 2;
+}
+
+.talent {
+  padding: 3px 8px;
+  border: 1px solid var(--line-strong);
+  background: rgba(205, 185, 141, 0.05);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
   color: var(--bone);
 }
 

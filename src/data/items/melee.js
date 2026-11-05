@@ -135,17 +135,17 @@ const MELEE_LIST = [
     '整块剑身泛红，血干了也和它分不清。'),
 
   /* ===== 限定 ===== */
-  melee('royal-scepter', '皇家权杖', '限定', { attack: 22, crit: 0.26, critDamage: 2.66, combo: 0.66, durability: 166 },
+  melee('royal-scepter', '皇家权杖', '限定', { attack: 36, crit: 0.26, critDamage: 2.66, combo: 0.66, durability: 666 },
     '杖头嵌着一颗暗红宝石，宫廷匠人把它磨得比礼仪更锋利。', {
       limited: true,
       image: '/image/末日都城限定/皇家权杖.webp',
     }),
-  melee('frost-greatsword', '寒霜大剑-冰晶', '限定', { attack: 88, crit: 0.3, critDamage: 2.22, combo: 0.3, durability: 288 },
+  melee('frost-greatsword', '寒霜大剑-冰晶', '限定', { attack: 98, crit: 0.3, critDamage: 2.22, combo: 0.3, durability: 288 },
     '剑身是从一整块冰晶里凿出来的，握久了掌心会留下霜痕。', {
       limited: true,
       image: '/image/曙光阵地限定/寒霜大剑-冰晶.webp',
     }),
-  melee('might-axe', '威能战斧', '限定', { attack: 80, crit: 0.01, critDamage: 1.01, combo: 0.5, durability: 500 },
+  melee('might-axe', '威能战斧', '限定', { attack: 88, crit: 0.01, critDamage: 8.88, combo: 0.5, durability: 800 },
     '斧刃宽得像一面小盾，挥动时带起沉闷的风声。', {
       limited: true,
       image: '/image/公会限定武器/威能战斧.webp',

@@ -700,7 +700,8 @@ const POET_PROTECTED_STATS = new Set(['hunger', 'thirst', 'sanity', 'stamina'])
 /** 属性触发结局：饱食/口渴/理智/体力归零、感染满 100、生命归零 */
 function checkStatDeaths() {
   if (game.dead) return
-  const poet = activeGuildId() === 'poet'
+  const poetGuild = activeGuild()
+  const poet = poetGuild?.id === 'poet'
   let poetZero = false
 
   for (const rule of STAT_ENDINGS) {
@@ -719,13 +720,14 @@ function checkStatDeaths() {
 
   const turnKey = `${game.day}-${game.phase}`
   if (game.flags.poetLastDrain === turnKey) return
+  const drain = Number(poetGuild?.zeroStatDrain) || 20
   game.flags.poetLastDrain = turnKey
-  game.stats.hp = clampStat((game.stats.hp ?? 0) - 25, 'hp')
+  game.stats.hp = clampStat((game.stats.hp ?? 0) - drain, 'hp')
   if (game.stats.hp <= 0) {
     die('诗人公会的庇护终于耗尽。你没被饥渴和疲惫带走，但身体先一步停摆了。', '伤重不治')
     return
   }
-  notify('诗人公会的意志撑住了你：生命 -25。', 3000)
+  notify(`诗人公会的意志撑住了你：生命 -${drain}。`, 3000)
 }
 
 /** 收走背包里全部食物 / 饮品 / 药品，返回被收走的件数 */
@@ -886,14 +888,15 @@ export function sleepRest(kind) {
   if (game.dead) return
 
   const fairyGem = game.inventory.some((entry) => entry?.id === 'fairy-gem')
-  const effects = fairyGem
-    ? Object.fromEntries(Object.entries(option.effects).filter(([, value]) => value > 0))
-    : option.effects
+  const effects =
+    fairyGem && kind === 'nap'
+      ? Object.fromEntries(Object.entries(option.effects).filter(([, value]) => value > 0))
+      : option.effects
   adjustStats(effects)
   const summary = Object.entries(effects)
     .map(([key, value]) => `${STAT_LABELS[key] ?? key} ${value > 0 ? '+' : ''}${value}`)
     .join('，')
-  const note = fairyGem ? ' · 精灵宝石抵掉了负面消耗' : ''
+  const note = fairyGem && kind === 'nap' ? ' · 精灵宝石抵掉了小憩的负面消耗' : ''
   notify(`${option.name} · 跳过 ${option.turns} 回合 · ${summary}${note}`, 3200)
 }
 
@@ -3543,8 +3546,25 @@ export function stealPalace() {
   recordGuildTheft()
 
   if (activeGuildId() === 'rogue') {
-    game.coins += 3
-    return '盗贼公会的徽章让守卫移开了视线：末日币 +3。'
+    const guild = activeGuild()
+    const roll = Math.random()
+    if (roll < 0.6) {
+      const coins = Number(guild?.theftCoins) || 3
+      game.coins += coins
+      return `盗贼公会的徽章让守卫移开了视线：末日币 +${coins}。`
+    }
+    if (roll < 0.9) {
+      const leftover = addItem(game.inventory, 'brandy', 1)
+      return leftover > 0
+        ? '你摸到一瓶白兰地，但背包已经满了，只能放回去。'
+        : '你从酒柜里抽走一瓶白兰地：白兰地 ×1。'
+    }
+    const weapon = pickMeleeByTier('普通')
+    if (!weapon) return '你摸到一件武器，但它卡在柜子缝里拔不出来。'
+    const leftover = addItem(game.inventory, weapon.id, 1)
+    return leftover > 0
+      ? `你摸到一把${weapon.name}，但你的背包已经满了。`
+      : `你从兵器架上顺走一把${weapon.name}（${weapon.tier}）。`
   }
 
   const roll = Math.random() * 100
@@ -3746,29 +3766,34 @@ export function useItem(slotIndex) {
   if (!entry) return
   const def = getItem(entry.id)
 
-  // 天使宝石：每天免费使用 3 次，使用后不消失
+  // 天使宝石：每天免费使用 4 次，全属性恢复 20%，使用后不消失
   if (def?.special === 'angel-gem') {
     const state = game.flags.angelGem
     const uses = state?.day === game.day ? Number(state.uses) || 0 : 0
-    if (uses >= 3) {
-      notify('天使宝石今天已经用过 3 次了，明天再来。')
+    if (uses >= 4) {
+      notify('天使宝石今天已经用过 4 次了，明天再来。')
       return
     }
-    game.stats.hp = clampStat((game.stats.hp ?? 0) + 30, 'hp')
+    const changes = []
+    for (const [key, delta] of Object.entries(def.effects ?? {})) {
+      game.stats[key] = clampStat((game.stats[key] ?? 0) + delta, key)
+      changes.push(`${STAT_LABELS[key] ?? key} ${delta > 0 ? '+' : ''}${delta}`)
+    }
+    checkStatDeaths()
     game.flags.angelGem = { day: game.day, uses: uses + 1 }
-    notify(`天使宝石展开光翼 · 生命 +30（今日 ${uses + 1} / 3）`, 3000)
+    notify(`天使宝石展开光翼 · ${changes.join('，')}（今日 ${uses + 1} / 4）`, 3200)
     return
   }
 
-  // 时间宝石：每天一次，快进 3 回合且不结算回合消耗
+  // 时间宝石：每天一次，快进 6 回合且不结算回合消耗
   if (def?.special === 'time-gem') {
     if (Number(game.flags.timeGemDay) === game.day) {
       notify('时间宝石今天已经转动过了。')
       return
     }
     game.flags.timeGemDay = game.day
-    advanceTurns(3, { decay: false })
-    notify('时间宝石转动 · 时间快进 3 回合，没有产生回合消耗。', 3200)
+    advanceTurns(6, { decay: false })
+    notify('时间宝石转动 · 时间快进 6 回合，没有产生回合消耗。', 3200)
     return
   }
 
@@ -3785,6 +3810,22 @@ export function useItem(slotIndex) {
     const applied = delta * medicineMultiplier
     game.stats[key] = clampStat((game.stats[key] ?? 0) + applied, key)
     changes.push(`${STAT_LABELS[key] ?? key} ${applied > 0 ? '+' : ''}${applied}`)
+  }
+  if (
+    guild?.id === 'priest' &&
+    ['food', 'drink'].includes(def.category) &&
+    Math.random() < (guild.mealStaminaChance ?? 0)
+  ) {
+    const bonus = Number(guild.mealStaminaBonus) || 10
+    game.stats.stamina = clampStat((game.stats.stamina ?? 0) + bonus, 'stamina')
+    changes.push(`体力 +${bonus}（牧师公会）`)
+  }
+  if (
+    entry.id === 'mineral-water' &&
+    game.inventory.some((item) => item?.id === 'fairy-gem')
+  ) {
+    game.stats.hp = clampStat((game.stats.hp ?? 0) + 25, 'hp')
+    changes.push('生命 +25（精灵宝石）')
   }
   checkStatDeaths()
 

@@ -100,6 +100,7 @@ export const battle = reactive({
   mutinyStage: 0,
   mutinyNext: false,
   tenacityPending: false,
+  tenacityEmpower: false,
   magicStacks: 0,
   oxygen: 0,
   oxygenMax: SEA_OXYGEN_DEFAULT,
@@ -136,6 +137,7 @@ export function resetBattle(enemy = DAWN_ZOMBIE, kind = 'zombie', mapId = null) 
   battle.mutinyStage = 0
   battle.mutinyNext = false
   battle.tenacityPending = false
+  battle.tenacityEmpower = false
   battle.magicStacks = 0
   battle.oxygen = 0
   battle.oxygenMax = SEA_OXYGEN_DEFAULT
@@ -539,17 +541,18 @@ function hasGem(itemId) {
   return game.inventory.some((entry) => entry?.id === itemId)
 }
 
-/** 魔化宝石：每层提供 2% 临时暴击率 */
+/** 魔化宝石：每层提供 5% 临时暴击率 */
 function magicCritBonus() {
-  return hasGem('magic-gem') ? battle.magicStacks * 0.02 : 0
+  return hasGem('magic-gem') ? battle.magicStacks * 0.05 : 0
 }
 
-/** 焚血宝石：生命低于 50% / 20% 时的伤害倍率 */
+/** 焚血宝石：生命低于 80% / 50% / 20% 时的伤害倍率 */
 function bloodGemMultiplier() {
   if (!hasGem('blood-gem')) return 1
   const ratio = (Number(game.stats.hp) || 0) / statCap('hp')
   if (ratio < 0.2) return 1.4
-  if (ratio < 0.5) return 1.2
+  if (ratio < 0.5) return 1.25
+  if (ratio < 0.8) return 1.1
   return 1
 }
 
@@ -564,7 +567,7 @@ function updateMagicStacks(critted) {
     return
   }
   battle.magicStacks = Math.min(50, battle.magicStacks + 1)
-  pushLog(`魔化 +1 层：暴击率临时 +2%（当前 ${battle.magicStacks} 层）。`)
+  pushLog(`魔化 +1 层：暴击率临时 +5%（当前 ${battle.magicStacks} 层）。`)
 }
 
 /** 世界BOSS的攻击在 40-60 之间浮动 */
@@ -588,26 +591,21 @@ function blockIncomingDamage(amount) {
     const hp = Number(game.stats.hp) || 0
     if (hp <= 1) return 0
     if (hasGem('guardian-gem')) {
-      value = Math.max(1, Math.round(value * 0.9))
+      value = Math.max(1, Math.round(value * 0.8))
     }
     return Math.max(1, Math.min(value, hp - 1))
   }
   if (hasGem('guardian-gem')) {
-    value = Math.max(1, Math.round(value * 0.9))
+    value = Math.max(1, Math.round(value * 0.8))
   }
-  let justSaved = false
   if (value > 0 && hasGem('tenacity-gem') && !battle.tenacityPending) {
     const hp = Number(game.stats.hp) || 0
     if (value >= hp) {
       battle.tenacityPending = true
-      justSaved = true
-      pushLog('坚毅宝石裂开一道光，你没有立刻倒下。下一次攻击仍会带走你。')
+      battle.tenacityEmpower = true
+      pushLog('坚毅宝石裂开一道光，你撑住了最后一口气。下一次攻击伤害翻倍。')
       value = Math.max(0, hp - 1)
     }
-  }
-  if (value > 0 && battle.tenacityPending && !justSaved) {
-    pushLog('坚毅宝石的光暗了下去，这一次没人能再替你挡住。')
-    return Math.max(1, Number(game.stats.hp) || 0)
   }
   if (value <= 0) return 0
   if (!isTalentActive('block')) return value
@@ -758,17 +756,20 @@ export function meleeAttack() {
       (weapon.crit ?? 0) + (knight ? (guild.critBonus ?? 0) : 0) + magicCritBonus(),
     )
     const crit = Math.random() < critChance && (weapon.critDamage ?? 0) >= 1
+    const critDamage =
+      (weapon.critDamage ?? 0) + (knight ? (guild.critDamageBonus ?? 0) : 0)
     const attack = (weapon.attack ?? 0) + (arena.damage ?? 0)
     const seaBonus = battle.kind === 'deep-sea' && def?.id === 'trident' ? 1.5 : 1
-    const guildBonus = warrior ? (guild.damageBonus ?? 0) : 0
+    const guildBonus = warrior || knight ? (guild.damageBonus ?? 0) : 0
     let damage = Math.max(
       1,
-      Math.round(attack * (crit ? weapon.critDamage : 1) * seaBonus),
+      Math.round(attack * (crit ? critDamage : 1) * seaBonus),
     )
     if (armored) damage = Math.max(1, Math.floor(damage * ABILITY.armorMult))
     if (frozen && hits === 0) damage = Math.max(1, Math.floor(damage * ABILITY.frozenMult))
     if (guildBonus) damage += guildBonus
-    if (hasGem('guardian-gem') && def?.id === 'knight-sword') damage += 20
+    if (hasGem('guardian-gem') && def?.id === 'knight-sword') damage += 40
+    if (hasGem('ocean-gem') && battle.kind === 'deep-sea') damage += 20
     const bloodMult = bloodGemMultiplier()
     if (bloodMult > 1) damage = Math.round(damage * bloodMult)
     if (swordExecute && hits === 0) {
@@ -780,6 +781,11 @@ export function meleeAttack() {
           ? '致命一击被厚重的尸壳挡住，只撕开 500 点伤口。'
           : '致命一击：剑尖找到了那一瞬间的空门。',
       )
+    }
+    if (battle.tenacityEmpower) {
+      damage = Math.max(1, damage * 2)
+      battle.tenacityEmpower = false
+      pushLog('坚毅宝石的余烬涌入手臂，这一击伤害翻倍。')
     }
     if (devState.oneHitKill) damage = battle.zombie.hp
 
@@ -920,6 +926,11 @@ export function rangedAttack() {
     : Math.max(1, Math.round((weapon.attack ?? 0) * multiplier) + hunterBonus)
   const bloodMult = bloodGemMultiplier()
   if (bloodMult > 1) damage = Math.round(damage * bloodMult)
+  if (battle.tenacityEmpower) {
+    damage = Math.max(1, damage * 2)
+    battle.tenacityEmpower = false
+    pushLog('坚毅宝石的余烬涌入手臂，这一枪伤害翻倍。')
+  }
 
   damageEnemy(damage)
 

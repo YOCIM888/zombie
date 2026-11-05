@@ -67,7 +67,7 @@ export const DAWN_BOND_SHOP = [
     badgeId: 'badge-nutritionist',
     badgeName: '营养师徽章',
     price: DAWN_BOND_PRICE,
-    note: '60 攻击 · 88% 暴击 · 2 暴伤 · 15% 闪避',
+    note: '60 攻击 · 65% 暴击 · 2.65 暴伤 · 15% 闪避',
   },
   {
     id: 'bond-meteor-shotgun',
@@ -76,7 +76,7 @@ export const DAWN_BOND_SHOP = [
     badgeId: 'badge-mechanic',
     badgeName: '机械师徽章',
     price: DAWN_BOND_PRICE,
-    note: '75 攻击 · 20% 暴击 · 1.2 暴伤 · 55% 闪避',
+    note: '80 攻击 · 20% 暴击 · 1.2 暴伤 · 60% 闪避',
   },
   {
     id: 'bond-daylight-sniper',
@@ -85,7 +85,7 @@ export const DAWN_BOND_SHOP = [
     badgeId: 'badge-mercenary',
     badgeName: '雇佣兵徽章',
     price: DAWN_BOND_PRICE,
-    note: '120 攻击 · 72% 暴击 · 1.5 暴伤 · 5% 闪避',
+    note: '128 攻击 · 72% 暴击 · 1.5 暴伤 · 5% 闪避 · 可吃贯穿',
   },
   {
     id: 'bond-frost-greatsword',
@@ -94,7 +94,7 @@ export const DAWN_BOND_SHOP = [
     badgeId: 'badge-farming-master',
     badgeName: '农业大师徽章',
     price: DAWN_BOND_PRICE,
-    note: '88 攻击 · 30% 暴击 · 2.22 暴伤 · 30% 连击 · 288 耐久',
+    note: '98 攻击 · 30% 暴击 · 2.22 暴伤 · 30% 连击 · 288 耐久',
   },
 ]
 

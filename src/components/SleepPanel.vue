@@ -21,8 +21,9 @@ const hasFairyGem = computed(() =>
 )
 
 function effects(option) {
+  const nullified = hasFairyGem.value && option.id === 'nap'
   return Object.entries(option.effects)
-    .filter(([, value]) => !hasFairyGem.value || value > 0)
+    .filter(([, value]) => !nullified || value > 0)
     .map(([key, value]) => ({
       label: STAT_LABELS[key] ?? key,
       text: `${value > 0 ? '+' : ''}${value}%`,
@@ -39,7 +40,7 @@ function rest(kind) {
 <template>
   <ModalShell title="睡觉" :sub="clock" @close="$emit('close')">
     <p v-if="hasFairyGem" class="rest-note">
-      精灵宝石生效：小憩与睡觉不再扣除饱食和口渴。
+      精灵宝石生效：小憩不再扣除饱食和口渴；睡觉仍会正常消耗。
     </p>
     <div class="rests">
       <article v-for="option in options" :key="option.id" class="rest">

@@ -410,7 +410,7 @@ export const PALACE_SHOP = [
     name: '皇家长枪',
     tier: '限定',
     price: PALACE_SHOP_PRICES['royal-lance'],
-    note: '88 攻击 · 66% 暴击 · 1.66 暴伤 · 16% 闪避',
+    note: '99 攻击 · 66% 暴击 · 1.88 暴伤 · 16% 闪避',
   },
   {
     id: 'royal-scepter',
@@ -418,7 +418,7 @@ export const PALACE_SHOP = [
     name: '皇家权杖',
     tier: '限定',
     price: PALACE_SHOP_PRICES['royal-scepter'],
-    note: '22 攻击 · 26% 暴击 · 2.66 暴伤 · 66% 连击 · 166 耐久',
+    note: '36 攻击 · 26% 暴击 · 2.66 暴伤 · 66% 连击 · 666 耐久',
   },
   {
     id: 'royal-mix',

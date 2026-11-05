@@ -15,13 +15,13 @@ import {
   isFistTalentWeapon,
   talentBonus,
   talentEffects,
+  UTOPIA_TRAINING_BY_KIND,
 } from '../data'
 import {
+  formatCritDamage,
   formatPercent,
-  formatPercentWithBonus,
-  formatValueWithBonus,
 } from '../game/format'
-import { game, isTalentActive } from '../game/store'
+import { activeGuild, game, isTalentActive } from '../game/store'
 import {
   battle,
   fleeBattle,
@@ -35,10 +35,42 @@ const bagOpen = ref(false)
 
 const STAT_LABELS = Object.fromEntries(STAT_DEFS.map((stat) => [stat.key, stat.label]))
 
+const hasItem = (id) => game.inventory.some((entry) => entry?.id === id)
+
+/** 数值加成：10 + 5 -> 10（+5 拳头） */
+function valueBreakdown(base, parts) {
+  const active = parts.filter(([, value]) => Number(value) > 0)
+  const text = active
+    .map(([label, value]) => `+${Math.round(Number(value))} ${label}`)
+    .join(' ')
+  return active.length ? `${Math.round(Number(base) || 0)}（${text}）` : `${Math.round(Number(base) || 0)}`
+}
+
+/** 百分比加成：10% + 5% -> 10%（+5% 远程） */
+function percentBreakdown(base, parts) {
+  const active = parts.filter(([, value]) => Number(value) > 0)
+  const text = active
+    .map(([label, value]) => `+${formatPercent(Number(value))} ${label}`)
+    .join(' ')
+  return active.length ? `${formatPercent(base)}（${text}）` : formatPercent(base)
+}
+
+/** 爆伤加成：1.6 + 0.4 -> 1.6×（+0.4 骑士公会） */
+function timesBreakdown(base, parts) {
+  const active = parts.filter(([, value]) => Number(value) > 0)
+  const text = active
+    .map(([label, value]) => `+${Number(value)} ${label}`)
+    .join(' ')
+  return active.length ? `${formatCritDamage(base)}（${text}）` : formatCritDamage(base)
+}
+
 const melee = computed(() => {
   const equipped = game.equipment.melee
   const def = equipped ? getItem(equipped.id) : null
   const weapon = def?.weapon ?? UNARMED.weapon
+  const guild = activeGuild()
+  const knight = guild?.id === 'knight' && def?.id === 'knight-sword'
+  const warrior = guild?.id === 'warrior' && guild.weaponIds?.includes(def?.id)
   const arena =
     isFistTalentWeapon(equipped) && isTalentActive('arena')
       ? talentEffects('arena', game.talents.arena)
@@ -46,16 +78,27 @@ const melee = computed(() => {
   const meleeTalent = isTalentActive('melee')
     ? talentBonus('melee', game.talents.melee)
     : 0
-  const comboBonus = meleeTalent + (arena.combo ?? 0)
+  const attackParts = []
+  if (arena.damage) attackParts.push(['拳头', arena.damage])
+  if ((knight || warrior) && guild?.damageBonus) {
+    attackParts.push([guild.name, guild.damageBonus])
+  }
+  if (hasItem('guardian-gem') && def?.id === 'knight-sword') attackParts.push(['守护', 40])
+  if (hasItem('ocean-gem') && battle.kind === 'deep-sea') attackParts.push(['海洋', 20])
+  const critParts = []
+  if (knight && guild?.critBonus) critParts.push([guild.name, guild.critBonus])
+  const critDamageParts = []
+  if (knight && guild?.critDamageBonus) critDamageParts.push([guild.name, guild.critDamageBonus])
+  const comboParts = []
+  if (meleeTalent > 0) comboParts.push(['近战', meleeTalent])
+  if (arena.combo) comboParts.push(['拳头', arena.combo])
+  if (knight && guild?.comboBonus) comboParts.push([guild.name, guild.comboBonus])
   return {
     name: def?.name ?? UNARMED.name,
-    attackText: formatValueWithBonus(weapon.attack ?? 0, arena.damage ?? 0),
-    comboText: formatPercentWithBonus(weapon.combo ?? 0, comboBonus),
-    weapon: {
-      ...weapon,
-      attack: (weapon.attack ?? 0) + (arena.damage ?? 0),
-      combo: Math.min(1, (weapon.combo ?? 0) + comboBonus),
-    },
+    attackText: valueBreakdown(weapon.attack ?? 0, attackParts),
+    critText: percentBreakdown(weapon.crit ?? 0, critParts),
+    critDamageText: timesBreakdown(weapon.critDamage ?? 0, critDamageParts),
+    comboText: percentBreakdown(weapon.combo ?? 0, comboParts),
   }
 })
 
@@ -67,14 +110,72 @@ const ranged = computed(() => {
       ? equipped.cleanliness
       : CLEANLINESS_MAX
     : 0
+  const weapon = def?.weapon ?? RANGED_BASE
+  const guild = activeGuild()
+  const hunter = guild?.id === 'hunter' && guild.weaponIds?.includes(def?.id)
+  const hunterBonus = hunter ? (guild.damageBonus ?? 0) : 0
+  const rangedTalent = isTalentActive('ranged')
+    ? talentBonus('ranged', game.talents.ranged)
+    : 0
+  const pistol =
+    UTOPIA_TRAINING_BY_KIND.pistol.weaponIds.includes(def?.id) && isTalentActive('pistol')
+      ? talentEffects('pistol', game.talents.pistol)
+      : {}
+  const critParts = []
+  if (rangedTalent > 0) critParts.push(['远程', rangedTalent])
+  if (pistol.crit) critParts.push(['手枪', pistol.crit])
+  const critDamageParts = []
+  if (pistol.critDamage) critDamageParts.push(['手枪', pistol.critDamage])
+  const corridor = isTalentActive('corridor')
+    ? talentBonus('corridor', game.talents.corridor)
+    : 0
+  const dodgeParts = corridor > 0 ? [['闪避', corridor]] : []
+  const attackBase = Math.round(
+    (weapon.attack ?? 0) * (hunter ? 1 : cleanlinessMultiplier(cleanliness)),
+  )
+  const attackParts = hunterBonus ? [[guild.name, hunterBonus]] : []
   return {
     name: def?.name ?? '未装备',
-    weapon: def?.weapon ?? RANGED_BASE,
     cleanliness,
     canFire: Boolean(def?.weapon) && cleanliness > 0,
-    effectiveAttack: Math.round((def?.weapon.attack ?? 0) * cleanlinessMultiplier(cleanliness)),
+    attackText: valueBreakdown(attackBase, attackParts),
+    critText: percentBreakdown(weapon.crit ?? 0, critParts),
+    critDamageText: timesBreakdown(weapon.critDamage ?? 0, critDamageParts),
+    dodgeText: percentBreakdown(weapon.dodge ?? 0, dodgeParts),
     jamChance: cleanlinessJamChance(cleanliness),
   }
+})
+
+/** 当前装备对应的触发型天赋，显示在战斗状态栏 */
+const talentChips = computed(() => {
+  const meleeId = game.equipment.melee?.id
+  const rangedId = game.equipment.ranged?.id
+  const chips = []
+  if (isTalentActive('draw') && UTOPIA_TRAINING_BY_KIND.draw.weaponIds.includes(meleeId)) {
+    chips.push(`拔刀切割 ${formatPercent(talentEffects('draw', game.talents.draw).cutChance)}`)
+  }
+  if (isTalentActive('sword') && UTOPIA_TRAINING_BY_KIND.sword.weaponIds.includes(meleeId)) {
+    chips.push(
+      `致命一击 ${formatPercent(talentEffects('sword', game.talents.sword).executeChance)}`,
+    )
+  }
+  if (isTalentActive('sniper') && UTOPIA_TRAINING_BY_KIND.sniper.weaponIds.includes(rangedId)) {
+    chips.push(
+      `贯穿 ${formatPercent(talentEffects('sniper', game.talents.sniper).pierceChance)}`,
+    )
+  }
+  if (isTalentActive('spray') && UTOPIA_TRAINING_BY_KIND.spray.weaponIds.includes(rangedId)) {
+    chips.push(
+      `泼射 ${formatPercent(talentEffects('spray', game.talents.spray).sprayChance)}`,
+    )
+  }
+  if (isTalentActive('block') && UTOPIA_TRAINING_BY_KIND.block.weaponIds.includes(meleeId)) {
+    const block = talentEffects('block', game.talents.block)
+    chips.push(
+      `格挡 ${formatPercent(block.blockChance)} · 减伤 ${formatPercent(block.blockReduction)}`,
+    )
+  }
+  return chips
 })
 
 const usableItems = computed(() =>
@@ -236,12 +337,20 @@ function finish() {
 
     <section class="player">
       <span>近战 <b>{{ melee.name }}</b></span>
+      <span>攻击 <b>{{ melee.attackText }}</b></span>
+      <span>暴击 <b>{{ melee.critText }}</b></span>
+      <span>爆伤 <b>{{ melee.critDamageText }}</b></span>
       <span>连击 <b>{{ melee.comboText }}</b></span>
       <span>远程 <b>{{ ranged.name }}</b></span>
+      <span v-if="game.equipment.ranged">远程攻击 <b>{{ ranged.attackText }}</b></span>
+      <span v-if="game.equipment.ranged">远程暴击 <b>{{ ranged.critText }}</b></span>
+      <span v-if="game.equipment.ranged">远程爆伤 <b>{{ ranged.critDamageText }}</b></span>
+      <span v-if="game.equipment.ranged">远程闪避 <b>{{ ranged.dodgeText }}</b></span>
       <span v-if="game.equipment.ranged">清洁度 <b>{{ ranged.cleanliness }}</b></span>
       <span v-if="ranged.jamChance > 0">卡壳 <b>{{ formatPercent(ranged.jamChance) }}</b></span>
+      <span v-for="chip in talentChips" :key="chip">{{ chip }}</span>
       <span v-if="battle.magicStacks > 0">
-        魔化 <b>{{ battle.magicStacks }} 层</b> · 暴击 +{{ battle.magicStacks * 2 }}%
+        魔化 <b>{{ battle.magicStacks }} 层</b> · 暴击 +{{ battle.magicStacks * 5 }}%
       </span>
     </section>
 
@@ -265,7 +374,7 @@ function finish() {
               : !game.equipment.ranged
                 ? '未装备'
                 : ranged.canFire
-                  ? `攻击 ${ranged.effectiveAttack} · 清洁 ${ranged.cleanliness}`
+                  ? `攻击 ${ranged.attackText} · 清洁 ${ranged.cleanliness}`
                   : '需保养'
           }}
         </span>

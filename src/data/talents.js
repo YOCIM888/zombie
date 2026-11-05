@@ -63,10 +63,10 @@ export const TALENTS = {
     maxLevel: 4,
     titles: ['剑道高手', '剑道大师', '剑道宗师', '剑道王者'],
     effects: [
-      { executeChance: 0.003 },
       { executeChance: 0.008 },
-      { executeChance: 0.015 },
-      { executeChance: 0.021 },
+      { executeChance: 0.012 },
+      { executeChance: 0.02 },
+      { executeChance: 0.03 },
     ],
   },
   sniper: {
@@ -175,8 +175,8 @@ export const UTOPIA_TRAININGS = [
     name: '狙击训练',
     weaponSlot: 'ranged',
     costType: 'cleanliness',
-    weaponIds: ['m700', 'svd', 't3x', 'awm', 'm82a1'],
-    weaponText: 'M700 / SVD / T3X / AWM / M82A1',
+    weaponIds: ['m700', 'svd', 't3x', 'awm', 'm82a1', 'daylight-sniper'],
+    weaponText: 'M700 / SVD / T3X / AWM / M82A1 / 流光狙击-白昼',
     desc: '呼吸、准星与扳机，一遍遍压到同一条线上。',
   },
   {
