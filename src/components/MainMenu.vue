@@ -14,6 +14,9 @@ const menuItems = [
   { id: 'playtime', label: '查看时长', desc: '你在末日里活过的每一秒' },
   { id: 'achievements', label: '我的成就', desc: '还没被大火烧掉的勋章' },
   { id: 'tools', label: '玩家工具', desc: '图鉴与生存记录' },
+  ...(import.meta.env.DEV
+    ? [{ id: 'devtools', label: '开发工具', desc: '流派计算器与平衡评测' }]
+    : []),
   { id: 'settings', label: '设置', desc: '音乐与声音偏好' },
 ]
 
@@ -24,6 +27,10 @@ const bgStyle = computed(() => ({
 }))
 
 function open(id) {
+  if (id === 'devtools') {
+    window.open('/devtools/FactinoTools/index.html', '_blank', 'noopener')
+    return
+  }
   panel.value = id === 'new' ? 'slots-new' : id === 'load' ? 'slots-load' : id
 }
 

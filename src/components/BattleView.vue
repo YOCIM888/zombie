@@ -5,6 +5,7 @@ import {
   CLEANLINESS_MAX,
   DAWN_FLEE_CHANCE,
   HARBOR_MUTINY,
+  MAGIC_GEM_STACK,
   RANGED_BASE,
   SEA_OXYGEN_COST,
   UNARMED,
@@ -121,17 +122,24 @@ const ranged = computed(() => {
     UTOPIA_TRAINING_BY_KIND.pistol.weaponIds.includes(def?.id) && isTalentActive('pistol')
       ? talentEffects('pistol', game.talents.pistol)
       : {}
+  const assault =
+    UTOPIA_TRAINING_BY_KIND.assault.weaponIds.includes(def?.id) && isTalentActive('assault')
+      ? talentEffects('assault', game.talents.assault)
+      : {}
   const critParts = []
   if (rangedTalent > 0) critParts.push(['远程', rangedTalent])
   if (pistol.crit) critParts.push(['手枪', pistol.crit])
+  if (assault.crit) critParts.push(['突击', assault.crit])
   const critDamageParts = []
   if (pistol.critDamage) critDamageParts.push(['手枪', pistol.critDamage])
+  if (assault.critDamage) critDamageParts.push(['突击', assault.critDamage])
   const corridor = isTalentActive('corridor')
     ? talentBonus('corridor', game.talents.corridor)
     : 0
   const dodgeParts = corridor > 0 ? [['闪避', corridor]] : []
   const attackBase = Math.round(
-    (weapon.attack ?? 0) * (hunter ? 1 : cleanlinessMultiplier(cleanliness)),
+    ((weapon.attack ?? 0) + (assault.damage ?? 0)) *
+      (hunter ? 1 : cleanlinessMultiplier(cleanliness)),
   )
   const attackParts = hunterBonus ? [[guild.name, hunterBonus]] : []
   return {
@@ -159,6 +167,10 @@ const talentChips = computed(() => {
       `致命一击 ${formatPercent(talentEffects('sword', game.talents.sword).executeChance)}`,
     )
   }
+  const slash = talentEffects('slash', game.talents.slash)
+  if (isTalentActive('slash') && slash.damage) {
+    chips.push(`挥砍 近战伤害 +${slash.damage}`)
+  }
   if (isTalentActive('sniper') && UTOPIA_TRAINING_BY_KIND.sniper.weaponIds.includes(rangedId)) {
     chips.push(
       `贯穿 ${formatPercent(talentEffects('sniper', game.talents.sniper).pierceChance)}`,
@@ -167,6 +179,12 @@ const talentChips = computed(() => {
   if (isTalentActive('spray') && UTOPIA_TRAINING_BY_KIND.spray.weaponIds.includes(rangedId)) {
     chips.push(
       `泼射 ${formatPercent(talentEffects('spray', game.talents.spray).sprayChance)}`,
+    )
+  }
+  if (isTalentActive('assault') && UTOPIA_TRAINING_BY_KIND.assault.weaponIds.includes(rangedId)) {
+    const assault = talentEffects('assault', game.talents.assault)
+    chips.push(
+      `突击 暴击 ${formatPercent(assault.crit)} · 爆伤 +${assault.critDamage}× · 攻击 +${assault.damage}`,
     )
   }
   if (isTalentActive('block') && UTOPIA_TRAINING_BY_KIND.block.weaponIds.includes(meleeId)) {
@@ -364,7 +382,7 @@ function finish() {
       <span v-if="ranged.jamChance > 0">卡壳 <b>{{ formatPercent(ranged.jamChance) }}</b></span>
       <span v-for="chip in talentChips" :key="chip">{{ chip }}</span>
       <span v-if="battle.magicStacks > 0">
-        魔化 <b>{{ battle.magicStacks }} 层</b> · 暴击 +{{ battle.magicStacks * 5 }}%
+        魔化 <b>{{ battle.magicStacks }} / {{ MAGIC_GEM_STACK.max }} 层</b> · 暴击 +{{ Math.round(battle.magicStacks * MAGIC_GEM_STACK.critPerStack * 100) }}%
       </span>
     </section>
 

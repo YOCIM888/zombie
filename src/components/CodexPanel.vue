@@ -264,12 +264,6 @@ onMounted(() => {
             {{ collected }}<em>/{{ totalItems }}</em>
           </p>
         </div>
-        <div class="codex__marks">
-          <span v-for="category in categories" :key="category.name" class="mark">
-            {{ category.name.slice(0, 2) }}
-            <i>{{ category.items.length }}</i>
-          </span>
-        </div>
       </div>
 
       <div class="tabs">
@@ -1134,29 +1128,6 @@ onMounted(() => {
   font-style: normal;
   font-size: 14px;
   color: var(--text-mute);
-}
-
-.codex__marks {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.mark {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  border: 1px solid var(--line);
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
-  color: var(--text-mute);
-}
-
-.mark i {
-  font-style: normal;
-  font-family: var(--font-mono);
-  color: var(--text-dim);
 }
 
 .tabs {

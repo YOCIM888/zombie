@@ -117,7 +117,7 @@ const RANGED_LIST = [
 
   /* ===== 传说 ===== */
   ranged('victor', 'Victor', '传说', {
-    attack: 104, crit: 0.4, critDamage: 2, dodge: 0.4,
+    attack: 109, crit: 0.4, critDamage: 2, dodge: 0.4,
   }, '短行程后坐，枪声像一声压低的哨响，弹着点几乎连成一线。'),
   ranged('hk416', 'HK416', '传说', {
     attack: 118, crit: 0.36, critDamage: 2, dodge: 0.36,
@@ -128,18 +128,24 @@ const RANGED_LIST = [
   ranged('aa12', 'AA12', '传说', {
     attack: 138, crit: 0.18, critDamage: 2, dodge: 0.28,
   }, '全自动霰弹枪，弹鼓沉得压手，扣下去几乎不需要瞄准。'),
+  ranged('mpx', 'MPX', '传说', {
+    attack: 149, crit: 0.4, critDamage: 2.2, dodge: 0.35,
+  }, '极致的模块化设计，每个组件都可以独立升级。'),
 
   /* ===== 神话 ===== */
+  ranged('m7', 'M7', '神话', {
+    attack: 162, crit: 0.42, critDamage: 2.3, dodge: 0.21,
+  }, '强力的杀伤力，暴力美学，威力增强平台。'),
   ranged('awm', 'AWM', '神话', {
     attack: 175, crit: 0.48, critDamage: 2.25, dodge: 0.36,
   }, '军方留下的最后一批狙击枪，弹盒上写着一行字：只为一个人准备。'),
   ranged('m82a1', 'M82A1', '神话', {
-    attack: 205, crit: 0.45, critDamage: 2.35, dodge: 0.18,
+    attack: 205, crit: 0.46, critDamage: 2.35, dodge: 0.18,
   }, '十二点七毫米的枪管比人还长，制退器压在肩上，开火时整栋楼都会听见。'),
 
   /* ===== 限定 ===== */
   ranged('blood-raven', '爆能手枪-血鸦', '限定', {
-    attack: 60, crit: 0.65, critDamage: 2.65, dodge: 0.15,
+    attack: 80, crit: 0.65, critDamage: 2.88, dodge: 0.15,
   }, '枪身缠着暗红的布条，扳机一扣，火力像一群扑下来的乌鸦。', {
     limited: true,
     image: '/image/曙光阵地限定/爆能手枪-血鸦.webp',
@@ -151,19 +157,19 @@ const RANGED_LIST = [
     image: '/image/末日都城限定/皇家长枪.webp',
   }),
   ranged('meteor-shotgun', '机械霰弹-陨星', '限定', {
-    attack: 80, crit: 0.2, critDamage: 1.2, dodge: 0.6,
+    attack: 100, crit: 0.2, critDamage: 1.2, dodge: 0.6,
   }, '霰弹仓里塞满了回收的钢珠，开火时整条走廊都在回响。', {
     limited: true,
     image: '/image/曙光阵地限定/机械霰弹-陨星.webp',
   }),
   ranged('daylight-sniper', '流光狙击-白昼', '限定', {
-    attack: 128, crit: 0.72, critDamage: 1.5, dodge: 0.05,
+    attack: 128, crit: 0.72, critDamage: 1.8, dodge: 0.05,
   }, '瞄具里映着一线过曝的白光，扣下扳机时连影子都来不及躲。', {
     limited: true,
     image: '/image/曙光阵地限定/流光狙击-白昼.webp',
   }),
   ranged('starfall-bow', '天星之弓', '限定', {
-    attack: 120, crit: 0.32, critDamage: 1.8, dodge: 0.36,
+    attack: 129, crit: 0.39, critDamage: 3, dodge: 0.4,
   }, '弓臂上嵌着一线银光，拉满时像有一粒星子停在弦上。', {
     limited: true,
     image: '/image/公会限定武器/天星之弓.webp',

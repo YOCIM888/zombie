@@ -322,7 +322,9 @@ const MENU = computed(() => [
     desc: '加入或退出六个公会，徽章持有期间获得对应增益。',
     tag: guild.value ? guild.value.name : '可报名',
   },
-  ...UTOPIA_TRAININGS.map((training) => ({
+  ...UTOPIA_TRAININGS.filter(
+    (training) => (training.location ?? 'utopia-city') === 'utopia-city',
+  ).map((training) => ({
     id: `train-${training.kind}`,
     name: training.name,
     desc: training.desc,

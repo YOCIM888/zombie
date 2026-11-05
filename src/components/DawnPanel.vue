@@ -18,6 +18,7 @@ import {
   ROTTEN_SEED,
   TALENTS,
   TALENT_EFFECT_LABELS,
+  UTOPIA_TRAINING_BY_KIND,
   dawnInfo,
   countItem,
   getItem,
@@ -57,6 +58,9 @@ import {
   revealFieldSecret,
   sproutRottenSeed,
   tendExperimentField,
+  utopiaTrain,
+  utopiaTrainingLeft,
+  utopiaTrainingLimit,
   weaponRecyclables,
 } from '../game/store'
 import { battle, resetBattle, startDawnCombat, startLeaderCombat } from '../game/battle'
@@ -78,6 +82,7 @@ const MENU = [
   { id: 'bond', no: '11', name: '羁绊商店', desc: '提交四种纪念徽章之一，各换一件限定武器。' },
   { id: 'salvage', no: '12', name: '物资回收', desc: '背包里的多余武器按品质结算曙光币，回收价每日浮动。' },
   { id: 'corridor', no: '13', name: '行尸走廊', desc: '赤手空拳穿过走廊，每天两次，提升远程闪避天赋。' },
+  { id: 'slash', no: '14', name: '武艺切磋', desc: '装备任意近战武器切磋：1 回合、10 耐久，每天两次，提升挥砍天赋。' },
 ]
 
 const map = MAPS.find((item) => item.id === 'dawn-post')
@@ -193,6 +198,51 @@ const corridorActionLabel = computed(() => {
   if (corridorRemaining.value <= 0) return '今日走廊次数已用完'
   return '进入行尸走廊 · 1 回合'
 })
+
+const slashTraining = UTOPIA_TRAINING_BY_KIND.slash
+const slashLevel = computed(() => Number(game.talents.slash) || 0)
+const slashMaxLevel = TALENTS.slash.maxLevel
+const slashFull = computed(() => slashLevel.value >= slashMaxLevel)
+const slashProgress = computed(() =>
+  slashFull.value ? 100 : Math.max(0, Math.min(99, Number(game.training.slash) || 0)),
+)
+const slashRemaining = computed(() => utopiaTrainingLeft('slash'))
+const slashMelee = computed(() => game.equipment.melee)
+const slashMeleeName = computed(() => {
+  const entry = game.equipment.melee
+  if (!entry) return '未装备'
+  return getItem(entry.id)?.name ?? entry.id
+})
+const slashMeleeDurability = computed(() => {
+  const entry = game.equipment.melee
+  const def = entry ? getItem(entry.id) : null
+  return { now: entry?.durability ?? 0, max: def?.weapon?.durability ?? 0 }
+})
+const slashTitleName = computed(() => talentTitle('slash', slashLevel.value) || '暂无天赋')
+const slashEffectsText = computed(() => {
+  const entries = Object.entries(talentEffects('slash', slashLevel.value))
+  if (!entries.length) return '—'
+  return entries
+    .map(([key, value]) => `近战武器${TALENT_EFFECT_LABELS[key] ?? key} +${value}`)
+    .join(' · ')
+})
+const slashCanTrain = computed(
+  () =>
+    !game.dead &&
+    Boolean(slashMelee.value) &&
+    !slashFull.value &&
+    slashRemaining.value > 0,
+)
+const slashActionLabel = computed(() => {
+  if (slashFull.value) return '挥砍天赋已满级'
+  if (!slashMelee.value) return '请先装备近战武器'
+  if (slashRemaining.value <= 0) return '今日切磋次数已用完'
+  return '切磋一次 · 1 回合 · 耐久 10'
+})
+
+function trainSlash() {
+  run(() => utopiaTrain('slash'))
+}
 
 const recyclables = computed(() =>
   game.inventory
@@ -673,6 +723,46 @@ function closePanel() {
         @click="run(corridorFight)"
       >
         {{ corridorActionLabel }}
+      </button>
+    </section>
+
+    <section v-else-if="view === 'slash'" class="pane">
+      <header class="pane__head">
+        <h3 class="pane__title">武艺切磋</h3>
+        <button type="button" class="link" @click="backToMenu">← 返回选项</button>
+      </header>
+      <p class="pane__desc">{{ slashTraining.desc }}</p>
+      <div class="chips">
+        <span>必须装备任意近战武器</span>
+        <span>消耗 1 回合（有衰减）</span>
+        <span>武器耐久 -10</span>
+        <span>每天 {{ utopiaTrainingLimit('slash') }} 次</span>
+        <span>今日剩余 {{ slashRemaining }} 次</span>
+      </div>
+      <div class="chips">
+        <span>挥砍天赋 {{ slashTitleName }} · Lv.{{ slashLevel }}/{{ slashMaxLevel }}</span>
+        <span>熟练度 {{ slashProgress }} / 100</span>
+        <span>当前加成 {{ slashEffectsText }}</span>
+        <span>当前近战 {{ slashMeleeName }} · 耐久 {{ slashMeleeDurability.now }} / {{ slashMeleeDurability.max }}</span>
+      </div>
+      <div class="corridor__track">
+        <div class="corridor__track-fill" :style="{ width: slashProgress + '%' }" />
+      </div>
+      <p class="corridor__warn">
+        {{
+          slashFull
+            ? '挥砍天赋已经练到顶点。'
+            : '每次切磋随机获得 5–10 点熟练度；耐久不足 10 点时无法训练。'
+        }}
+      </p>
+      <p v-if="!slashMelee" class="corridor__warn">未装备近战武器 · 必须装备任意近战武器才能切磋</p>
+      <button
+        type="button"
+        class="btn btn--primary pane__action"
+        :disabled="!slashCanTrain"
+        @click="trainSlash"
+      >
+        {{ slashActionLabel }}
       </button>
     </section>
 

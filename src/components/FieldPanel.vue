@@ -19,9 +19,13 @@ import {
   SEA_OXYGEN_DEFAULT,
   SEA_TIERS,
   STRANGE_BARBECUE,
+  TALENTS,
+  TALENT_EFFECT_LABELS,
+  UTOPIA_TRAINING_BY_KIND,
   YANRAN,
   ZOMBIE_ABILITY_LABELS,
   ALEX_QUESTS,
+  CLEANLINESS_MAX,
   canStoreItems,
   countItem,
   expandPriceAtSize,
@@ -30,6 +34,8 @@ import {
   lootCategoryText,
   npcById,
   rarityText,
+  talentEffects,
+  talentTitle,
   zombiePool,
 } from '../data'
 import {
@@ -67,6 +73,11 @@ import {
   mermaidCurrent as readMermaidCurrent,
   mermaidStage as readMermaidStage,
   notify,
+  utopiaTrain,
+  utopiaTrainingGuard,
+  utopiaTrainingLeft,
+  utopiaTrainingLimit,
+  isTalentActive,
   openGarageDoor,
   pickOrchard,
   questStatus,
@@ -121,6 +132,34 @@ watch(map, () => {
 const isPolice = computed(() => map.value?.id === HELICOPTER.mapId)
 const helicopterRepaired = computed(() => Boolean(game.flags[HELICOPTER.repairedFlag]))
 const helicopterGasoline = computed(() => countGasoline())
+
+/* 假人训练：荒废警局专用的突击天赋训练，沿用乌托邦训练引擎 */
+const dummyTraining = UTOPIA_TRAINING_BY_KIND.assault
+const dummyLevel = computed(() => Math.round(Number(game.talents.assault) || 0))
+const dummyProgress = computed(() => Math.min(100, Number(game.training.assault) || 0))
+const dummyRanged = computed(() => game.equipment.ranged)
+const dummyRangedItem = computed(() => getItem(dummyRanged.value?.id))
+const dummyFits = computed(() =>
+  Boolean(dummyTraining.weaponIds.includes(dummyRanged.value?.id)),
+)
+const dummyCleanliness = computed(() => {
+  const value = dummyRanged.value?.cleanliness
+  return Number.isFinite(value) ? value : CLEANLINESS_MAX
+})
+const dummyLeft = computed(() => utopiaTrainingLeft('assault'))
+const dummyLimit = computed(() => utopiaTrainingLimit('assault'))
+const dummyBlocked = computed(() => utopiaTrainingGuard('assault'))
+const dummyFull = computed(() => dummyLevel.value >= TALENTS.assault.maxLevel)
+const dummyTitle = computed(() => talentTitle('assault', dummyLevel.value) || '尚未训练')
+const dummyEffectText = computed(() => {
+  if (!dummyLevel.value) return '暂无加成'
+  const effect = talentEffects('assault', dummyLevel.value)
+  return `暴击 +${Math.round((effect.crit || 0) * 100)}% / 爆伤 +${effect.critDamage || 0}× / 攻击 +${effect.damage || 0}`
+})
+function trainDummy() {
+  const message = utopiaTrain('assault')
+  if (message) notify(message)
+}
 
 const isVillage = computed(() => map.value?.id === ORCHARD.mapId)
 const isCamp = computed(() => map.value?.id === STRANGE_BARBECUE.mapId)
@@ -301,6 +340,12 @@ const fieldMenu = computed(() => {
         name: '老旧直升机',
         desc: '修复后可从警局天台飞往末日飞行船。',
         tag: helicopterRepaired.value ? '已修复' : '未修复',
+      },
+      {
+        id: 'dummy',
+        name: '假人训练',
+        desc: `${dummyTraining.name}：1 回合、${dummyTraining.cost} 清洁度，每天 ${dummyLimit.value} 次。`,
+        tag: dummyFull.value ? '已满级' : `剩余 ${dummyLeft.value}/${dummyLimit.value}`,
       },
     ]
   }
@@ -743,6 +788,42 @@ function closePanel() {
                   ? '修复后才能前往'
                   : `前往末日飞行船 · ${HELICOPTER.travelGasoline} 汽油`
               }}
+            </button>
+          </div>
+        </article>
+
+        <article v-else-if="view === 'dummy'" class="extra">
+          <header class="extra__head">
+            <h4 class="extra__title">假人训练 · 树脂假人</h4>
+            <span class="extra__tag">{{ dummyFull ? '已满级' : `Lv ${dummyLevel}` }}</span>
+          </header>
+          <p class="extra__desc">{{ dummyTraining.desc }}</p>
+          <div class="chips">
+            <span>
+              装备：{{ dummyRangedItem?.name || '未装备远程武器' }}
+              {{ dummyFits ? '（合格）' : '（不合格）' }}
+            </span>
+            <span>清洁度 {{ dummyCleanliness }}</span>
+            <span>今日剩余 {{ dummyLeft }} / {{ dummyLimit }} 次</span>
+            <span>消耗 清洁度 {{ dummyTraining.cost }} · 1 回合</span>
+            <span>进度 +{{ dummyTraining.progressMin }}%–{{ dummyTraining.progressMax }}%</span>
+          </div>
+          <div class="dummy-bar"><i :style="{ width: `${dummyProgress}%` }" /></div>
+          <p class="extra__desc">
+            熟练度 {{ dummyProgress }}% · {{ dummyTitle }} · {{ dummyEffectText }}
+          </p>
+          <p v-if="dummyBlocked" class="extra__desc">{{ dummyBlocked }}</p>
+          <p v-else-if="!isTalentActive('assault')" class="extra__desc">
+            「突击天赋」尚未启用，请到天赋页占用一个启用位。
+          </p>
+          <div class="extra__actions">
+            <button
+              type="button"
+              class="btn btn--primary"
+              :disabled="Boolean(dummyBlocked)"
+              @click="trainDummy"
+            >
+              {{ dummyFull ? '已满级' : '训练 · 1 回合' }}
             </button>
           </div>
         </article>
@@ -1913,6 +1994,20 @@ function closePanel() {
 
 .dev-gift .extra__head {
   margin-bottom: 8px;
+}
+
+.dummy-bar {
+  height: 6px;
+  margin: 10px 0 8px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.dummy-bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent, #c8a45c);
+  transition: width 0.2s ease;
 }
 
 .dev-gift .chips {

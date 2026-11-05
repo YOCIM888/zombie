@@ -73,6 +73,9 @@ const activeArena = computed(() =>
     ? talentEffects('arena', game.talents.arena)
     : {},
 )
+const activeSlash = computed(() =>
+  isTalentActive('slash') ? talentEffects('slash', game.talents.slash) : {},
+)
 const knightMelee = computed(
   () =>
     activeGuildInfo.value?.id === 'knight' &&
@@ -86,6 +89,7 @@ const warriorMelee = computed(
 const meleeAttackText = computed(() => {
   const parts = []
   if (activeArena.value.damage) parts.push(['拳头', activeArena.value.damage])
+  if (activeSlash.value.damage) parts.push(['挥砍', activeSlash.value.damage])
   if ((knightMelee.value || warriorMelee.value) && activeGuildInfo.value?.damageBonus) {
     parts.push([activeGuildInfo.value.name, activeGuildInfo.value.damageBonus])
   }
@@ -147,9 +151,15 @@ const rangedPistol = computed(() =>
     ? talentEffects('pistol', game.talents.pistol)
     : {},
 )
+const rangedAssault = computed(() =>
+  UTOPIA_TRAINING_BY_KIND.assault.weaponIds.includes(game.equipment.ranged?.id) &&
+  isTalentActive('assault')
+    ? talentEffects('assault', game.talents.assault)
+    : {},
+)
 const rangedAttackText = computed(() => {
   const base = Math.round(
-    (rangedWeapon.value?.attack ?? 0) *
+    ((rangedWeapon.value?.attack ?? 0) + (rangedAssault.value.damage ?? 0)) *
       (rangedHunter.value ? 1 : rangedDamageScale.value),
   )
   const parts =
@@ -165,13 +175,13 @@ const rangedCritText = computed(() => {
     : 0
   if (rangedTalent > 0) parts.push(['远程', rangedTalent])
   if (rangedPistol.value.crit) parts.push(['手枪', rangedPistol.value.crit])
+  if (rangedAssault.value.crit) parts.push(['突击', rangedAssault.value.crit])
   return percentBreakdown(rangedWeapon.value?.crit ?? 0, parts)
 })
 const rangedCritDamageText = computed(() => {
-  const parts =
-    rangedPistol.value.critDamage > 0
-      ? [['手枪', rangedPistol.value.critDamage]]
-      : []
+  const parts = []
+  if (rangedPistol.value.critDamage > 0) parts.push(['手枪', rangedPistol.value.critDamage])
+  if (rangedAssault.value.critDamage > 0) parts.push(['突击', rangedAssault.value.critDamage])
   return timesBreakdown(rangedWeapon.value?.critDamage ?? 0, parts)
 })
 const rangedDodgeText = computed(() => {
@@ -201,6 +211,9 @@ const talentChips = computed(() => {
       `致命一击 ${formatPercent(talentEffects('sword', game.talents.sword).executeChance)}`,
     )
   }
+  if (isTalentActive('slash') && activeSlash.value.damage) {
+    chips.push(`挥砍 近战伤害 +${activeSlash.value.damage}`)
+  }
   if (isTalentActive('sniper') && UTOPIA_TRAINING_BY_KIND.sniper.weaponIds.includes(rangedId)) {
     chips.push(
       `贯穿 ${formatPercent(talentEffects('sniper', game.talents.sniper).pierceChance)}`,
@@ -209,6 +222,12 @@ const talentChips = computed(() => {
   if (isTalentActive('spray') && UTOPIA_TRAINING_BY_KIND.spray.weaponIds.includes(rangedId)) {
     chips.push(
       `泼射 ${formatPercent(talentEffects('spray', game.talents.spray).sprayChance)}`,
+    )
+  }
+  if (isTalentActive('assault') && UTOPIA_TRAINING_BY_KIND.assault.weaponIds.includes(rangedId)) {
+    const assault = talentEffects('assault', game.talents.assault)
+    chips.push(
+      `突击 暴击 ${formatPercent(assault.crit)} · 爆伤 +${assault.critDamage}× · 攻击 +${assault.damage}`,
     )
   }
   if (isTalentActive('block') && UTOPIA_TRAINING_BY_KIND.block.weaponIds.includes(meleeId)) {

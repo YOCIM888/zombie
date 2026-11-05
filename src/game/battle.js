@@ -12,11 +12,14 @@ import {
   GIANT_PUPPET,
   HARBOR_MUTINY,
   MA_SAN,
+  MAGIC_GEM_STACK,
   MERMAID,
   SEA_LOOT,
   SEA_OXYGEN_BLESSED,
   SEA_OXYGEN_COST,
   SEA_OXYGEN_DEFAULT,
+  SPRAY_EXTRA_CLEANLINESS,
+  SPRAY_SEGMENTS,
   UTOPIA_TRAINING_BY_KIND,
   pickSeaCreature,
   UNARMED,
@@ -542,9 +545,9 @@ function hasGem(itemId) {
   return game.inventory.some((entry) => entry?.id === itemId)
 }
 
-/** 魔化宝石：每层提供 5% 临时暴击率 */
+/** 魔化宝石：每层提供 5% 临时暴击率，最多 20 层 */
 function magicCritBonus() {
-  return hasGem('magic-gem') ? battle.magicStacks * 0.05 : 0
+  return hasGem('magic-gem') ? battle.magicStacks * MAGIC_GEM_STACK.critPerStack : 0
 }
 
 /** 焚血宝石：生命低于 80% / 50% / 20% 时的伤害倍率 */
@@ -557,7 +560,7 @@ function bloodGemMultiplier() {
   return 1
 }
 
-/** 魔化层数结算：本次攻击出现过暴击就清空，否则叠加一层 */
+/** 魔化层数结算：本次攻击出现过暴击就清空，否则叠加一层，最多 20 层 */
 function updateMagicStacks(critted) {
   if (!hasGem('magic-gem')) return
   if (critted) {
@@ -567,8 +570,9 @@ function updateMagicStacks(critted) {
     battle.magicStacks = 0
     return
   }
-  battle.magicStacks = Math.min(50, battle.magicStacks + 1)
-  pushLog(`魔化 +1 层：暴击率临时 +5%（当前 ${battle.magicStacks} 层）。`)
+  battle.magicStacks = Math.min(MAGIC_GEM_STACK.max, battle.magicStacks + 1)
+  const percent = Math.round(MAGIC_GEM_STACK.critPerStack * 100)
+  pushLog(`魔化 +1 层：暴击率临时 +${percent}%（当前 ${battle.magicStacks} 层）。`)
 }
 
 /** 世界BOSS的攻击在 40-60 之间浮动 */
@@ -767,7 +771,8 @@ export function meleeAttack() {
     const crit = Math.random() < critChance && (weapon.critDamage ?? 0) >= 1
     const critDamage =
       (weapon.critDamage ?? 0) + (knight ? (guild.critDamageBonus ?? 0) : 0)
-    const attack = (weapon.attack ?? 0) + (arena.damage ?? 0)
+    const slash = isTalentActive('slash') ? talentEffects('slash', game.talents.slash) : {}
+    const attack = (weapon.attack ?? 0) + (arena.damage ?? 0) + (slash.damage ?? 0)
     const seaBonus = battle.kind === 'deep-sea' && def?.id === 'trident' ? 1.5 : 1
     const guildBonus = warrior || knight ? (guild.damageBonus ?? 0) : 0
     let damage = Math.max(
@@ -954,13 +959,21 @@ export function rangedAttack() {
   const sprayWeapon =
     sprayTalent.sprayChance &&
     UTOPIA_TRAINING_BY_KIND.spray.weaponIds.includes(def.id)
+  const assaultTalent = activeTalentEffects('assault')
+  const assaultWeapon =
+    assaultTalent.crit &&
+    UTOPIA_TRAINING_BY_KIND.assault.weaponIds.includes(def.id)
+  const assaultCrit = assaultWeapon ? (assaultTalent.crit ?? 0) : 0
+  const assaultCritDamage = assaultWeapon ? (assaultTalent.critDamage ?? 0) : 0
+  const attack = (weapon.attack ?? 0) + (assaultWeapon ? (assaultTalent.damage ?? 0) : 0)
   const pistolCrit = pistolWeapon ? (pistolTalent.crit ?? 0) : 0
   const pistolCritDamage = pistolWeapon ? (pistolTalent.critDamage ?? 0) : 0
   const critChance = Math.min(
     1,
-    (weapon.crit ?? 0) + rangedTalent + pistolCrit + magicCritBonus(),
+    (weapon.crit ?? 0) + rangedTalent + pistolCrit + assaultCrit + magicCritBonus(),
   )
-  const effectiveCritDamage = (weapon.critDamage ?? 1) + pistolCritDamage
+  const effectiveCritDamage =
+    (weapon.critDamage ?? 1) + pistolCritDamage + assaultCritDamage
   const crit = Math.random() < critChance && effectiveCritDamage >= 1
   const frozen = battle.frozen
   if (frozen) battle.frozen = false
@@ -974,7 +987,7 @@ export function rangedAttack() {
   if (frozen) multiplier *= ABILITY.frozenMult
   let damage = devState.oneHitKill
     ? battle.zombie.hp
-    : Math.max(1, Math.round((weapon.attack ?? 0) * multiplier) + hunterBonus)
+    : Math.max(1, Math.round(attack * multiplier) + hunterBonus)
   const bloodMult = bloodGemMultiplier()
   if (bloodMult > 1) damage = Math.round(damage * bloodMult)
   if (battle.tenacityEmpower) {
@@ -993,30 +1006,43 @@ export function rangedAttack() {
 
   let extraDamage = 0
   let sprayProc = false
+  let sprayCrit = false
   if (!enemyDefeated() && sniperWeapon && Math.random() < sniperTalent.pierceChance) {
-    const pierce = Math.max(1, Math.round((weapon.attack ?? 0) * 0.5))
+    const pierce = Math.max(1, Math.round(attack * 0.5))
     extraDamage += pierce
     pushLog(`贯穿触发：子弹穿过目标，额外造成 ${pierce} 点伤害。`)
   }
   if (!enemyDefeated() && sprayWeapon && Math.random() < sprayTalent.sprayChance) {
-    const threeShots =
-      Math.max(1, Math.round((weapon.attack ?? 0) * 0.3)) +
-      Math.max(1, Math.round((weapon.attack ?? 0) * 0.2)) +
-      Math.max(1, Math.round((weapon.attack ?? 0) * 0.1))
+    /* 三段各自 roll 暴击：命中暴击的段单独乘本次攻击的爆伤倍率 */
+    let critShots = 0
+    const threeShots = SPRAY_SEGMENTS.reduce((sum, ratio) => {
+      const segmentCrit = Math.random() < critChance && effectiveCritDamage >= 1
+      if (segmentCrit) {
+        critShots += 1
+        sprayCrit = true
+      }
+      const segment = Math.max(
+        1,
+        Math.round((weapon.attack ?? 0) * ratio * (segmentCrit ? effectiveCritDamage : 1)),
+      )
+      return sum + segment
+    }, 0)
     extraDamage += threeShots
     sprayProc = true
-    pushLog(`泼射触发：追加三发，额外造成 ${threeShots} 点伤害。`)
+    pushLog(
+      `泼射触发：追加三发${critShots > 0 ? `（${critShots} 发暴击）` : ''}，额外造成 ${threeShots} 点伤害。`,
+    )
   }
   if (extraDamage > 0) damageEnemy(extraDamage)
-  updateMagicStacks(crit)
+  updateMagicStacks(crit || sprayCrit)
 
   const condition = consumeRangedCleanliness()
   if (sprayProc) {
     const current = Number.isFinite(equipped.cleanliness)
       ? equipped.cleanliness
       : CLEANLINESS_MAX
-    equipped.cleanliness = Math.max(0, current - 1)
-    pushLog('泼射额外消耗 1 点清洁度。')
+    equipped.cleanliness = Math.max(0, current - SPRAY_EXTRA_CLEANLINESS)
+    pushLog(`泼射额外消耗 ${SPRAY_EXTRA_CLEANLINESS} 点清洁度。`)
   }
   if (condition.empty && !enemyDefeated()) {
     pushLog('清洁度归零，需要保养后才能继续开火。')

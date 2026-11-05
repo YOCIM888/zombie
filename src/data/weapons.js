@@ -44,6 +44,12 @@ export const CLEANLINESS_PER_SHOT = 2
 export const CLEANLINESS_LOW = 30
 export const CLEANLINESS_JAM_MAX = 0.3
 
+/* ===== 泼射 =====
+   每次触发追加三段伤害，每段独立判定暴击、独立按爆伤放大；
+   三段倍率与额外清洁度只在 data 层定义一份，战斗与计算器共用。 */
+export const SPRAY_SEGMENTS = [0.4, 0.25, 0.1]
+export const SPRAY_EXTRA_CLEANLINESS = 1
+
 /* ===== 维修机制 =====
    近战耐久与远程清洁度共用同一套收费：每 20% 缺口按品质收一次费，
    一次把缺口补满。费率统一在 data/markets.js。 */

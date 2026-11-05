@@ -79,12 +79,12 @@ const MELEE_LIST = [
     '刀柄末端有个圆环，握起来很稳。'),
   melee('kukri', '廓尔喀弯刀', '精良', { attack: 38, crit: 0.17, critDamage: 1.65, combo: 0.24, durability: 150 },
     '重心靠前，一刀下去能带走整条手臂。'),
-  melee('short-katana', '武士刀-短', '精良', { attack: 38, crit: 0.18, critDamage: 1.65, combo: 0.22, durability: 150 },
+  melee('short-katana', '武士刀-短', '精良', { attack: 39, crit: 0.18, critDamage: 1.6, combo: 0.22, durability: 150 },
     '短刃，适合在狭窄走廊里拔刀。'),
-  melee('knight-sword', '骑士剑', '精良', { attack: 40, crit: 0.14, critDamage: 1.6, combo: 0.18, durability: 170 },
-    '十字护手，剑身刻着一行看不清的字。'),
   melee('hand-axe', '手斧', '精良', { attack: 42, crit: 0.13, critDamage: 1.6, combo: 0.12, durability: 150 },
     '短柄斧，单手抡起来毫不费力。'),
+  melee('knight-sword', '骑士剑', '精良', { attack: 45, crit: 0.24, critDamage: 2, combo: 0.18, durability: 170 },
+    '十字护手，剑身刻着一行看不清的字。'),
   melee('fire-axe', '消防斧', '精良', { attack: 45, crit: 0.1, critDamage: 1.55, combo: 0.1, durability: 180 },
     '红色斧身，斧刃还印着消防编号。'),
   melee('mountain-chopper', '开山刀', '精良', { attack: 46, crit: 0.12, critDamage: 1.55, combo: 0.14, durability: 190 },
@@ -115,7 +115,7 @@ const MELEE_LIST = [
     '金色刀身开合无声，握久了会烫手。'),
   melee('noble-shortsword', '贵族短剑', '传说', { attack: 76, crit: 0.28, critDamage: 2.25, combo: 0.36, durability: 210 },
     '镀金剑柄，剑鞘上还留着家徽。'),
-  melee('katana-raikiri', '武士刀-雷切', '传说', { attack: 84, crit: 0.3, critDamage: 2.35, combo: 0.34, durability: 210 },
+  melee('katana-raikiri', '武士刀-雷切', '传说', { attack: 86, crit: 0.3, critDamage: 2.98, combo: 0.39, durability: 210 },
     '出鞘时有细微电弧，刀身亮得刺眼。'),
   melee('keel-blade', '龙骨剑', '传说', { attack: 88, crit: 0.26, critDamage: 2.25, combo: 0.28, durability: 240 },
     '剑脊像一段脊椎，沉得必须双手握。'),
@@ -135,7 +135,7 @@ const MELEE_LIST = [
     '整块剑身泛红，血干了也和它分不清。'),
 
   /* ===== 限定 ===== */
-  melee('royal-scepter', '皇家权杖', '限定', { attack: 36, crit: 0.26, critDamage: 2.66, combo: 0.66, durability: 666 },
+  melee('royal-scepter', '皇家权杖', '限定', { attack: 38, crit: 0.26, critDamage: 2.66, combo: 0.66, durability: 600 },
     '杖头嵌着一颗暗红宝石，宫廷匠人把它磨得比礼仪更锋利。', {
       limited: true,
       image: '/image/末日都城限定/皇家权杖.webp',
@@ -145,7 +145,7 @@ const MELEE_LIST = [
       limited: true,
       image: '/image/曙光阵地限定/寒霜大剑-冰晶.webp',
     }),
-  melee('might-axe', '威能战斧', '限定', { attack: 88, crit: 0.01, critDamage: 8.88, combo: 0.5, durability: 800 },
+  melee('might-axe', '威能战斧', '限定', { attack: 80, crit: 0.01, critDamage: 8, combo: 0.5, durability: 800 },
     '斧刃宽得像一面小盾，挥动时带起沉闷的风声。', {
       limited: true,
       image: '/image/公会限定武器/威能战斧.webp',

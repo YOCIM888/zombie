@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>行尸 · 流派与构筑参考</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./css/base.css">
+<link rel="stylesheet" href="./css/report.css">
+<link rel="stylesheet" href="./css/calculator.css">
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>行尸 · <em>流派与构筑参考</em></h1>
+  <p class="sub">14 套构筑、14 条天赋、6 个公会、8 颗宝石与全部武器都从 <code class="mono">src/data</code> 实时读取。改完配置刷新页面即可，计算器与构筑卡会一起更新。</p>
+  <div class="databar">
+    <span class="databar__dot"></span>
+    <span class="mono" id="dataMeta">正在读取 src/data…</span>
+    <button class="reload-btn" id="reloadData" type="button">重新载入</button>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><b id="kpiBuilds">14</b><span>流派构筑</span></div>
+    <div class="kpi"><b id="kpiTalents">12</b><span>天赋</span></div>
+    <div class="kpi"><b id="kpiGuilds">6</b><span>公会</span></div>
+    <div class="kpi"><b id="kpiGems">8</b><span>宝石</span></div>
+    <div class="kpi"><b id="kpiWeapons">91</b><span>武器</span></div>
+  </div>
+</header>
+
+<nav class="sidebar" aria-label="页面目录">
+  <span class="sidebar__title">目录</span>
+  <a href="#overview">期望伤害总览</a>
+  <a href="#calculator">构筑计算器</a>
+  <a href="#builds">14 套流派</a>
+  <a href="#talents">14 条天赋</a>
+  <a href="#guilds">6 个公会</a>
+  <a href="#gems">8 颗宝石</a>
+</nav>
+
+<section id="overview">
+  <div class="sec-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/><circle cx="12" cy="12" r="9"/></svg><h2>期望伤害总览</h2><span class="sec-num">01</span></div>
+  <p class="sec-desc">口径：每个攻击动作（近战一次连击 / 远程一发）的期望伤害，靶标为无护甲、无冰冻、不闪避的 100 HP 游荡丧尸，玩家满血、清洁度满、武器满耐久。全部按当前 src/data 实时计算。</p>
+  <div class="card">
+    <div id="rankChart"></div>
+    <div class="hr"></div>
+    <div class="grid3" id="rankNotes"></div>
+  </div>
+</section>
+
+<section id="calculator">
+  <div class="sec-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg><h2>构筑计算器</h2><span class="sec-num">02</span></div>
+  <p class="sec-desc">改任意一项即时重算。天赋最多同时启用 2 条、公会只能选 1 个。武器带 ✓ 的表示适配当前专项天赋；选「冥渊沧龙」会启用深海场景的三叉戟与海洋宝石加成。选择会保存在本机，改完 src/data 刷新后仍是同一套构筑，方便对比改动前后的数值。</p>
+  <div class="calc">
+    <div class="card">
+      <div class="fld"><label>武器</label><select id="cWeapon"></select></div>
+      <div class="fld"><label class="fit-toggle"><input type="checkbox" id="cFitOnly"> 只看适配当前天赋的武器</label></div>
+      <div class="fld"><label>天赋槽位 1</label><div class="slot"><select id="cT1"></select><input type="range" id="cL1" min="0" max="4" value="0"><span class="slot-lv" id="cL1v">—</span></div></div>
+      <div class="fld"><label>天赋槽位 2</label><div class="slot"><select id="cT2"></select><input type="range" id="cL2" min="0" max="4" value="0"><span class="slot-lv" id="cL2v">—</span></div></div>
+      <div class="fld"><label>公会</label><select id="cGuild"></select></div>
+      <div class="fld"><label>宝石（可多选）</label><div class="gemchips" id="cGems"></div></div>
+      <div class="fld"><label>靶标</label><select id="cTarget"></select></div>
+      <div class="fld" style="margin-bottom:0"><label>玩家血线（影响焚血宝石）</label><select id="cHp">
+        <option value="1">100% 满血</option><option value="0.7">70%</option><option value="0.4">40%（焚血 ×1.25）</option><option value="0.15">15%（焚血 ×1.4）</option>
+      </select></div>
+    </div>
+    <div class="card">
+      <div class="out-hero">
+        <div class="lbl">期望每回合伤害</div>
+        <div class="big" id="oDmg">—<small> / 回合</small></div>
+        <div class="meta" id="oMeta"></div>
+        <div class="stack" id="oStack"></div>
+        <div class="meta" id="oStackLbl"></div>
+      </div>
+      <dl class="kv" id="oKv"></dl>
+      <div class="warn" id="oWarn"></div>
+    </div>
+  </div>
+</section>
+
+<section id="builds">
+  <div class="sec-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3H5a2 2 0 00-2 2v4M15 3h4a2 2 0 012 2v4M9 21H5a2 2 0 01-2-2v-4M15 21h4a2 2 0 002-2v-4"/></svg><h2>14 套流派详解</h2><span class="sec-num">03</span></div>
+  <p class="sec-desc">每张卡给出实时期望伤害、暴击/爆伤、每回合耗损与名单内武器排行。展开「名单内武器排行」可以对比同名单的其它武器。</p>
+  <div class="filterbar" id="buildFilters">
+    <div class="filter-tabs" data-filter="group">
+      <button class="filter-btn on" data-value="" type="button">全部</button>
+      <button class="filter-btn" data-value="公会" type="button">公会型</button>
+      <button class="filter-btn" data-value="专项" type="button">专项型</button>
+    </div>
+    <div class="filter-tabs" data-filter="cat">
+      <button class="filter-btn on" data-value="" type="button">全部武器</button>
+      <button class="filter-btn" data-value="melee" type="button">近战</button>
+      <button class="filter-btn" data-value="ranged" type="button">远程</button>
+    </div>
+    <input class="filter-search" id="buildSearch" type="search" placeholder="搜索流派 / 武器 / 天赋 / 公会 / 宝石">
+    <span class="filter-count" id="buildCount"></span>
+  </div>
+  <p class="filter-empty" id="buildEmpty" hidden>没有匹配的构筑。</p>
+  <div class="grid2" id="buildsGrid"></div>
+</section>
+
+<section id="talents">
+  <div class="sec-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg><h2>14 条天赋全表</h2><span class="sec-num">04</span></div>
+  <p class="sec-desc">同时只能启用 2 条。带训练名单的专项天赋只对名单内武器生效，名单外的武器装了等于白装。</p>
+  <div class="tbl-wrap"><table id="talentTbl"></table></div>
+</section>
+
+<section id="guilds">
+  <div class="sec-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg><h2>6 个公会</h2><span class="sec-num">05</span></div>
+  <p class="sec-desc">只有 3 个公会带武器加成，且加成是「每击平砍」——对低攻击武器的边际收益更高。</p>
+  <div class="tbl-wrap"><table id="guildTbl"></table></div>
+  <div class="callout" style="margin-top:14px" id="guildNote"></div>
+</section>
+
+<section id="gems">
+  <div class="sec-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L15 8.5 22 9.5 17 14l1.5 7L12 18l-6.5 3L7 14 2 9.5 9 8.5 12 2z"/></svg><h2>8 颗宝石</h2><span class="sec-num">06</span></div>
+  <p class="sec-desc">宝石不占槽位，只有焚血、坚毅、守护、魔化 4 颗进入伤害公式，其余是消耗品或地形宝石。</p>
+  <div class="grid2" id="gems"></div>
+</section>
+
+<footer>
+  <div>数据源 <span class="mono">src/data</span> 实时读取 · 期望伤害模型对齐游戏内近战 / 远程结算函数 · 全部数值每次载入重算。</div>
+  <div style="margin-top:8px">口径：一个攻击动作的解析期望伤害，靶标 100 HP 游荡丧尸，满血、满清洁、满耐久；击杀回合数用蒙特卡洛模拟。</div>
+</footer>
+</div>
+
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>

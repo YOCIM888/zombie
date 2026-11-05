@@ -218,8 +218,10 @@ export const game = reactive({
     block: 0,
     pistol: 0,
     spray: 0,
+    assault: 0,
     blunt: 0,
     assassinate: 0,
+    slash: 0,
   },
   training: {
     melee: 0,
@@ -232,8 +234,10 @@ export const game = reactive({
     block: 0,
     pistol: 0,
     spray: 0,
+    assault: 0,
     blunt: 0,
     assassinate: 0,
+    slash: 0,
   },
   activeTalents: [],
   market: null,
@@ -596,6 +600,8 @@ export async function enterGame(slotIndex, { isNew = false, name = '' } = {}) {
       block: 0,
       pistol: 0,
       spray: 0,
+      assault: 0,
+      slash: 0,
     }
     game.training = {
       melee: 0,
@@ -608,6 +614,8 @@ export async function enterGame(slotIndex, { isNew = false, name = '' } = {}) {
       block: 0,
       pistol: 0,
       spray: 0,
+      assault: 0,
+      slash: 0,
     }
     game.activeTalents = []
     game.market = createStockMarket(1)
@@ -981,36 +989,42 @@ function utopiaTrainingDayState() {
 export function utopiaTrainingLeft(kind) {
   if (!UTOPIA_TRAINING_BY_KIND[kind]) return 0
   const state = utopiaTrainingDayState()
-  return Math.max(0, utopiaTrainingLimit() - (Number(state[kind]) || 0))
+  return Math.max(0, utopiaTrainingLimit(kind) - (Number(state[kind]) || 0))
 }
 
-/** 每日训练次数：办理训练许可后从 2 次提高到 3 次 */
-export function utopiaTrainingLimit() {
+/** 每日训练次数：训练自带上限优先；乌托邦训练办理许可后从 2 次提高到 3 次 */
+export function utopiaTrainingLimit(kind) {
+  const training = kind ? UTOPIA_TRAINING_BY_KIND[kind] : null
+  if (training?.dailyLimit) return training.dailyLimit
   return hasServicePermit('training-permit') ? 3 : 2
 }
 
-function utopiaTrainingGuard(kind) {
+export function utopiaTrainingGuard(kind) {
   if (game.dead) return ''
-  if (game.location !== 'utopia-city') return '训练场在乌托邦城。'
   const training = UTOPIA_TRAINING_BY_KIND[kind]
   if (!training) return '没有这个训练。'
+  if (game.location !== (training.location ?? 'utopia-city')) {
+    return training.awayLine ?? '训练场在乌托邦城。'
+  }
   if ((game.talents[kind] || 0) >= TALENTS[kind].maxLevel) {
     return '这项天赋已经满级。'
   }
   if (utopiaTrainingLeft(kind) <= 0) {
-    return `今天这项训练已经做满 ${utopiaTrainingLimit()} 次了。`
+    return `今天这项训练已经做满 ${utopiaTrainingLimit(kind)} 次了。`
   }
 
+  const cost = training.cost ?? 10
   if (training.weaponSlot === 'melee') {
     const equipped = game.equipment.melee
-    if (!equipped || !training.weaponIds.includes(equipped.id)) {
+    const fits = !training.weaponIds || training.weaponIds.includes(equipped?.id)
+    if (!equipped || !fits) {
       return `需要装备：${training.weaponText}`
     }
     const def = getItem(equipped.id)
     const max = def?.weapon?.durability
     const current = Number.isFinite(equipped.durability) ? equipped.durability : max
-    if (!Number.isFinite(max) || current < 10) {
-      return '武器耐久不足 10，先去保养。'
+    if (!Number.isFinite(max) || current < cost) {
+      return `武器耐久不足 ${cost}，先去保养。`
     }
   } else {
     const equipped = game.equipment.ranged
@@ -1020,7 +1034,7 @@ function utopiaTrainingGuard(kind) {
     const current = Number.isFinite(equipped.cleanliness)
       ? equipped.cleanliness
       : CLEANLINESS_MAX
-    if (current < 10) return '武器清洁度不足 10，先去保养。'
+    if (current < cost) return `武器清洁度不足 ${cost}，先去保养。`
   }
   return ''
 }
@@ -1031,6 +1045,9 @@ export function utopiaTrain(kind) {
   if (blocked) return blocked
 
   const training = UTOPIA_TRAINING_BY_KIND[kind]
+  const cost = training.cost ?? 10
+  const progressMin = training.progressMin ?? 5
+  const progressMax = training.progressMax ?? 10
   const actionDay = game.day
   const actionState = utopiaTrainingDayState()
   advanceTurns(1)
@@ -1042,8 +1059,8 @@ export function utopiaTrain(kind) {
     const def = getItem(equipped.id)
     const max = def?.weapon?.durability
     const current = Number.isFinite(equipped.durability) ? equipped.durability : max
-    equipped.durability = Math.max(0, current - 10)
-    notes.push(`训练消耗 ${def?.name ?? '近战武器'} 耐久 10。`)
+    equipped.durability = Math.max(0, current - cost)
+    notes.push(`训练消耗 ${def?.name ?? '近战武器'} 耐久 ${cost}。`)
     if (equipped.durability <= 0) {
       game.equipment.melee = null
       syncHpCap()
@@ -1056,15 +1073,15 @@ export function utopiaTrain(kind) {
     const current = Number.isFinite(equipped.cleanliness)
       ? equipped.cleanliness
       : CLEANLINESS_MAX
-    equipped.cleanliness = Math.max(0, current - 10)
-    notes.push(`训练消耗 ${def?.name ?? '远程武器'} 清洁度 10。`)
+    equipped.cleanliness = Math.max(0, current - cost)
+    notes.push(`训练消耗 ${def?.name ?? '远程武器'} 清洁度 ${cost}。`)
     if (equipped.cleanliness <= 0) {
       notes.push(`${def?.name ?? '远程武器'}的清洁度归零，需要保养。`)
       if (typeof window !== 'undefined') notify(`${def?.name ?? '远程武器'}需要保养`, 3000)
     }
   }
 
-  const gain = 5 + Math.floor(Math.random() * 6)
+  const gain = progressMin + Math.floor(Math.random() * (progressMax - progressMin + 1))
   let level = game.talents[kind] || 0
   let progress = (game.training[kind] || 0) + gain
   while (level < TALENTS[kind].maxLevel && progress >= 100) {

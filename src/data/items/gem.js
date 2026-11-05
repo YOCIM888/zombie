@@ -1,4 +1,13 @@
 // 公会贡献商店限定宝石：背包内被动生效，或每天有限次主动使用
+
+/** 魔化宝石叠层规则：每层临时暴击 +5%，最多 20 层，打出暴击后清空全部层数 */
+export const MAGIC_GEM_STACK = {
+  max: 20,
+  critPerStack: 0.05,
+}
+
+const MAGIC_CRIT_PERCENT = Math.round(MAGIC_GEM_STACK.critPerStack * 100)
+
 function gem(id, name, description, extra = {}) {
   return {
     id,
@@ -35,7 +44,7 @@ const GEM_LIST = [
       limited: true,
     }),
   gem('magic-gem', '魔化宝石',
-    '背包内被动生效：每次攻击未造成暴击时叠加一层魔化，暴击率临时 +5%；打出暴击会清空全部层数。', {
+    `背包内被动生效：每次攻击未造成暴击时叠加一层魔化，暴击率临时 +${MAGIC_CRIT_PERCENT}%，最多 ${MAGIC_GEM_STACK.max} 层；打出暴击会清空全部层数。`, {
       passive: true,
       limited: true,
     }),
