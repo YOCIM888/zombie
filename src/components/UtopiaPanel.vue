@@ -551,16 +551,20 @@ function shopStatText(def) {
   return def.description
 }
 
-/** 天赋效果文案：暴击伤害按绝对值显示，其余按百分比 */
+/** 天赋效果文案：暴击伤害/耐久/倍率按绝对值显示，数组按百分比逐项，其余按百分比 */
 function talentEffectText(effects) {
   const entries = Object.entries(effects ?? {})
   if (!entries.length) return '—'
+  const percent = (value) => `${Number((Number(value) * 100).toFixed(2))}%`
   return entries
     .map(([key, value]) => {
       const label = TALENT_EFFECT_LABELS[key] ?? key
-      if (key === 'critDamage' || key === 'damage') return `${label} +${value}`
-      const percent = Number((value * 100).toFixed(2))
-      return `${label} +${percent}%`
+      if (key === 'critDamage' || key === 'damage' || key === 'critDurability') {
+        return `${label} +${value}`
+      }
+      if (key === 'critMult') return `${label} ×${value}`
+      if (Array.isArray(value)) return `${label} ${value.map(percent).join(' / ')}`
+      return `${label} +${percent(value)}`
     })
     .join(' · ')
 }

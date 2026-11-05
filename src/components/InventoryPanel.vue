@@ -72,12 +72,16 @@ function toggleTalent(kind) {
 function effectText(effects) {
   const entries = Object.entries(effects ?? {})
   if (!entries.length) return '—'
+  const percent = (value) => `${Number((Number(value) * 100).toFixed(2))}%`
   return entries
     .map(([key, value]) => {
       const label = TALENT_EFFECT_LABELS[key] ?? key
-      if (key === 'damage' || key === 'critDamage') return `${label} +${value}`
-      const percent = Number((value * 100).toFixed(2))
-      return `${label} +${percent}%`
+      if (key === 'damage' || key === 'critDamage' || key === 'critDurability') {
+        return `${label} +${value}`
+      }
+      if (key === 'critMult') return `${label} ×${value}`
+      if (Array.isArray(value)) return `${label} ${value.map(percent).join(' / ')}`
+      return `${label} +${percent(value)}`
     })
     .join(' · ')
 }

@@ -16,15 +16,15 @@
 
 <header>
   <h1>行尸 · <em>流派与构筑参考</em></h1>
-  <p class="sub">14 套构筑、14 条天赋、6 个公会、8 颗宝石与全部武器都从 <code class="mono">src/data</code> 实时读取。改完配置刷新页面即可，计算器与构筑卡会一起更新。</p>
+  <p class="sub">16 套构筑、16 条天赋、6 个公会、8 颗宝石与全部武器都从 <code class="mono">src/data</code> 实时读取。改完配置刷新页面即可，计算器与构筑卡会一起更新。</p>
   <div class="databar">
     <span class="databar__dot"></span>
     <span class="mono" id="dataMeta">正在读取 src/data…</span>
     <button class="reload-btn" id="reloadData" type="button">重新载入</button>
   </div>
   <div class="kpis">
-    <div class="kpi"><b id="kpiBuilds">14</b><span>流派构筑</span></div>
-    <div class="kpi"><b id="kpiTalents">12</b><span>天赋</span></div>
+    <div class="kpi"><b id="kpiBuilds">16</b><span>流派构筑</span></div>
+    <div class="kpi"><b id="kpiTalents">16</b><span>天赋</span></div>
     <div class="kpi"><b id="kpiGuilds">6</b><span>公会</span></div>
     <div class="kpi"><b id="kpiGems">8</b><span>宝石</span></div>
     <div class="kpi"><b id="kpiWeapons">91</b><span>武器</span></div>
@@ -35,8 +35,8 @@
   <span class="sidebar__title">目录</span>
   <a href="#overview">期望伤害总览</a>
   <a href="#calculator">构筑计算器</a>
-  <a href="#builds">14 套流派</a>
-  <a href="#talents">14 条天赋</a>
+  <a href="#builds">16 套流派</a>
+  <a href="#talents">16 条天赋</a>
   <a href="#guilds">6 个公会</a>
   <a href="#gems">8 颗宝石</a>
 </nav>
@@ -82,7 +82,7 @@
 </section>
 
 <section id="builds">
-  <div class="sec-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3H5a2 2 0 00-2 2v4M15 3h4a2 2 0 012 2v4M9 21H5a2 2 0 01-2-2v-4M15 21h4a2 2 0 002-2v-4"/></svg><h2>14 套流派详解</h2><span class="sec-num">03</span></div>
+  <div class="sec-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3H5a2 2 0 00-2 2v4M15 3h4a2 2 0 012 2v4M9 21H5a2 2 0 01-2-2v-4M15 21h4a2 2 0 002-2v-4"/></svg><h2>16 套流派详解</h2><span class="sec-num">03</span></div>
   <p class="sec-desc">每张卡给出实时期望伤害、暴击/爆伤、每回合耗损与名单内武器排行。展开「名单内武器排行」可以对比同名单的其它武器。</p>
   <div class="filterbar" id="buildFilters">
     <div class="filter-tabs" data-filter="group">
@@ -103,7 +103,7 @@
 </section>
 
 <section id="talents">
-  <div class="sec-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg><h2>14 条天赋全表</h2><span class="sec-num">04</span></div>
+  <div class="sec-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg><h2>16 条天赋全表</h2><span class="sec-num">04</span></div>
   <p class="sec-desc">同时只能启用 2 条。带训练名单的专项天赋只对名单内武器生效，名单外的武器装了等于白装。</p>
   <div class="tbl-wrap"><table id="talentTbl"></table></div>
 </section>

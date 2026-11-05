@@ -545,8 +545,8 @@ export const DEV_SHOP = {
   noviceItems: [
     { id: 'panacea', qty: 5 },
     { id: 'anti-infection-shot', qty: 5 },
-    { id: 'canned-beans', qty: 20 },
-    { id: 'cranberry', qty: 20 },
+    { id: 'canned-beans', qty: 30 },
+    { id: 'cranberry', qty: 30 },
     { id: 'dagger', qty: 1 },
     { id: 'glock', qty: 1 },
   ],

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, defineAsyncComponent, ref } from 'vue'
 import { BACKGROUND_IMAGE } from '../game/config'
 import { enterGame } from '../game/store'
 import SlotPanel from './SlotPanel.vue'
@@ -8,12 +8,16 @@ import AchievementsPanel from './AchievementsPanel.vue'
 import CodexPanel from './CodexPanel.vue'
 import SettingsPanel from './SettingsPanel.vue'
 
+/** 构筑器按需加载：单独分包，只有点开时才会拉取计算模型 */
+const BuildCodexPanel = defineAsyncComponent(() => import('./BuildCodexPanel.vue'))
+
 const menuItems = [
   { id: 'new', label: '新的开始', desc: '选择存档位，踏入废墟' },
   { id: 'load', label: '读取存档', desc: '从上次停下的地方继续' },
   { id: 'playtime', label: '查看时长', desc: '你在末日里活过的每一秒' },
   { id: 'achievements', label: '我的成就', desc: '还没被大火烧掉的勋章' },
   { id: 'tools', label: '玩家工具', desc: '图鉴与生存记录' },
+  { id: 'builds', label: '流派构筑', desc: '16 套流派搭配与期望伤害' },
   ...(import.meta.env.DEV
     ? [{ id: 'devtools', label: '开发工具', desc: '流派计算器与平衡评测' }]
     : []),
@@ -110,6 +114,7 @@ function closePanel() {
     <PlaytimePanel v-else-if="panel === 'playtime'" @close="closePanel" />
     <AchievementsPanel v-else-if="panel === 'achievements'" @close="closePanel" />
     <CodexPanel v-else-if="panel === 'tools'" @close="closePanel" />
+    <BuildCodexPanel v-else-if="panel === 'builds'" @close="closePanel" />
     <SettingsPanel v-else-if="panel === 'settings'" @close="closePanel" />
   </main>
 </template>

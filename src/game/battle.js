@@ -105,6 +105,7 @@ export const battle = reactive({
   tenacityPending: false,
   tenacityEmpower: false,
   magicStacks: 0,
+  insightStacks: 0,
   oxygen: 0,
   oxygenMax: SEA_OXYGEN_DEFAULT,
   mermaidBlessed: false,
@@ -142,6 +143,7 @@ export function resetBattle(enemy = DAWN_ZOMBIE, kind = 'zombie', mapId = null) 
   battle.tenacityPending = false
   battle.tenacityEmpower = false
   battle.magicStacks = 0
+  battle.insightStacks = 0
   battle.oxygen = 0
   battle.oxygenMax = SEA_OXYGEN_DEFAULT
   battle.mermaidBlessed = false
@@ -587,7 +589,7 @@ function enemyAttackValue() {
 }
 
 /**
- * 敌方伤害结算：守护宝石全伤害减免 10%，坚毅宝石首次致死伤害留 1 点生命；
+ * 敌方伤害结算：守护宝石全伤害减免 20%，坚毅宝石首次致死伤害留 1 点生命；
  * 装备指定近战且启用格挡天赋时，再按格挡档位减伤。
  */
 function blockIncomingDamage(amount) {
@@ -753,6 +755,15 @@ export function meleeAttack() {
   const assassinateWeapon =
     initialMelee &&
     UTOPIA_TRAINING_BY_KIND.assassinate.weaponIds.includes(initialMelee.id)
+  const sweepTalent = activeTalentEffects('sweep')
+  const sweepWeapon =
+    initialMelee && UTOPIA_TRAINING_BY_KIND.sweep.weaponIds.includes(initialMelee.id)
+  const sweepDamage = sweepWeapon ? (sweepTalent.sweepDamage ?? 0) : 0
+  const polearmTalent = activeTalentEffects('polearm')
+  const polearmWeapon =
+    initialMelee && UTOPIA_TRAINING_BY_KIND.polearm.weaponIds.includes(initialMelee.id)
+  const polearmCritDur = polearmWeapon ? (polearmTalent.critDurability ?? 0) : 0
+  const polearmCritMult = polearmWeapon ? (polearmTalent.critMult ?? 1) : 1
   if (frozen) battle.frozen = false
 
   while (loops < 500) {
@@ -779,6 +790,23 @@ export function meleeAttack() {
       1,
       Math.round(attack * (crit ? critDamage : 1) * seaBonus),
     )
+    // 横扫千军：只加成每轮第一击，连击追加段不吃加成
+    if (sweepDamage > 0 && hits === 0) {
+      damage = Math.max(1, Math.round(damage * (1 + sweepDamage)))
+    }
+    // 单枪匹马：暴击且耐久足够时该击翻倍，并把该击耐久消耗替换为 critDurability
+    let durabilityCost = null
+    if (crit && polearmCritDur > 0 && Number.isFinite(weapon.durability)) {
+      const equippedNow = game.equipment.melee
+      const current =
+        Number.isFinite(equippedNow?.durability)
+          ? equippedNow.durability
+          : weapon.durability
+      if (current >= polearmCritDur) {
+        damage = Math.max(1, Math.round(damage * polearmCritMult))
+        durabilityCost = polearmCritDur
+      }
+    }
     if (armored) damage = Math.max(1, Math.floor(damage * ABILITY.armorMult))
     if (frozen && hits === 0) damage = Math.max(1, Math.floor(damage * ABILITY.frozenMult))
     if (guildBonus) damage += guildBonus
@@ -822,7 +850,7 @@ export function meleeAttack() {
       }
     }
 
-    const result = consumeMeleeDurability()
+    const result = consumeMeleeDurability(durabilityCost)
     if (enemyDefeated()) break
     if (result.broken) {
       broken = result.name
@@ -965,6 +993,14 @@ export function rangedAttack() {
     UTOPIA_TRAINING_BY_KIND.assault.weaponIds.includes(def.id)
   const assaultCrit = assaultWeapon ? (assaultTalent.crit ?? 0) : 0
   const assaultCritDamage = assaultWeapon ? (assaultTalent.critDamage ?? 0) : 0
+  const insightTalent = activeTalentEffects('insight')
+  const insightWeapon =
+    insightTalent.insightCrit &&
+    UTOPIA_TRAINING_BY_KIND.insight.weaponIds.includes(def.id)
+  const insightStacks = insightWeapon ? Math.min(5, Number(battle.insightStacks) || 0) : 0
+  const insightCritDamage = insightWeapon
+    ? insightStacks * (insightTalent.insightCrit ?? 0)
+    : 0
   const attack = (weapon.attack ?? 0) + (assaultWeapon ? (assaultTalent.damage ?? 0) : 0)
   const pistolCrit = pistolWeapon ? (pistolTalent.crit ?? 0) : 0
   const pistolCritDamage = pistolWeapon ? (pistolTalent.critDamage ?? 0) : 0
@@ -973,7 +1009,7 @@ export function rangedAttack() {
     (weapon.crit ?? 0) + rangedTalent + pistolCrit + assaultCrit + magicCritBonus(),
   )
   const effectiveCritDamage =
-    (weapon.critDamage ?? 1) + pistolCritDamage + assaultCritDamage
+    (weapon.critDamage ?? 1) + pistolCritDamage + assaultCritDamage + insightCritDamage
   const crit = Math.random() < critChance && effectiveCritDamage >= 1
   const frozen = battle.frozen
   if (frozen) battle.frozen = false
@@ -1035,6 +1071,11 @@ export function rangedAttack() {
   }
   if (extraDamage > 0) damageEnemy(extraDamage)
   updateMagicStacks(crit || sprayCrit)
+  // 要害洞察：本次结算完再叠 1 层，跨回合保留、暴击不清空、满 5 层维持
+  if (insightWeapon) {
+    battle.insightStacks = Math.min(5, insightStacks + 1)
+    pushLog(`要害洞察 +1 层（${battle.insightStacks} / 5）。`)
+  }
 
   const condition = consumeRangedCleanliness()
   if (sprayProc) {
@@ -1060,6 +1101,32 @@ export function rangedAttack() {
   const dodgeChance = Math.min(1, (weapon.dodge ?? 0) + corridorTalent)
   if (Math.random() < dodgeChance) {
     pushLog('它扑了个空，你侧身退开，避开了这一击。')
+    const bulldozerTalent = activeTalentEffects('bulldozer')
+    const bulldozerWeapon =
+      Array.isArray(bulldozerTalent.dodgeSegments) &&
+      UTOPIA_TRAINING_BY_KIND.bulldozer.weaponIds.includes(def.id)
+    if (bulldozerWeapon && bulldozerTalent.dodgeSegments.length > 0) {
+      let extra = 0
+      let critSegments = 0
+      for (const ratio of bulldozerTalent.dodgeSegments) {
+        const segmentCrit = Math.random() < critChance && effectiveCritDamage >= 1
+        if (segmentCrit) critSegments += 1
+        extra += Math.max(
+          1,
+          Math.round((weapon.attack ?? 0) * ratio * (segmentCrit ? effectiveCritDamage : 1)),
+        )
+      }
+      damageEnemy(extra)
+      pushLog(
+        `推土机触发：追加 ${bulldozerTalent.dodgeSegments.length} 段${
+          critSegments > 0 ? `（${critSegments} 段暴击）` : ''
+        }，额外造成 ${extra} 点伤害。`,
+      )
+      if (enemyDefeated()) {
+        winBattle()
+        return
+      }
+    }
     return
   }
   zombieTurn()

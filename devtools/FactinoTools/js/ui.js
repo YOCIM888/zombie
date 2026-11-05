@@ -29,26 +29,29 @@ export const esc = (value) =>
 export const num = (value) =>
   value == null || Number.isNaN(value) ? '—' : (Math.round(value * 10) / 10).toLocaleString('en-US')
 
-export function statName(key) {
-  return (
-    {
-      combo: '连击',
-      crit: '暴击',
-      critDamage: '爆伤',
-      damage: '伤害',
-      dodge: '闪避',
-      cutChance: '切割率',
-      executeChance: '秒杀率',
-      pierceChance: '贯穿率',
-      blockChance: '格挡率',
-      blockReduction: '格挡减伤',
-      sprayChance: '泼射率',
-      boneChance: '碎骨率',
-      backstabChance: '背刺率',
-    }[key] || key
-  )
+/** 天赋效果字段的中文名：18 条天赋的全部 effect key 都必须在这里有映射 */
+const STAT_LABELS = {
+  combo: '连击率',
+  crit: '暴击率',
+  critDamage: '暴击伤害',
+  damage: '伤害',
+  dodge: '远程闪避率',
+  cutChance: '切割概率',
+  executeChance: '秒杀概率',
+  pierceChance: '贯穿概率',
+  blockChance: '格挡概率',
+  blockReduction: '格挡减伤',
+  sprayChance: '泼射概率',
+  boneChance: '碎骨概率',
+  backstabChance: '背刺概率',
+  sweepDamage: '非连击伤害',
+  critMult: '暴击伤害倍率',
+  critDurability: '暴击耐久消耗',
+  insightCrit: '洞察每层爆伤',
+  dodgeSegments: '闪避追加段',
 }
 
+/** 百分比属性：0.05 显示为 5% */
 const PERCENT_KEYS = [
   'combo',
   'crit',
@@ -62,12 +65,37 @@ const PERCENT_KEYS = [
   'sprayChance',
   'boneChance',
   'backstabChance',
+  'sweepDamage',
+  'insightCrit',
+  'dodgeSegments',
 ]
+
+/** 平加数值：直接显示原值，不加百分号 */
+const FLAT_KEYS = ['damage', 'critDurability']
+
+const warnUnknown = (key) =>
+  console.warn(`[FactinoTools] 天赋效果字段「${key}」缺少中文映射，已回退为「未命名效果」，请补 STAT_LABELS。`)
+
+export function statName(key) {
+  const label = STAT_LABELS[key]
+  if (label) return label
+  warnUnknown(key)
+  return '未命名效果'
+}
 
 export const statUnit = (key) => (PERCENT_KEYS.includes(key) ? '%' : '')
 
-/** 天赋效果数值：百分比属性 0.05 -> 5%，平加伤害（damage）按原值显示 */
-export const statValue = (key, value) =>
-  key === 'damage'
-    ? String(Math.round(value * 10) / 10)
-    : `${Math.round(value * 1000) / 10}${statUnit(key)}`
+const percentText = (value) => `${Math.round((Number(value) || 0) * 1000) / 10}%`
+
+/** 天赋效果数值：百分比 0.05 -> 5%，平加数值原样，倍率 ×2，数组逐段转百分比 */
+export const statValue = (key, value) => {
+  if (Array.isArray(value)) {
+    return PERCENT_KEYS.includes(key)
+      ? value.map(percentText).join(' / ')
+      : value.join(' / ')
+  }
+  if (FLAT_KEYS.includes(key)) return String(Math.round((Number(value) || 0) * 10) / 10)
+  if (key === 'critMult') return `×${Math.round((Number(value) || 0) * 100) / 100}`
+  if (PERCENT_KEYS.includes(key)) return percentText(value)
+  return String(value)
+}

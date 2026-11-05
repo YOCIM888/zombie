@@ -1,4 +1,4 @@
-// 14 套流派详解：数值实时计算 + 快速筛选
+// 16 套流派详解：数值实时计算 + 快速筛选
 import { BUILD_METRICS } from '../build-metrics.js'
 import { MECH } from '../../data/source.js'
 import { $, el, esc, num, statName, statValue, tierTag } from '../ui.js'

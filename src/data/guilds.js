@@ -186,7 +186,7 @@ export const GUILDS = [
     maxHpBonus: 20,
     damageBonus: 20,
     critBonus: 0.26,
-    critDamageBonus: 0.4,
+    critDamageBonus: 0.5,
     comboBonus: 0.22,
     commission: {
       type: 'kill',

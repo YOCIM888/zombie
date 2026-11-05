@@ -86,10 +86,10 @@ export const TALENTS = {
     maxLevel: 4,
     titles: ['狙击高手', '狙击大师', '狙击宗师', '狙击王者'],
     effects: [
-      { pierceChance: 0.05 },
       { pierceChance: 0.1 },
-      { pierceChance: 0.15 },
       { pierceChance: 0.2 },
+      { pierceChance: 0.3 },
+      { pierceChance: 0.4 },
     ],
   },
   block: {
@@ -176,6 +176,64 @@ export const TALENTS = {
       { backstabChance: 0.5 },
     ],
   },
+  sweep: {
+    key: 'sweep',
+    label: '横扫千军',
+    primary: 'sweepDamage',
+    stat: '非连击伤害',
+    maxLevel: 4,
+    titles: ['横扫高手', '横扫大师', '横扫宗师', '横扫王者'],
+    effects: [
+      { sweepDamage: 0.1 },
+      { sweepDamage: 0.15 },
+      { sweepDamage: 0.2 },
+      { sweepDamage: 0.3 },
+    ],
+  },
+  polearm: {
+    key: 'polearm',
+    label: '单枪匹马',
+    primary: 'critMult',
+    stat: '暴击伤害倍率',
+    maxLevel: 4,
+    titles: ['单枪高手', '单枪大师', '单枪宗师', '单枪王者'],
+    effects: [
+      { critDurability: 5, critMult: 2 },
+      { critDurability: 4, critMult: 2 },
+      { critDurability: 3, critMult: 2 },
+      { critDurability: 2, critMult: 2 },
+    ],
+  },
+  insight: {
+    key: 'insight',
+    label: '要害洞察',
+    primary: 'insightCrit',
+    stat: '每层暴击伤害',
+    maxLevel: 4,
+    maxStacks: 5,
+    titles: ['洞察高手', '洞察大师', '洞察宗师', '洞察王者'],
+    effects: [
+      { insightCrit: 0.1 },
+      { insightCrit: 0.2 },
+      { insightCrit: 0.3 },
+      { insightCrit: 0.4 },
+    ],
+  },
+  bulldozer: {
+    key: 'bulldozer',
+    label: '推土机',
+    primary: 'dodgeSegments',
+    stat: '闪避追加段',
+    maxLevel: 4,
+    titles: ['推土高手', '推土大师', '推土宗师', '推土王者'],
+    effects: [
+      { dodgeSegments: [0.2, 0.1] },
+      { dodgeSegments: [0.3, 0.2, 0.1] },
+      // L3 原始文案只给了 40% / 20% / 10% 三个数值，这里按四段递减补全 40% / 30% / 20% / 10%
+      { dodgeSegments: [0.4, 0.3, 0.2, 0.1] },
+      { dodgeSegments: [0.5, 0.4, 0.3, 0.2, 0.1] },
+    ],
+  },
 }
 
 export const TALENT_ACTIVE_LIMIT = 2
@@ -194,6 +252,11 @@ export const TALENT_EFFECT_LABELS = {
   sprayChance: '泼射概率',
   boneChance: '碎骨概率',
   backstabChance: '背刺概率',
+  sweepDamage: '非连击伤害',
+  critMult: '暴击伤害倍率',
+  critDurability: '暴击耐久消耗',
+  insightCrit: '洞察每层爆伤',
+  dodgeSegments: '闪避追加段',
 }
 
 /** 乌托邦专项训练：对应天赋、可选武器、消耗与每日次数 */
@@ -203,8 +266,8 @@ export const UTOPIA_TRAININGS = [
     name: '拔刀训练',
     weaponSlot: 'melee',
     costType: 'durability',
-    weaponIds: ['short-katana', 'katana-dusk', 'katana-raikiri'],
-    weaponText: '武士刀-短 / 武士刀-黄昏 / 武士刀-雷切',
+    weaponIds: ['short-katana', 'katana-dusk', 'katana-raikiri', 'tang-dao'],
+    weaponText: '武士刀-短 / 武士刀-黄昏 / 武士刀-雷切 / 唐横刀',
     desc: '反复练拔刀、收刀与第一刀的落点。',
   },
   {
@@ -237,8 +300,10 @@ export const UTOPIA_TRAININGS = [
       'baton',
       'crowbar',
       'royal-scepter',
+      'nunchaku',
+      'chainsaw',
     ],
-    weaponText: '棒球棍 / 羊角锤 / 管钳 / 警棍 / 撬棍 / 皇家权杖',
+    weaponText: '棒球棍 / 羊角锤 / 管钳 / 警棍 / 撬棍 / 皇家权杖 / 双截棍 / 油锯',
     desc: '抡圆了砸，练的是骨裂声出现的那一瞬间。',
   },
   {
@@ -265,9 +330,12 @@ export const UTOPIA_TRAININGS = [
       'karambit-ghost',
       'spring-knife-aurora',
       'butterfly-gold',
+      'kitchen-knife',
+      'dagger',
+      'spring-knife-monochrome',
     ],
     weaponText:
-      '水果刀 / 爪刀-经典 / 三棱军刺 / 信条刀 / 廓尔喀弯刀 / 蝴蝶刀-银蝶 / 爪刀-幽灵 / 弹簧刀-极光 / 蝴蝶刀-金蝶',
+      '水果刀 / 爪刀-经典 / 三棱军刺 / 信条刀 / 廓尔喀弯刀 / 蝴蝶刀-银蝶 / 爪刀-幽灵 / 弹簧刀-极光 / 蝴蝶刀-金蝶 / 菜刀 / 战术匕首 / 弹簧刀-黑白',
     desc: '贴近、转身、收刀，练的是不惊动任何人的那一刀。',
   },
   {
@@ -305,8 +373,8 @@ export const UTOPIA_TRAININGS = [
     location: 'abandoned-police',
     weaponSlot: 'ranged',
     costType: 'cleanliness',
-    weaponIds: ['ar15', 'm4a1', 'akm', 'mini14', 'fal', 'aug', 'scar', 'm14', 'hk416', 'm7'],
-    weaponText: 'AR15 / M4A1 / AKM / Mini14 / FAL / AUG / SCAR / M14 / HK416 / M7',
+    weaponIds: ['ar15', 'm4a1', 'akm', 'mini14', 'fal', 'aug', 'scar', 'm14', 'hk416', 'm7', 'royal-lance'],
+    weaponText: 'AR15 / M4A1 / AKM / Mini14 / FAL / AUG / SCAR / M14 / HK416 / M7 / 皇家长枪',
     dailyLimit: 2,
     cost: 10,
     progressMin: 5,
@@ -319,9 +387,57 @@ export const UTOPIA_TRAININGS = [
     name: '狙击训练',
     weaponSlot: 'ranged',
     costType: 'cleanliness',
-    weaponIds: ['m700', 'svd', 't3x', 'awm', 'm82a1', 'daylight-sniper'],
-    weaponText: 'M700 / SVD / T3X / AWM / M82A1 / 流光狙击-白昼',
+    weaponIds: ['m700', 'svd', 't3x', 'awm', 'm82a1', 'daylight-sniper', 'mosin'],
+    weaponText: 'M700 / SVD / T3X / AWM / M82A1 / 流光狙击-白昼 / 莫辛纳甘',
     desc: '呼吸、准星与扳机，一遍遍压到同一条线上。',
+  },
+  {
+    kind: 'sweep',
+    name: '横劈训练',
+    weaponSlot: 'melee',
+    costType: 'durability',
+    weaponIds: [
+      'snake-sword',
+      'sickle',
+      'scimitar',
+      'cleaver',
+      'huan-shou-dao',
+      'hand-axe',
+      'fire-axe',
+      'mountain-chopper',
+      'might-axe',
+      'kraken-blade',
+    ],
+    weaponText:
+      '蛇刀 / 镰刀 / 弯刀 / 大砍刀 / 环首刃 / 手斧 / 消防斧 / 开山刀 / 威能战斧 / 沧龙之刃',
+    desc: '只加成每轮第一记横劈（连击判定前的主伤害），连击追加段不吃加成。',
+  },
+  {
+    kind: 'polearm',
+    name: '长杆训练',
+    weaponSlot: 'melee',
+    costType: 'durability',
+    weaponIds: ['spear', 'halberd', 'trident'],
+    weaponText: '长矛 / 战戟 / 三叉戟-海歌',
+    desc: '暴击时若耐久足够，消耗更多耐久换取双倍伤害；耐久不足则按普通伤害结算。',
+  },
+  {
+    kind: 'insight',
+    name: '弓弩训练',
+    weaponSlot: 'ranged',
+    costType: 'cleanliness',
+    weaponIds: ['hunting-bow', 'compound-bow', 'crossbow', 'starfall-bow'],
+    weaponText: '猎弓 / 复合弓 / 十字弩 / 天星之弓',
+    desc: '每次实际开火叠 1 层洞察，最多 5 层；层数跨回合保留，暴击不会清空。',
+  },
+  {
+    kind: 'bulldozer',
+    name: '霰弹训练',
+    weaponSlot: 'ranged',
+    costType: 'cleanliness',
+    weaponIds: ['m870', 'henry-lever', 'aa12', 'meteor-shotgun'],
+    weaponText: 'M870 / 亨利杠杆 / AA12 / 机械霰弹-陨星',
+    desc: '闪避成功时追加多段伤害，每段独立暴击，倍率基于当前武器攻击力。',
   },
   {
     kind: 'slash',
@@ -366,4 +482,24 @@ export function talentTitle(kind, level) {
 
 export function talentMaxLevel(kind) {
   return TALENTS[kind]?.maxLevel ?? 0
+}
+
+const percentText = (value) => `${Math.round((Number(value) || 0) * 1000) / 10}%`
+
+/** 天赋效果的人读摘要；数组与倍率类效果无法用 talentBonus 表达 */
+export function talentSummary(kind, level) {
+  const effects = talentEffects(kind, level)
+  if (!effects || Object.keys(effects).length === 0) return ''
+  switch (kind) {
+    case 'sweep':
+      return `非连击伤害 +${percentText(effects.sweepDamage)}`
+    case 'polearm':
+      return `暴击伤害 ×${effects.critMult}，暴击时消耗耐久 ${effects.critDurability}`
+    case 'insight':
+      return `每层暴击伤害 +${percentText(effects.insightCrit)}（最多 ${TALENTS.insight.maxStacks} 层）`
+    case 'bulldozer':
+      return `闪避成功追加 ${(effects.dodgeSegments || []).map(percentText).join(' / ')}`
+    default:
+      return ''
+  }
 }

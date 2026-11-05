@@ -150,7 +150,7 @@ function calc() {
 
   const parts = []
   if (derived.isMelee) {
-    parts.push(['连击', exact.comboDmg])
+    parts.push([exact.execExp ? '连击+致命' : '连击', exact.comboDmg + (exact.execExp || 0)])
     if (exact.drawExp) parts.push(['拔刀', exact.drawExp])
     if (exact.backExp) parts.push(['背刺', exact.backExp])
   } else {
@@ -173,6 +173,7 @@ function calc() {
     ['暴击率', num((exact.pCrit || 0) * 100) + '%'],
     ['爆伤倍率', num(exact.cdmg) + '×'],
     ['攻击基数', num(derived.atk) + (derived.flat ? `（+${derived.flat} 平砍）` : '')],
+    ['致命一击修正', exact.execExp ? num(exact.execExp) : '—'],
     ['单回合中位伤害', num(monteCarlo.median)],
     ['单回合 P90', num(monteCarlo.p90)],
     ['每回合耗损', derived.isMelee ? num(exact.durPerTurn) + ' 耐久' : num(exact.cleanPerTurn) + ' 清洁度'],

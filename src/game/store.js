@@ -222,6 +222,10 @@ export const game = reactive({
     blunt: 0,
     assassinate: 0,
     slash: 0,
+    sweep: 0,
+    polearm: 0,
+    insight: 0,
+    bulldozer: 0,
   },
   training: {
     melee: 0,
@@ -238,6 +242,10 @@ export const game = reactive({
     blunt: 0,
     assassinate: 0,
     slash: 0,
+    sweep: 0,
+    polearm: 0,
+    insight: 0,
+    bulldozer: 0,
   },
   activeTalents: [],
   market: null,
@@ -4071,7 +4079,7 @@ export function repairRangedDawn() {
  * 战斗中使用近战武器：每命中一次扣 1 点耐久，归零后武器报废并卸下
  * 返回 { broken, name }
  */
-export function consumeMeleeDurability() {
+export function consumeMeleeDurability(cost = null) {
   const equipped = game.equipment.melee
   if (!equipped) return { broken: false, name: '' }
 
@@ -4080,12 +4088,13 @@ export function consumeMeleeDurability() {
   if (!Number.isFinite(max)) return { broken: false, name: def?.name ?? '' }
 
   const guild = activeGuild()
-  const doubled =
+  const guildCost =
     guild?.durabilityCostMultiplier && guild.weaponIds?.includes(equipped.id)
       ? guild.durabilityCostMultiplier
       : 1
+  const spend = Number.isFinite(cost) ? Math.max(0, cost) : guildCost
   const current = Number.isFinite(equipped.durability) ? equipped.durability : max
-  equipped.durability = Math.max(0, current - doubled)
+  equipped.durability = Math.max(0, current - spend)
   if (equipped.durability > 0) return { broken: false, name: def?.name ?? '' }
 
   game.equipment.melee = null

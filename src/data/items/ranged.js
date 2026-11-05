@@ -40,39 +40,39 @@ const RANGED_LIST = [
     attack: 24, crit: 0.14, critDamage: 1.32, dodge: 0.17,
   }, '肘节式枪机抬起来的声音很轻，木柄磨得发亮，像从旧照片里走出来的枪。'),
   ranged('m1911', 'M1911', '普通', {
-    attack: 26, crit: 0.11, critDamage: 1.35, dodge: 0.15,
+    attack: 28, crit: 0.12, critDamage: 1.38, dodge: 0.15,
   }, '老式击锤手枪，后坐力顶得手腕发麻，声音却让人安心。'),
 
   /* ===== 稀有 ===== */
   ranged('mac10', 'MAC10', '稀有', {
-    attack: 32, crit: 0.16, critDamage: 1.4, dodge: 0.24,
+    attack: 33, crit: 0.18, critDamage: 1.42, dodge: 0.24,
   }, '简陋的冲锋枪，射速快得不像话，枪口会往上跳。'),
   ranged('fn57', 'FN57', '稀有', {
-    attack: 34, crit: 0.2, critDamage: 1.45, dodge: 0.22,
+    attack: 35, crit: 0.21, critDamage: 1.48, dodge: 0.22,
   }, '轻得像玩具，子弹却能咬穿旧防弹衣。'),
   ranged('compound-bow', '复合弓', '稀有', {
-    attack: 38, crit: 0.22, critDamage: 1.55, dodge: 0.26,
+    attack: 39, crit: 0.22, critDamage: 1.55, dodge: 0.26,
   }, '滑轮和钢缆让拉弓省了一半力气，箭出去却更狠。'),
   ranged('gp100', 'GP100', '稀有', {
-    attack: 42, crit: 0.18, critDamage: 1.45, dodge: 0.2,
+    attack: 45, crit: 0.2, critDamage: 1.5, dodge: 0.2,
   }, '左轮转轮里还剩三发，合上时的金属声很实在。'),
   ranged('crossbow', '十字弩', '稀有', {
-    attack: 46, crit: 0.16, critDamage: 1.5, dodge: 0.2,
+    attack: 48, crit: 0.19, critDamage: 1.6, dodge: 0.2,
   }, '弩臂上还留着猎场的编号，上弦得用两只手。'),
   ranged('m870', 'M870', '稀有', {
-    attack: 52, crit: 0.1, critDamage: 1.5, dodge: 0.16,
+    attack: 52, crit: 0.12, critDamage: 1.51, dodge: 0.16,
   }, '泵动霰弹枪，推拉护木的声音在走廊里传得很远。'),
 
   /* ===== 精良 ===== */
   ranged('uzi', 'UZI', '精良', {
-    attack: 50, crit: 0.22, critDamage: 1.5, dodge: 0.27,
+    attack: 55, crit: 0.22, critDamage: 1.52, dodge: 0.27,
   }, '短小、可靠，弹匣直接插在握把里。'),
-  ranged('mp5', 'MP5', '精良', {
-    attack: 52, crit: 0.24, critDamage: 1.55, dodge: 0.28,
-  }, '标准的警用冲锋枪，准星和握把都被人仔细保养过。'),
   ranged('ump45', 'UMP45', '精良', {
-    attack: 56, crit: 0.2, critDamage: 1.6, dodge: 0.25,
+    attack: 58, crit: 0.22, critDamage: 1.62, dodge: 0.25,
   }, '枪托能折叠，适合在车里或楼道里开火。'),
+  ranged('mp5', 'MP5', '精良', {
+    attack: 60, crit: 0.28, critDamage: 1.65, dodge: 0.28,
+  }, '标准的警用冲锋枪，准星和握把都被人仔细保养过。'),
   ranged('ar15', 'AR15', '精良', {
     attack: 62, crit: 0.27, critDamage: 1.55, dodge: 0.28,
   }, '半自动，枪管还很直，扳机组有点涩。'),
@@ -86,13 +86,13 @@ const RANGED_LIST = [
     attack: 74, crit: 0.28, critDamage: 1.65, dodge: 0.26,
   }, '轻便的射手步枪，适合从二楼窗口点射。'),
   ranged('henry-lever', '亨利杠杆', '精良', {
-    attack: 82, crit: 0.14, critDamage: 1.6, dodge: 0.18,
+    attack: 83, crit: 0.15, critDamage: 1.72, dodge: 0.18,
   }, '杠杆护木一压一推，鹿弹在弹仓里滚得很沉，近身时一枪能把门口清空。'),
   ranged('fal', 'FAL', '精良', {
-    attack: 84, crit: 0.26, critDamage: 1.7, dodge: 0.22,
+    attack: 84, crit: 0.26, critDamage: 1.75, dodge: 0.22,
   }, '冷战的旧骨头，木质护木换成了聚合物，点射时枪身只轻轻一顶。'),
   ranged('m700', 'M700', '精良', {
-    attack: 88, crit: 0.34, critDamage: 1.7, dodge: 0.22,
+    attack: 88, crit: 0.34, critDamage: 1.78, dodge: 0.22,
   }, '栓动步枪，拉机柄要用力才顺畅，准得让人上瘾。'),
 
   /* ===== 史诗 ===== */
@@ -100,13 +100,13 @@ const RANGED_LIST = [
     attack: 92, crit: 0.3, critDamage: 1.8, dodge: 0.32,
   }, '无托结构，贴腮时能感觉到里面复进簧的震动。'),
   ranged('desert-eagle', '沙漠之鹰', '史诗', {
-    attack: 96, crit: 0.26, critDamage: 2.1, dodge: 0.26,
+    attack: 99, crit: 0.3, critDamage: 2.35, dodge: 0.22,
   }, '握在手里像块铁砖，开一枪整个房间都在响。'),
   ranged('scar', 'SCAR', '史诗', {
     attack: 105, crit: 0.28, critDamage: 1.85, dodge: 0.3,
   }, '战斗步枪，枪身泛着哑光的沙色，弹壳落得很重。'),
   ranged('m14', 'M14', '史诗', {
-    attack: 108, crit: 0.32, critDamage: 1.82, dodge: 0.24,
+    attack: 108, crit: 0.33, critDamage: 1.93, dodge: 0.24,
   }, '打磨过的胡桃木托，机械瞄具改成了觇孔，远距离一枪一枪地咬。'),
   ranged('svd', 'SVD', '史诗', {
     attack: 108, crit: 0.34, critDamage: 1.88, dodge: 0.22,
@@ -117,59 +117,59 @@ const RANGED_LIST = [
 
   /* ===== 传说 ===== */
   ranged('victor', 'Victor', '传说', {
-    attack: 109, crit: 0.4, critDamage: 2, dodge: 0.4,
+    attack: 118, crit: 0.42, critDamage: 2.28, dodge: 0.4,
   }, '短行程后坐，枪声像一声压低的哨响，弹着点几乎连成一线。'),
   ranged('hk416', 'HK416', '传说', {
-    attack: 118, crit: 0.36, critDamage: 2, dodge: 0.36,
+    attack: 128, crit: 0.36, critDamage: 2.3, dodge: 0.36,
   }, '活塞短行程，导轨上还留着没撕干净的胶带，连发时像一台不肯停的机器。'),
   ranged('t3x', 'T3X', '传说', {
-    attack: 122, crit: 0.4, critDamage: 2, dodge: 0.26,
+    attack: 132, crit: 0.42, critDamage: 2.18, dodge: 0.26,
   }, '轻量栓动枪，枪托上贴着早已褪色的狩猎许可。'),
   ranged('aa12', 'AA12', '传说', {
-    attack: 138, crit: 0.18, critDamage: 2, dodge: 0.28,
+    attack: 148, crit: 0.3, critDamage: 2.96, dodge: 0.25,
   }, '全自动霰弹枪，弹鼓沉得压手，扣下去几乎不需要瞄准。'),
   ranged('mpx', 'MPX', '传说', {
-    attack: 149, crit: 0.4, critDamage: 2.2, dodge: 0.35,
+    attack: 150, crit: 0.45, critDamage: 2.95, dodge: 0.35,
   }, '极致的模块化设计，每个组件都可以独立升级。'),
 
   /* ===== 神话 ===== */
   ranged('m7', 'M7', '神话', {
-    attack: 162, crit: 0.42, critDamage: 2.3, dodge: 0.21,
+    attack: 175, crit: 0.55, critDamage: 2.54, dodge: 0.28,
   }, '强力的杀伤力，暴力美学，威力增强平台。'),
   ranged('awm', 'AWM', '神话', {
-    attack: 175, crit: 0.48, critDamage: 2.25, dodge: 0.36,
+    attack: 188, crit: 0.54, critDamage: 2.58, dodge: 0.36,
   }, '军方留下的最后一批狙击枪，弹盒上写着一行字：只为一个人准备。'),
   ranged('m82a1', 'M82A1', '神话', {
-    attack: 205, crit: 0.46, critDamage: 2.35, dodge: 0.18,
+    attack: 225, crit: 0.47, critDamage: 2.62, dodge: 0.18,
   }, '十二点七毫米的枪管比人还长，制退器压在肩上，开火时整栋楼都会听见。'),
 
   /* ===== 限定 ===== */
   ranged('blood-raven', '爆能手枪-血鸦', '限定', {
-    attack: 80, crit: 0.65, critDamage: 2.88, dodge: 0.15,
+    attack: 88, crit: 0.65, critDamage: 4, dodge: 0.15,
   }, '枪身缠着暗红的布条，扳机一扣，火力像一群扑下来的乌鸦。', {
     limited: true,
     image: '/image/曙光阵地限定/爆能手枪-血鸦.webp',
   }),
   ranged('royal-lance', '皇家长枪', '限定', {
-    attack: 99, crit: 0.66, critDamage: 1.88, dodge: 0.16,
+    attack: 102, crit: 0.66, critDamage: 1.92, dodge: 0.16,
   }, '枪管细长，鎏金纹路从枪托一路延伸到枪口。', {
     limited: true,
     image: '/image/末日都城限定/皇家长枪.webp',
   }),
   ranged('meteor-shotgun', '机械霰弹-陨星', '限定', {
-    attack: 100, crit: 0.2, critDamage: 1.2, dodge: 0.6,
+    attack: 100, crit: 0.25, critDamage: 2.25, dodge: 0.6,
   }, '霰弹仓里塞满了回收的钢珠，开火时整条走廊都在回响。', {
     limited: true,
     image: '/image/曙光阵地限定/机械霰弹-陨星.webp',
   }),
   ranged('daylight-sniper', '流光狙击-白昼', '限定', {
-    attack: 128, crit: 0.72, critDamage: 1.8, dodge: 0.05,
+    attack: 128, crit: 0.75, critDamage: 2.28, dodge: 0.05,
   }, '瞄具里映着一线过曝的白光，扣下扳机时连影子都来不及躲。', {
     limited: true,
     image: '/image/曙光阵地限定/流光狙击-白昼.webp',
   }),
   ranged('starfall-bow', '天星之弓', '限定', {
-    attack: 129, crit: 0.39, critDamage: 3, dodge: 0.4,
+    attack: 130, crit: 0.4, critDamage: 3.05, dodge: 0.4,
   }, '弓臂上嵌着一线银光，拉满时像有一粒星子停在弦上。', {
     limited: true,
     image: '/image/公会限定武器/天星之弓.webp',

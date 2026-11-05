@@ -207,6 +207,29 @@ const talentChips = computed(() => {
     const assassinate = talentEffects('assassinate', game.talents.assassinate)
     chips.push(`背刺 ${formatPercent(assassinate.backstabChance)}`)
   }
+  if (isTalentActive('sweep') && UTOPIA_TRAINING_BY_KIND.sweep.weaponIds.includes(meleeId)) {
+    chips.push(
+      `横扫 首击 +${formatPercent(talentEffects('sweep', game.talents.sweep).sweepDamage)}`,
+    )
+  }
+  if (isTalentActive('polearm') && UTOPIA_TRAINING_BY_KIND.polearm.weaponIds.includes(meleeId)) {
+    const polearm = talentEffects('polearm', game.talents.polearm)
+    chips.push(`单枪 暴击 ×${polearm.critMult} · 耐久 ${polearm.critDurability}`)
+  }
+  if (isTalentActive('insight') && UTOPIA_TRAINING_BY_KIND.insight.weaponIds.includes(rangedId)) {
+    const insight = talentEffects('insight', game.talents.insight)
+    const stacks = Number(battle.insightStacks) || 0
+    chips.push(
+      `洞察 ${formatPercent(insight.insightCrit)}/层${stacks ? ` · ${stacks} 层` : ''}`,
+    )
+  }
+  if (
+    isTalentActive('bulldozer') &&
+    UTOPIA_TRAINING_BY_KIND.bulldozer.weaponIds.includes(rangedId)
+  ) {
+    const segs = talentEffects('bulldozer', game.talents.bulldozer).dodgeSegments ?? []
+    chips.push(`推土机 闪避追加 ${segs.map(formatPercent).join(' / ')}`)
+  }
   return chips
 })
 

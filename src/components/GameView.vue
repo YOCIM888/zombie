@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { BACKGROUND_IMAGE, DEFAULT_CHARACTER_NAME, STAT_DEFS } from '../game/config'
 import { AIRSHIP, FINALES, fieldMapById, formatMoney } from '../data'
 import {
@@ -34,6 +34,9 @@ import StatusHud from './StatusHud.vue'
 import SurvivalAlerts from './SurvivalAlerts.vue'
 import UtopiaPanel from './UtopiaPanel.vue'
 import DevConsole from './DevConsole.vue'
+
+/** 构筑器按需加载：单独分包，只有点开时才会拉取计算模型 */
+const BuildCodexPanel = defineAsyncComponent(() => import('./BuildCodexPanel.vue'))
 
 const panel = ref('')
 const showLeave = ref(false)
@@ -170,6 +173,9 @@ function percentOf(key) {
 
           <div class="hud__right">
             <span class="hud__signal"><i />安全屋 · 暂时安全</span>
+            <button type="button" class="btn hud__leave" @click="panel = 'builds'">
+              流派构筑
+            </button>
             <button type="button" class="btn hud__leave" @click="showLeave = true">
               返回主菜单
             </button>
@@ -317,6 +323,7 @@ function percentOf(key) {
     <SleepPanel v-else-if="panel === 'sleep'" @close="panel = ''" />
     <InventoryPanel v-else-if="panel === 'inventory'" @close="panel = ''" />
     <SavePanel v-else-if="panel === 'save'" @close="panel = ''" />
+    <BuildCodexPanel v-else-if="panel === 'builds'" @close="panel = ''" />
 
     <SurvivalAlerts />
 

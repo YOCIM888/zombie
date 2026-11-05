@@ -1,4 +1,4 @@
-// 14 套构筑的实时指标：每次载入都按 src/data 重算，不保存任何旧数值
+// 16 套构筑的实时指标：每次载入都按 src/data 重算，不保存任何旧数值
 import { BUILDS } from '../data/builds.js'
 import { TARGETS } from '../data/source.js'
 import { derive, meleeExact, rangedExact, magicMeanStacks } from './model.js'

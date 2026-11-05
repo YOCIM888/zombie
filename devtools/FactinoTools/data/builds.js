@@ -1,4 +1,4 @@
-// 14 套流派配置。伤害、排行与耗损全部由 js/build-metrics.js 在页面载入时按 src/data 实时计算，
+// 16 套流派配置。伤害、排行与耗损全部由 js/build-metrics.js 在页面载入时按 src/data 实时计算，
 // 这里只保留构筑选型与说明，不再保存任何旧评测数值。
 export const BUILDS = [
   {
@@ -30,7 +30,8 @@ export const BUILDS = [
     "tagline": "四把白刃各带 +25 平砍，代价是耐久翻倍",
     "weapon": "might-axe",
     "talents": {
-      "melee": 3
+      "melee": 3,
+      "slash": 3
     },
     "guild": "warrior",
     "gems": [
@@ -41,10 +42,10 @@ export const BUILDS = [
     "alts": [
       "might-axe",
       "hand-axe",
-      "spear",
-      "dagger"
+      "dagger",
+      "spear"
     ],
-    "note": "公会加成是每击平砍，对低攻击武器边际收益反而更高：战术匕首 +125%，油锯只有 +37%。但耐久消耗 ×2，弹匣/耐久周期直接砍半。"
+    "note": "公会加成是每击平砍，对低攻击武器边际收益反而更高：战术匕首 +125%，威能战斧只有 +31%。但耐久消耗 ×2，弹匣/耐久周期直接砍半。本流派没有专项天赋，两个启用位全留给近战 3 级 + 挥砍 3 级，这是公会武器池里最高的通用组合。"
   },
   {
     "id": "hunter",
@@ -54,7 +55,7 @@ export const BUILDS = [
     "weapon": "starfall-bow",
     "talents": {
       "ranged": 3,
-      "corridor": 4
+      "insight": 4
     },
     "guild": "hunter",
     "gems": [
@@ -64,11 +65,11 @@ export const BUILDS = [
     ],
     "alts": [
       "starfall-bow",
-      "compound-bow",
       "crossbow",
+      "compound-bow",
       "hunting-bow"
     ],
-    "note": "猎人公会把清洁度伤害衰减整个抹掉（其余 36 把远程全都要交 26.8% 伤害税），代价是清洁度消耗 ×2、每匣只有 25 发。"
+    "note": "猎人公会把清洁度伤害衰减整个抹掉（其余 36 把远程全都要交 26.8% 伤害税），代价是清洁度消耗 ×2、每匣只有 25 发。弓弩训练的要害洞察按满层爆伤计入期望，与免清洁度衰减叠加后，天星之弓同时吃到高攻、高爆与不吃衰减三份收益。"
   },
   {
     "id": "assassinate",
@@ -91,11 +92,14 @@ export const BUILDS = [
       "spring-knife-aurora",
       "karambit-ghost",
       "butterfly-silver",
+      "spring-knife-monochrome",
       "kukri",
       "knuckle-blade",
+      "dagger",
       "triangular-bayonet",
       "karambit-classic",
-      "fruit-knife"
+      "fruit-knife",
+      "kitchen-knife"
     ],
     "wlKey": "assassinate",
     "note": "背刺是每回合一次的三段独立掷算（攻击 ×30% / ×20% / ×10%），每段各自判定暴击，暴击率只吃武器自身暴击 + 魔化层数——不吃天赋暴击、不吃公会暴击。额外再扣 1 点耐久。"
@@ -119,8 +123,10 @@ export const BUILDS = [
     ],
     "alts": [
       "royal-scepter",
+      "chainsaw",
       "crowbar",
       "baseball-bat",
+      "nunchaku",
       "pipe-wrench",
       "claw-hammer",
       "baton"
@@ -133,7 +139,7 @@ export const BUILDS = [
     "group": "专项",
     "name": "格挡坦伤流",
     "tagline": "50% 概率格挡，最高把受击伤害砍半",
-    "weapon": "scarlet-greatsword",
+    "weapon": "frost-greatsword",
     "talents": {
       "block": 4,
       "melee": 3
@@ -146,13 +152,13 @@ export const BUILDS = [
       "magic-gem"
     ],
     "alts": [
-      "scarlet-greatsword",
       "frost-greatsword",
+      "scarlet-greatsword",
       "entrenching-tool",
       "frying-pan"
     ],
     "wlKey": "block",
-    "note": "格挡是防守向：50% 触发，4 级减伤 50%，再叠守护宝石 −20% 受伤，等于把坦克尸的 30 点攻击打到 7.5 点。收益不体现在 DPS 表上，体现在你能多活几回合。"
+    "note": "格挡天赋只减伤：50% 概率格挡，4 级减伤 50%，再叠守护宝石 −20% 受伤；它没有任何反击或追加伤害，所以这张卡的每回合输出不随格挡等级变化，等级只体现在击杀回合与胜率上。武器选寒霜大剑-冰晶：连击与爆伤都在格挡名单顶端；猩红巨剑攻击更高、耐久更长，但连击与爆伤低得多，纯输出反而落后。"
   },
   {
     "id": "draw",
@@ -173,6 +179,7 @@ export const BUILDS = [
     "alts": [
       "katana-raikiri",
       "katana-dusk",
+      "tang-dao",
       "short-katana"
     ],
     "wlKey": "draw",
@@ -182,8 +189,8 @@ export const BUILDS = [
     "id": "sword",
     "group": "专项",
     "name": "致命一击流",
-    "tagline": "3% 概率一击必杀，对 BOSS 封顶 500",
-    "weapon": "longsword-silver-rose",
+    "tagline": "3% 概率处决首击，对 BOSS 封顶 500",
+    "weapon": "longsword-rose-dark",
     "talents": {
       "sword": 4,
       "melee": 3
@@ -195,15 +202,16 @@ export const BUILDS = [
       "tenacity-gem"
     ],
     "alts": [
-      "longsword-silver-rose",
-      "longsword-frost",
       "longsword-rose-dark",
+      "longsword-frost",
+      "longsword-silver-rose",
+      "knight-sword",
       "crusader-cross-sword",
-      "keel-blade",
-      "noble-shortsword"
+      "noble-shortsword",
+      "keel-blade"
     ],
     "wlKey": "sword",
-    "note": "致命一击只替换「第一击」的伤害，直接等于僵尸当前生命（BOSS 封顶 500 点）。所以它不是加法，是一场赌博：3% 概率直接清场，97% 概率这一回合白打。"
+    "note": "致命一击只替换每回合第一击：触发时该击伤害直接等于僵尸当前生命（世界BOSS封顶 500），不再叠加暴击与连击；未触发时按正常连击结算。对满血小怪，触发反而可能低于正常首击，所以它的价值在收尾高血量目标，而不是抬高单回合期望。"
   },
   {
     "id": "arena",
@@ -225,7 +233,8 @@ export const BUILDS = [
     "alts": [
       "knuckle-gold",
       "knuckle-silver",
-      "unarmed"
+      "unarmed",
+      "knuckle"
     ],
     "note": "拳头天赋（连击 +60%、伤害 +20）只对空手与指虎生效，指虎-银使 27.6 裸装但 +拳4+近战3 = 250.4/回合；空手同套 120/回合且耐久无限。珍宝商店刻意把两把指虎排除在外。"
   },
@@ -246,10 +255,11 @@ export const BUILDS = [
       "magic-gem"
     ],
     "alts": [
-      "daylight-sniper",
       "m82a1",
       "awm",
+      "daylight-sniper",
       "t3x",
+      "mosin",
       "svd",
       "m700"
     ],
@@ -333,33 +343,97 @@ export const BUILDS = [
     "alts": [
       "m7",
       "hk416",
+      "royal-lance",
+      "m14",
       "scar",
-      "m14"
+      "aug",
+      "fal",
+      "mini14",
+      "akm",
+      "m4a1",
+      "ar15"
     ],
     "wlKey": "assault",
     "note": "突击天赋在三项属性上同时给步枪加成：暴击率是绝对值叠加，爆伤按倍率相加（与手枪天赋同一口径），攻击+N 直接加在武器攻击力上再算清洁度乘子。近战、手枪、冲锋枪与狙击枪都不在白名单里，拿不到任何一项。"
   },
   {
-    "id": "corridor",
+    "id": "sweep",
     "group": "专项",
-    "name": "闪避逃课流",
-    "tagline": "用 60% 闪避换回合数，靠耗而不是靠秒",
-    "weapon": "meteor-shotgun",
+    "name": "横扫千军流",
+    "tagline": "每轮第一刀先横扫，再用连击收尾",
+    "weapon": "kraken-blade",
     "talents": {
-      "corridor": 4,
-      "ranged": 3
+      "sweep": 4,
+      "melee": 3
     },
     "guild": null,
     "gems": [
-      "tenacity-gem",
-      "guardian-gem",
+      "magic-gem",
       "blood-gem",
-      "magic-gem"
+      "tenacity-gem"
     ],
     "alts": [
-      "meteor-shotgun",
-      "victor"
+      "kraken-blade",
+      "might-axe",
+      "hand-axe",
+      "mountain-chopper",
+      "fire-axe",
+      "huan-shou-dao",
+      "scimitar",
+      "snake-sword",
+      "cleaver",
+      "sickle"
     ],
-    "note": "闪避是「僵尸打空你」的概率，不影响你的输出，只影响你能不能活到下一回合。机械霰弹-陨星自带 60% 闪避 + 闪避天赋 20% = 80% 闪避，但它是限定枪且伤害只有 83.2。"
+    "wlKey": "sweep",
+    "note": "横扫只加成每轮第一记横劈，连击追加段不吃加成。沧龙之刃本身高攻高爆，横扫把它的第一刀抬到近战池顶端；威能战斧则靠战士公会的平砍加成，是公会池里唯一的高攻横扫武器。"
+  },
+  {
+    "id": "polearm",
+    "group": "专项",
+    "name": "长枪贯刺流",
+    "tagline": "暴击时多耗耐久，换一记贯刺",
+    "weapon": "trident",
+    "talents": {
+      "polearm": 4,
+      "melee": 3
+    },
+    "guild": null,
+    "gems": [
+      "magic-gem",
+      "blood-gem",
+      "tenacity-gem"
+    ],
+    "alts": [
+      "trident",
+      "spear",
+      "halberd"
+    ],
+    "wlKey": "polearm",
+    "note": "单枪匹马只在暴击且耐久足够时触发：额外消耗耐久，把这一击的伤害翻倍；耐久不足会自动退回普通结算。三叉戟-海歌的暴击与爆伤都在长杆池顶端，长矛则靠战士公会的平砍补低攻。"
+  },
+  {
+    "id": "bulldozer",
+    "group": "专项",
+    "name": "霰弹推土流",
+    "tagline": "闪避成功就反打，霰弹多出一套输出",
+    "weapon": "aa12",
+    "talents": {
+      "bulldozer": 4,
+      "corridor": 4
+    },
+    "guild": null,
+    "gems": [
+      "magic-gem",
+      "blood-gem",
+      "tenacity-gem"
+    ],
+    "alts": [
+      "aa12",
+      "meteor-shotgun",
+      "henry-lever",
+      "m870"
+    ],
+    "wlKey": "bulldozer",
+    "note": "推土机把闪避成功变成第二套输出来源：每次闪避追加多段攻击，每段独立判定暴击。AA12 的基础攻击与爆伤更高，闪避触发后的追加段也更重；陨星靠更高的武器闪避把段数机会拉满，但单发伤害更弱。"
   }
 ]

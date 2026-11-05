@@ -74,6 +74,10 @@ function derive(cfg, tg) {
     bluntFx: fx('blunt'),
     assassinateFx: fx('assassinate'),
     slashFx: fx('slash'),
+    sweepFx: fx('sweep'),
+    polearmFx: fx('polearm'),
+    insightFx: fx('insight'),
+    bulldozerFx: fx('bulldozer'),
   }
   const D = Object.assign({}, G, {
     weapon: w,
@@ -93,6 +97,10 @@ function derive(cfg, tg) {
     inAssault: inWl('assault'),
     inBlunt: inWl('blunt'),
     inAssassinate: inWl('assassinate'),
+    inSweep: inWl('sweep'),
+    inPolearm: inWl('polearm'),
+    inInsight: inWl('insight'),
+    inBulldozer: inWl('bulldozer'),
     isSea: !!(tg && tg.isSea),
     gems: new Set(cfg.gems || []),
     durMult: g && g.durabilityCostMultiplier && guildHas(cfg.weapon) ? g.durabilityCostMultiplier : 1,
@@ -189,13 +197,30 @@ function meleeExact(D, tg, st) {
     if (bm > 1) x = Math.round(x * bm)
     return x
   }
-  const gNorm = mk(Math.max(1, Math.round(D.atk * seaBonus)))
-  const gCrit = mk(
+  const baseNormRaw = Math.max(1, Math.round(D.atk * seaBonus))
+  /* 横扫千军：只作用于第一击，在护甲/血线之前乘，与 battle.js 同序 */
+  const sweepOn = D.inSweep && (D.sweepFx.sweepDamage || 0) > 0
+  const baseCritRaw =
     cd >= 1
       ? Math.max(1, Math.round(D.atk * ce * seaBonus))
-      : Math.max(1, Math.round(D.atk * seaBonus)),
+      : baseNormRaw
+  const firstNormRaw = sweepOn
+    ? Math.max(1, Math.round(baseNormRaw * (1 + D.sweepFx.sweepDamage)))
+    : baseNormRaw
+  const firstCritRaw = sweepOn
+    ? Math.max(1, Math.round(baseCritRaw * (1 + D.sweepFx.sweepDamage)))
+    : baseCritRaw
+  /* 单枪匹马：暴击击单独 ×critMult（先按游戏内取整顺序复算，再过护甲/平加/血线） */
+  const polearmOn = D.inPolearm && (D.polearmFx.critMult || 0) > 0
+  const polearmMult = polearmOn ? D.polearmFx.critMult : 1
+  const gNorm = mk(baseNormRaw)
+  const gCrit = mk(polearmOn ? Math.max(1, Math.round(baseCritRaw * polearmMult)) : baseCritRaw)
+  const gFirstNorm = mk(firstNormRaw)
+  const gFirstCrit = mk(
+    polearmOn ? Math.max(1, Math.round(firstCritRaw * polearmMult)) : firstCritRaw,
   )
   const perHitBase = (1 - pCrit) * gNorm + pCrit * gCrit
+  const firstHitBase = (1 - pCrit) * gFirstNorm + pCrit * gFirstCrit
   const K = D.inBlunt ? D.bluntFx.boneChance || 0 : 0
   const combo = D.combo
   /* 骨层 DP：f(b) = 本击伤害 + combo*[ (1-K)·f(b) + K·f(b+1) ] */
@@ -206,8 +231,25 @@ function meleeExact(D, tg, st) {
     const denom = 1 - combo * (1 - Kp)
     f[b] = denom > 1e-9 ? (dmg + combo * Kp * (f[b + 1] || 0)) / denom : dmg
   }
-  const comboDmg = f[bone0]
+  const comboDmg =
+    f[bone0] +
+    (firstHitBase - perHitBase) * (1 + Math.min(10, bone0) * 0.1)
+  /* 致命一击：每回合开始 roll 一次，触发后首击伤害替换为僵尸当前生命（世界BOSS封顶 500），
+     与 battle.js 的 swordExecute 同序；若未击杀，后续连击照常继续。 */
+  let execExp = 0
+  const execChance = D.inSword && !D.noExecute ? D.swordFx.executeChance || 0 : 0
+  const targetHp = tg.maxHp ?? tg.hp ?? 0
+  if (execChance > 0 && targetHp > 0) {
+    const worldBoss = tg.isWorldBoss ?? (tg.isBoss && !D.isSea)
+    const execHp = worldBoss ? Math.min(500, targetHp) : targetHp
+    const execTurn = execHp >= targetHp ? execHp : execHp + (comboDmg - firstHitBase)
+    execExp = execChance * (execTurn - comboDmg)
+  }
   const hits = 1 / (1 - Math.min(0.999, combo))
+  /* 长杆：暴击击的耐久消耗替换为 critDurability（忽略耐久不足的降级边界） */
+  const perHitDur = polearmOn
+    ? (1 - pCrit) * D.durMult + pCrit * (D.polearmFx.critDurability || D.durMult)
+    : D.durMult
   /* 拔刀：真实伤害，绕开护甲与血线 */
   let drawExp = 0
   if (D.inDraw && (D.drawFx.cutChance || 0) > 0) {
@@ -227,8 +269,9 @@ function meleeExact(D, tg, st) {
     backExp *= D.assassinateFx.backstabChance || 0
   }
   return {
-    perTurn: comboDmg + drawExp + backExp,
+    perTurn: comboDmg + execExp + drawExp + backExp,
     comboDmg,
+    execExp,
     drawExp,
     backExp,
     hits,
@@ -238,7 +281,9 @@ function meleeExact(D, tg, st) {
     bm,
     bone0,
     bonePerTurn: hits * K,
-    durPerTurn: hits * D.durMult + (D.inAssassinate ? (D.assassinateFx.backstabChance || 0) * D.durMult : 0),
+    durPerTurn:
+      hits * perHitDur +
+      (D.inAssassinate ? (D.assassinateFx.backstabChance || 0) * D.durMult : 0),
     cleanPerTurn: 0,
     frozen,
   }
@@ -267,7 +312,9 @@ function rangedExact(D, tg, st) {
   const F =
     cd +
     (pistolOn ? D.pistolFx.critDamage || 0 : 0) +
-    (assaultOn ? D.assaultFx.critDamage || 0 : 0)
+    (assaultOn ? D.assaultFx.critDamage || 0 : 0) +
+    /* 要害洞察按稳态 5 层折算爆伤增量 */
+    (D.inInsight ? 5 * (D.insightFx.insightCrit || 0) : 0)
   const atk = D.rangedAtk
   const mult = D.hunterOK ? 1 : xi(clean)
   const armorOn = !!tg.armor
@@ -299,11 +346,26 @@ function rangedExact(D, tg, st) {
   const cleanCost =
     CLEAN_PER_SHOT * D.cleanMult +
     (D.inSpray ? sprayP * SPRAY_EXTRA_CLEANLINESS : 0)
+  /* 推土机：闪避成功概率 × 追加段期望；每段独立暴击、按武器攻击力取整 */
+  let bulldozer = 0
+  const segs = D.inBulldozer ? D.bulldozerFx.dodgeSegments : null
+  if (Array.isArray(segs) && segs.length > 0) {
+    const dodge = clamp((S.dodge || 0) + (D.corridorFx.dodge || 0), 0, 1)
+    const segCritP = F >= 1 ? pCrit : 0
+    const weaponAtk = S.attack || 0
+    const perDodge = segs.reduce((sum, ratio) => {
+      const normal = Math.max(1, Math.round(weaponAtk * ratio))
+      const critHit = Math.max(1, Math.round(weaponAtk * ratio * (F >= 1 ? F : 1)))
+      return sum + (1 - segCritP) * normal + segCritP * critHit
+    }, 0)
+    bulldozer = dodge * perDodge
+  }
   return {
-    perTurn: main + pierce + spray,
+    perTurn: main + pierce + spray + bulldozer,
     main,
     pierce,
     spray,
+    bulldozer,
     pCrit,
     cdmg: F,
     bm,
@@ -340,6 +402,15 @@ function meleeAction(D, st, tg, rnd) {
     const isCrit = rnd() < critP && (S.critDamage ?? 0) >= 1
     const ce = (S.critDamage ?? 0) + (D.knightOK ? D.guild.critDamageBonus || 0 : 0)
     let G = Math.max(1, Math.round(D.atk * (isCrit ? ce : 1) * seaBonus))
+    if (D.inSweep && hits === 0 && (D.sweepFx.sweepDamage || 0) > 0) {
+      G = Math.max(1, Math.round(G * (1 + D.sweepFx.sweepDamage)))
+    }
+    let durCost = D.durMult
+    const polearmDur = D.inPolearm ? D.polearmFx.critDurability || 0 : 0
+    if (isCrit && polearmDur > 0 && (D.polearmFx.critMult || 0) > 0 && st.dur >= polearmDur) {
+      G = Math.max(1, Math.round(G * D.polearmFx.critMult))
+      durCost = polearmDur
+    }
     if (armor) G = Math.max(1, Math.floor(G * ARMOR_MULT))
     if (frozen && hits === 0) G = Math.max(1, Math.floor(G * FROZEN_MULT))
     if (D.flat) G += D.flat
@@ -365,8 +436,8 @@ function meleeAction(D, st, tg, rnd) {
       st.boneStacks = (st.boneStacks || 0) + 1
       boneGained++
     }
-    st.dur -= D.durMult
-    durUsed += D.durMult
+    st.dur -= durCost
+    durUsed += durCost
     if (st.dur <= 0) {
       st.broken = true
       break
@@ -419,17 +490,26 @@ function rangedAction(D, st, tg, rnd) {
     return { total: 0, hits: 0, crits: 0, cleanUsed: CLEAN_PER_SHOT * D.cleanMult, jammed: true }
   }
   const pistolOn = D.inPistol
+  const assaultOn = D.inAssault
   const critP = clamp(
-    (S.crit || 0) + (D.rangedFx.crit || 0) + (pistolOn ? D.pistolFx.crit || 0 : 0) + magicAtStart * MAGIC_GEM_STACK.critPerStack,
+    (S.crit || 0) +
+      (D.rangedFx.crit || 0) +
+      (pistolOn ? D.pistolFx.crit || 0 : 0) +
+      (assaultOn ? D.assaultFx.crit || 0 : 0) +
+      magicAtStart * MAGIC_GEM_STACK.critPerStack,
     0,
     1,
   )
-  const F = (S.critDamage ?? 1) + (pistolOn ? D.pistolFx.critDamage || 0 : 0)
+  const F =
+    (S.critDamage ?? 1) +
+    (pistolOn ? D.pistolFx.critDamage || 0 : 0) +
+    (assaultOn ? D.assaultFx.critDamage || 0 : 0) +
+    (D.inInsight ? 5 * (D.insightFx.insightCrit || 0) : 0)
   const isCrit = rnd() < critP && F >= 1
   let O = (isCrit ? F : 1) * (D.hunterOK ? 1 : xi(st.clean))
   if (tg.armor) O *= ARMOR_MULT
   if (tg.frozen) O *= FROZEN_MULT
-  let C = Math.max(1, Math.round((S.attack || 0) * O) + (D.hunterOK ? D.guild.damageBonus || 0 : 0))
+  let C = Math.max(1, Math.round(D.rangedAtk * O) + (D.hunterOK ? D.guild.damageBonus || 0 : 0))
   if (bloodOn && bm > 1) C = Math.round(C * bm)
   if (st.tenacityEmpower) {
     C = Math.max(1, C * 2)
@@ -453,6 +533,21 @@ function rangedAction(D, st, tg, rnd) {
       )
     }
     spray = true
+  }
+  /* 推土机：按玩家闪避率折算追加段，每段独立暴击（近似：每次行动 roll 一次闪避） */
+  const dozerSegs = D.inBulldozer ? D.bulldozerFx.dodgeSegments : null
+  if (st.zHp > 0 && Array.isArray(dozerSegs) && dozerSegs.length > 0) {
+    const dodge = clamp((S.dodge || 0) + (D.corridorFx.dodge || 0), 0, 1)
+    if (rnd() < dodge) {
+      for (const ratio of dozerSegs) {
+        const segmentCrit = rnd() < critP && F >= 1
+        if (segmentCrit) crits = 1
+        extra += Math.max(
+          1,
+          Math.round((S.attack || 0) * ratio * (segmentCrit ? F : 1)),
+        )
+      }
+    }
   }
   if (extra > 0) {
     total += extra
