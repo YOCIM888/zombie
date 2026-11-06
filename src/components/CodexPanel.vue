@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   DAWN_ZOMBIE,
   FIELD_MAPS,
@@ -34,19 +34,16 @@ const TOOLS = [
     id: 'codex',
     name: '图鉴百科',
     hint: '物品、身份徽章与全部立绘',
-    ready: true,
   },
   {
     id: 'damage',
     name: '伤害查询',
     hint: '全部武器的期望伤害与属性',
-    ready: true,
   },
   {
     id: 'maps',
     name: '地图爆率',
     hint: '各区域探索与击杀掉落',
-    ready: true,
   },
 ]
 
@@ -77,6 +74,64 @@ const active = computed(() => categories[activeIndex.value])
 const totalItems = computed(() => categories.reduce((sum, c) => sum + c.items.length, 0))
 const collected = computed(() => totalItems.value)
 const selected = ref(null)
+
+/** 分类横栏：隐藏原生滚动条，箭头是唯一切换方式 */
+const tabsViewport = ref(null)
+const canPrev = ref(false)
+const canNext = ref(false)
+
+function updateTabScrollState() {
+  const viewport = tabsViewport.value
+  if (!viewport) {
+    canPrev.value = false
+    canNext.value = false
+    return
+  }
+  canPrev.value = viewport.scrollLeft > 1
+  canNext.value = viewport.scrollLeft + viewport.clientWidth < viewport.scrollWidth - 1
+}
+
+/** 一次翻一屏宽：保证每次至少露出下一屏的新标签，也不会整条跳过某个分类 */
+function scrollTabs(direction) {
+  const viewport = tabsViewport.value
+  if (!viewport) return
+  const max = Math.max(0, viewport.scrollWidth - viewport.clientWidth)
+  viewport.scrollLeft = Math.min(max, Math.max(0, viewport.scrollLeft + direction * viewport.clientWidth))
+  updateTabScrollState()
+}
+
+/** 选中标签必须留在可视区：只做最小必要滚动 */
+function ensureActiveTabVisible() {
+  const viewport = tabsViewport.value
+  const tab = viewport?.querySelectorAll('.tab')[activeIndex.value]
+  if (!viewport || !tab) return
+  const viewportRect = viewport.getBoundingClientRect()
+  const tabRect = tab.getBoundingClientRect()
+  const padding = 4
+  if (tabRect.left < viewportRect.left + padding) {
+    viewport.scrollLeft -= viewportRect.left + padding - tabRect.left
+  } else if (tabRect.right > viewportRect.right - padding) {
+    viewport.scrollLeft += tabRect.right - (viewportRect.right - padding)
+  }
+  updateTabScrollState()
+}
+
+function onTabsResize() {
+  updateTabScrollState()
+  ensureActiveTabVisible()
+}
+
+watch(activeIndex, () => {
+  nextTick(ensureActiveTabVisible)
+})
+
+watch(activeToolId, (id) => {
+  if (id !== 'codex') return
+  nextTick(() => {
+    updateTabScrollState()
+    ensureActiveTabVisible()
+  })
+})
 
 const isPortraitCategory = computed(() => PORTRAIT_CATEGORIES.has(active.value?.name))
 const selectedDef = computed(() => selected.value?.def ?? null)
@@ -230,6 +285,12 @@ function select(item) {
 
 onMounted(() => {
   unlockAchievement('codex-10')
+  nextTick(updateTabScrollState)
+  window.addEventListener('resize', onTabsResize)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', onTabsResize)
 })
 </script>
 
@@ -248,9 +309,6 @@ onMounted(() => {
       >
         <span class="tool-card__head">
           <strong>{{ tool.name }}</strong>
-          <span class="tool-card__tag" :class="{ 'is-ready': tool.ready }">
-            {{ tool.ready ? '已开放' : '占位' }}
-          </span>
         </span>
         <span class="tool-card__hint">{{ tool.hint }}</span>
       </button>
@@ -266,17 +324,45 @@ onMounted(() => {
         </div>
       </div>
 
-      <div class="tabs">
+      <div class="codex-tabs">
         <button
-          v-for="(category, index) in categories"
-          :key="category.name"
           type="button"
-          class="tab"
-          :class="{ 'tab--active': index === activeIndex }"
-          @click="activeIndex = index"
+          class="codex-tabs__arrow"
+          aria-label="上一页分类"
+          :disabled="!canPrev"
+          @click="scrollTabs(-1)"
         >
-          {{ category.name }}
-          <span>{{ category.items.length }}</span>
+          ‹
+        </button>
+        <div
+          ref="tabsViewport"
+          class="tabs"
+          role="tablist"
+          aria-label="图鉴分类"
+          @scroll.passive="updateTabScrollState"
+        >
+          <button
+            v-for="(category, index) in categories"
+            :key="category.name"
+            type="button"
+            role="tab"
+            class="tab"
+            :class="{ 'tab--active': index === activeIndex }"
+            :aria-selected="index === activeIndex"
+            @click="activeIndex = index"
+          >
+            {{ category.name }}
+            <span>{{ category.items.length }}</span>
+          </button>
+        </div>
+        <button
+          type="button"
+          class="codex-tabs__arrow"
+          aria-label="下一页分类"
+          :disabled="!canNext"
+          @click="scrollTabs(1)"
+        >
+          ›
         </button>
       </div>
 
@@ -607,21 +693,6 @@ onMounted(() => {
 
 .tool-card--active .tool-card__head strong {
   color: var(--bone);
-}
-
-.tool-card__tag {
-  flex: none;
-  padding: 1px 6px;
-  font-family: var(--font-mono);
-  font-size: 8.5px;
-  letter-spacing: 0.08em;
-  color: var(--text-mute);
-  border: 1px solid var(--line);
-}
-
-.tool-card__tag.is-ready {
-  color: var(--sick);
-  border-color: rgba(124, 152, 64, 0.45);
 }
 
 .tool-card__hint {
@@ -1130,19 +1201,62 @@ onMounted(() => {
   color: var(--text-mute);
 }
 
-.tabs {
+.codex-tabs {
   display: flex;
-  flex-wrap: wrap;
-  gap: 2px;
+  align-items: stretch;
+  gap: 6px;
   border-bottom: 1px solid var(--line);
   margin-bottom: 16px;
 }
 
+.codex-tabs__arrow {
+  flex: none;
+  width: 30px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-mute);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    color 0.2s,
+    background 0.2s;
+}
+
+.codex-tabs__arrow:hover:not(:disabled) {
+  color: var(--bone);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.codex-tabs__arrow:disabled {
+  color: rgba(214, 208, 191, 0.22);
+  cursor: default;
+}
+
+.tabs {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-wrap: nowrap;
+  gap: 2px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
 .tab {
   position: relative;
+  flex: none;
   padding: 10px 14px 12px;
   font-size: 12.5px;
   letter-spacing: 0.1em;
+  white-space: nowrap;
   color: var(--text-mute);
   transition: 0.2s;
 }
@@ -1167,7 +1281,7 @@ onMounted(() => {
   position: absolute;
   left: 10px;
   right: 10px;
-  bottom: -1px;
+  bottom: 0;
   height: 1px;
   background: var(--rust);
 }
@@ -1345,8 +1459,46 @@ onMounted(() => {
 }
 
 @media (max-width: 640px) {
+  /* 三个入口保持单行并排，靠紧凑内边距与字号换取空间，不做换行/滚动 */
   .tool-switch {
-    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+    margin-bottom: 14px;
+  }
+
+  .tool-card {
+    align-items: center;
+    padding: 7px 4px;
+    text-align: center;
+  }
+
+  .tool-card__head {
+    justify-content: center;
+    gap: 0;
+  }
+
+  .tool-card__head strong {
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+
+  .tool-card__hint {
+    display: none;
+  }
+
+  .codex-tabs {
+    gap: 4px;
+  }
+
+  .codex-tabs__arrow {
+    width: 24px;
+    font-size: 14px;
+  }
+
+  .tab {
+    padding: 9px 9px 11px;
+    font-size: 11.5px;
+    letter-spacing: 0.06em;
   }
 
   .damage-filters {

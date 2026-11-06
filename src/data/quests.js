@@ -854,6 +854,7 @@ export function mafeiQuestForTarget(npcId) {
 export const FINALES = {
   恶魔: {
     title: '恶魔',
+    terminal: true,
     text:
       '马斐把枪口抬起来的时候，你还在想第十二份委托的报酬。\n\n枪声很轻，像有人在你耳边合上了一本书。\n\n他蹲下来，从你手里抽出那张写满名字的纸，用拇指把你的名字划掉，然后补在最下面。\n\n「名单总要有人往下写。」他说。\n\n——你成了他名单上的最后一行，也成了这座军营里新的传说。',
   },

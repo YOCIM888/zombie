@@ -63,6 +63,11 @@ const GEM_LIST = [
       passive: true,
       limited: true,
     }),
+  gem('developer-gem', '开发者宝石',
+    '开发者留下的捷径。使用后直接传送到「郊区卖场」，消耗 1 回合；战斗中无法使用，宝石不会消失，也无法丢弃。', {
+      special: 'developer-gem',
+      limited: true,
+    }),
 ]
 
 export const GEM_ITEMS = Object.fromEntries(GEM_LIST.map((item) => [item.id, item]))

@@ -4,6 +4,7 @@
 import { computed, onMounted, reactive, ref, shallowRef, watch } from 'vue'
 import ModalShell from './ModalShell.vue'
 import { MAGIC_GEM_STACK } from '../data/items/gem.js'
+import { unlockAchievement } from '../game/save'
 
 defineEmits(['close'])
 
@@ -272,6 +273,7 @@ function restore() {
 }
 
 onMounted(async () => {
+  unlockAchievement('build-codex')
   try {
     const [metrics, source, model] = await Promise.all([
       import('../../devtools/FactinoTools/js/build-metrics.js'),

@@ -1234,9 +1234,9 @@ function closePanel() {
               <span class="extra__tag">{{ healingGiftTaken ? '已领取' : '一次性' }}</span>
             </header>
             <div class="chips">
-              <span>绷带 ×20</span>
-              <span>止痛药 ×20</span>
-              <span>止血带 ×20</span>
+              <span>绷带 ×10</span>
+              <span>止痛药 ×10</span>
+              <span>止血带 ×10</span>
             </div>
             <p v-if="healingGiftTaken" class="extra__desc">
               一箱医疗物资已经塞进你的背包。
@@ -1257,7 +1257,7 @@ function closePanel() {
               <span class="extra__tag">{{ candyGiftTaken ? '已领取' : '一次性' }}</span>
             </header>
             <div class="chips">
-              <span>开发者糖果 ×6</span>
+              <span>开发者糖果 ×10</span>
               <span>每颗饱食 +100</span>
               <span>不进入任何掉落池</span>
             </div>

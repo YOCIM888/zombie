@@ -43,6 +43,60 @@ const showLeave = ref(false)
 const showRename = ref(false)
 const showDevConsole = ref(false)
 const renameDraft = ref('')
+
+/** 隐藏入口：头像连续点击 10 次；相邻两次超过 700ms 视为重新开始 */
+const DEV_TAP_TARGET = 10
+const DEV_TAP_GAP = 700
+const devTapCount = ref(0)
+let devTapLast = 0
+
+function onAvatarPointerDown(event) {
+  if (showDevConsole.value) return
+  if (event.pointerType === 'mouse' && event.button !== 0) return
+  const now = Date.now()
+  if (now - devTapLast > DEV_TAP_GAP) devTapCount.value = 0
+  devTapLast = now
+  devTapCount.value += 1
+  if (devTapCount.value >= DEV_TAP_TARGET) {
+    devTapCount.value = 0
+    devTapLast = 0
+    showDevConsole.value = true
+  }
+}
+
+/** 隐藏入口：Shift + C + Enter 同时按下；按住不放只触发一次 */
+const devPressedKeys = new Set()
+let devComboFired = false
+
+function isTypingTarget(target) {
+  if (!(target instanceof HTMLElement)) return false
+  if (target.isContentEditable) return true
+  return ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
+}
+
+function onDevKeyDown(event) {
+  if (isTypingTarget(event.target)) return
+  devPressedKeys.add(event.code)
+  const shiftHeld =
+    event.shiftKey ||
+    devPressedKeys.has('ShiftLeft') ||
+    devPressedKeys.has('ShiftRight')
+  const comboReady =
+    shiftHeld && devPressedKeys.has('KeyC') && devPressedKeys.has('Enter')
+  if (comboReady && !devComboFired) {
+    devComboFired = true
+    event.preventDefault()
+    event.stopPropagation()
+    showDevConsole.value = true
+  }
+}
+
+function onDevKeyUp(event) {
+  devPressedKeys.delete(event.code)
+  if (['ShiftLeft', 'ShiftRight', 'KeyC', 'Enter', 'NumpadEnter'].includes(event.code)) {
+    devComboFired = false
+  }
+}
 const bgStyle = computed(() => ({
   backgroundImage: `url("${encodeURI(BACKGROUND_IMAGE)}")`,
 }))
@@ -56,10 +110,14 @@ let timer = 0
 
 onMounted(() => {
   timer = window.setInterval(tickPlaytime, 1000)
+  window.addEventListener('keydown', onDevKeyDown)
+  window.addEventListener('keyup', onDevKeyUp)
 })
 
 onBeforeUnmount(() => {
   window.clearInterval(timer)
+  window.removeEventListener('keydown', onDevKeyDown)
+  window.removeEventListener('keyup', onDevKeyUp)
   flushGlobalStats()
 })
 
@@ -117,12 +175,6 @@ function openRename() {
 }
 
 function submitRename() {
-  if (renameDraft.value.trim() === '/yocim_dev_mode') {
-    showRename.value = false
-    showDevConsole.value = true
-    notify('名字保存失败：档案系统拒绝写入。')
-    return
-  }
   const line = renameCharacter(renameDraft.value)
   if (!line) return
   notify(line)
@@ -130,7 +182,8 @@ function submitRename() {
 }
 
 function finishAndLeave() {
-  if (game.slotIndex !== null) saveToSlot(game.slotIndex)
+  // 死亡结局（如「恶魔」）不写存档，避免把无法继续的状态覆盖进存档位
+  if (!game.dead && game.slotIndex !== null) saveToSlot(game.slotIndex)
   leaveToMenu()
 }
 
@@ -153,6 +206,9 @@ function percentOf(key) {
               class="identity__avatar"
               src="/image/主角与NPC立绘/主角头像.webp"
               :alt="`${game.character}的头像`"
+              draggable="false"
+              @pointerdown.prevent="onAvatarPointerDown"
+              @contextmenu.prevent
             />
             <div class="identity__main">
               <span class="eyebrow">幸存者档案</span>
@@ -327,7 +383,7 @@ function percentOf(key) {
 
     <SurvivalAlerts />
 
-    <div v-if="game.dead" class="death">
+    <div v-if="game.dead && !game.finale" class="death">
       <div class="death__card">
         <p class="eyebrow">生存终止</p>
         <h2 class="death__title">{{ game.ending || '你死了' }}</h2>
@@ -336,7 +392,7 @@ function percentOf(key) {
       </div>
     </div>
 
-    <div v-if="game.finale && !game.dead" class="finale">
+    <div v-if="game.finale" class="finale">
       <div class="finale__card">
         <p class="eyebrow">结局</p>
         <h2 class="finale__title">{{ finaleText?.title ?? game.finale }}</h2>
@@ -346,7 +402,7 @@ function percentOf(key) {
             继续游戏
           </button>
           <button type="button" class="btn btn--primary" @click="finishAndLeave">
-            保存并返回主界面
+            {{ game.dead ? '回到主菜单' : '保存并返回主界面' }}
           </button>
         </div>
       </div>
@@ -502,6 +558,11 @@ function percentOf(key) {
   border: 1px solid var(--line-strong);
   background: rgba(0, 0, 0, 0.4);
   filter: saturate(0.9) contrast(1.05);
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .identity__main {

@@ -239,6 +239,17 @@ const usableItems = computed(() =>
     .filter((item) => item.entry && item.def?.effects),
 )
 
+/** 开发者宝石在战斗中不可用，但仍显示禁用条目与提示，而不是让入口凭空消失 */
+const devGemEntry = computed(() => {
+  const index = game.inventory.findIndex((entry) => entry?.id === 'developer-gem')
+  if (index === -1) return null
+  return {
+    entry: game.inventory[index],
+    index,
+    def: getItem('developer-gem'),
+  }
+})
+
 const hpPercent = computed(() =>
   battle.zombie.maxHp
     ? Math.max(0, Math.min(100, (battle.zombie.hp / battle.zombie.maxHp) * 100))
@@ -477,6 +488,18 @@ function finish() {
             </article>
           </div>
           <p v-else class="bag__empty">背包里没有可用的食物、饮品或药品。</p>
+          <article v-if="devGemEntry" class="bag__item bag__item--locked">
+            <img
+              v-if="devGemEntry.def.image"
+              :src="devGemEntry.def.image"
+              :alt="devGemEntry.def.name"
+            />
+            <div class="bag__main">
+              <h5>{{ devGemEntry.def.name }} ×{{ devGemEntry.entry.qty }}</h5>
+              <p>战斗中无法使用，请先结束这场战斗。</p>
+            </div>
+            <button type="button" class="btn" disabled>不可用</button>
+          </article>
         </section>
       </div>
     </Teleport>
@@ -774,6 +797,16 @@ function finish() {
   gap: 12px;
   padding: 9px 10px;
   background: #0d0f10;
+}
+
+.bag__item--locked {
+  margin-top: 9px;
+  border-top: 1px solid var(--line);
+  opacity: 0.62;
+}
+
+.bag__item--locked .bag__main p {
+  color: var(--rust-soft);
 }
 
 .bag__item img {

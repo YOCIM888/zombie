@@ -36,6 +36,7 @@ export const saveSlots = reactive({
 export const globalStats = reactive({
   totalPlaytime: Number(storedGlobal.totalPlaytime) || 0,
   achievements: Array.isArray(storedGlobal.achievements) ? storedGlobal.achievements : [],
+  deathEndings: Array.isArray(storedGlobal.deathEndings) ? storedGlobal.deathEndings : [],
 })
 
 export const settings = reactive({
@@ -53,6 +54,7 @@ function persistGlobal() {
   writeJSON(GLOBAL_KEY, {
     totalPlaytime: globalStats.totalPlaytime,
     achievements: globalStats.achievements,
+    deathEndings: globalStats.deathEndings,
   })
 }
 
@@ -86,11 +88,9 @@ export function addPlaytime(seconds) {
 
 /** 离开游戏、保存存档时调用，立即落盘 */
 export function flushGlobalStats() {
-  if (playtimeBuffer > 0) {
-    playtimeBuffer = 0
-    lastPlaytimeFlush = Date.now()
-    persistGlobal()
-  }
+  playtimeBuffer = 0
+  lastPlaytimeFlush = Date.now()
+  persistGlobal()
 }
 
 export function hasAchievement(id) {

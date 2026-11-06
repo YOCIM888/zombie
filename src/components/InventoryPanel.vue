@@ -28,6 +28,7 @@ import {
   toggleTalentActive,
   useItem,
 } from '../game/store'
+import { battle } from '../game/battle'
 import ModalShell from './ModalShell.vue'
 import LoadoutPanel from './LoadoutPanel.vue'
 
@@ -153,6 +154,9 @@ const selectedDef = computed(() => {
 })
 
 const canUse = computed(() => Boolean(selectedDef.value?.effects || selectedDef.value?.special))
+const devGemLocked = computed(
+  () => battle.active && selectedDef.value?.special === 'developer-gem',
+)
 const canEquipMelee = computed(
   () => selectedDef.value?.category === 'melee' && Boolean(selectedDef.value?.weapon),
 )
@@ -218,6 +222,10 @@ function handleOrganize() {
 
 function handleUse() {
   if (!selectedEntry.value) return
+  if (devGemLocked.value) {
+    notify('战斗中无法使用开发者宝石，请先结束这场战斗。', 3200)
+    return
+  }
   useItem(selectedIndex.value)
   if (!game.inventory[selectedIndex.value]) selectedIndex.value = null
 }
@@ -504,6 +512,9 @@ function weaponLine(weapon) {
         {{ TALENT_ACTIVE_LIMIT }} 个
       </span>
       <div v-if="activeView === 'bag' && selectedDef" class="foot-actions">
+        <span v-if="devGemLocked" class="foot-lock">
+          战斗中无法使用开发者宝石，请先结束战斗。
+        </span>
         <span class="foot-item">{{ selectedDef.name }} ×{{ selectedEntry.qty }}</span>
         <button
           v-if="canEquipMelee"
@@ -521,7 +532,7 @@ function weaponLine(weapon) {
         >
           装备远程位
         </button>
-        <button v-if="canUse" type="button" class="btn btn--primary" @click="handleUse">
+        <button v-if="canUse" type="button" class="btn btn--primary" :disabled="devGemLocked" @click="handleUse">
           使用
         </button>
         <button
@@ -1131,6 +1142,12 @@ function weaponLine(weapon) {
   font-size: 11px;
   letter-spacing: 0.04em;
   color: var(--bone);
+}
+
+.foot-lock {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--rust-soft);
 }
 
 .btn--discard {

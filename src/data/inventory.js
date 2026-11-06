@@ -52,10 +52,11 @@ export function addItem(inventory, itemId, qty = 1) {
   return remaining
 }
 
-/** 初始背包：矿泉水 ×5、压缩饼干 ×5 */
+/** 初始背包：开发者宝石 ×1、矿泉水 ×5、压缩饼干 ×5 */
 export const INITIAL_ITEMS = [
   { id: 'mineral-water', qty: 5 },
   { id: 'compressed-biscuit', qty: 5 },
+  { id: 'developer-gem', qty: 1 },
 ]
 
 export function createInitialBackpack() {

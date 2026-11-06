@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { battle } from '../game/battle'
 import { devState, game, notify, runDevCommand } from '../game/store'
 
@@ -61,16 +61,145 @@ function close() {
   notify(`开发者控制台已关闭 · 背包 ${game.inventory.length} 格`)
   emit('close')
 }
+
+/* ===== 拖动窗口 ===== */
+
+const POS_KEY = 'xingshi.devConsole.pos.v1'
+const MARGIN = 8
+const rootEl = ref(null)
+const dragHead = ref(null)
+const pos = ref(null)
+const dragging = ref(false)
+const drag = { pointerId: null, offsetX: 0, offsetY: 0 }
+
+const rootStyle = computed(() =>
+  pos.value
+    ? { left: `${pos.value.x}px`, top: `${pos.value.y}px`, right: 'auto', bottom: 'auto' }
+    : {},
+)
+
+/** 边界约束：整个窗口留在视口内 8px 安全边距，至少标题栏可见且能拖回 */
+function clampPos(x, y) {
+  if (!rootEl.value) return { x, y }
+  const rect = rootEl.value.getBoundingClientRect()
+  const maxX = Math.max(MARGIN, window.innerWidth - rect.width - MARGIN)
+  const maxY = Math.max(MARGIN, window.innerHeight - rect.height - MARGIN)
+  return {
+    x: Math.min(Math.max(x, MARGIN), maxX),
+    y: Math.min(Math.max(y, MARGIN), maxY),
+  }
+}
+
+function readSavedPos() {
+  try {
+    const raw = window.localStorage.getItem(POS_KEY)
+    if (!raw) return null
+    const data = JSON.parse(raw)
+    if (!Number.isFinite(data?.x) || !Number.isFinite(data?.y)) return null
+    return { x: data.x, y: data.y }
+  } catch {
+    return null
+  }
+}
+
+function savePos(value) {
+  try {
+    window.localStorage.setItem(
+      POS_KEY,
+      JSON.stringify({ x: Math.round(value.x), y: Math.round(value.y) }),
+    )
+  } catch {}
+}
+
+function reclamp() {
+  if (!pos.value) return
+  const next = clampPos(pos.value.x, pos.value.y)
+  if (next.x !== pos.value.x || next.y !== pos.value.y) {
+    pos.value = next
+    savePos(next)
+  }
+}
+
+function onHeadPointerDown(event) {
+  if (dragging.value) return
+  if (event.pointerType === 'mouse' && event.button !== 0) return
+  if (event.target instanceof Element && event.target.closest('button')) return
+  const rect = rootEl.value?.getBoundingClientRect()
+  if (!rect) return
+
+  // 首次拖动把 right / bottom 定位换成显式 left / top，位置不跳变
+  pos.value = { x: rect.left, y: rect.top }
+  drag.pointerId = event.pointerId
+  drag.offsetX = event.clientX - rect.left
+  drag.offsetY = event.clientY - rect.top
+  dragging.value = true
+  try {
+    dragHead.value?.setPointerCapture(event.pointerId)
+  } catch {}
+
+  window.addEventListener('pointermove', onDragMove, { passive: false })
+  window.addEventListener('pointerup', onDragEnd)
+  window.addEventListener('pointercancel', onDragEnd)
+  event.preventDefault()
+}
+
+function onDragMove(event) {
+  if (!dragging.value || event.pointerId !== drag.pointerId) return
+  if (event.cancelable) event.preventDefault()
+  const next = clampPos(event.clientX - drag.offsetX, event.clientY - drag.offsetY)
+  if (next.x !== pos.value.x || next.y !== pos.value.y) pos.value = next
+}
+
+function onDragEnd(event) {
+  if (event.pointerId !== drag.pointerId) return
+  dragging.value = false
+  drag.pointerId = null
+  window.removeEventListener('pointermove', onDragMove)
+  window.removeEventListener('pointerup', onDragEnd)
+  window.removeEventListener('pointercancel', onDragEnd)
+  if (pos.value) savePos(pos.value)
+}
+
+onMounted(async () => {
+  window.addEventListener('resize', reclamp)
+  window.addEventListener('orientationchange', reclamp)
+
+  const saved = readSavedPos()
+  if (saved) {
+    await nextTick()
+    pos.value = clampPos(saved.x, saved.y)
+    savePos(pos.value)
+  }
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', reclamp)
+  window.removeEventListener('orientationchange', reclamp)
+  window.removeEventListener('pointermove', onDragMove)
+  window.removeEventListener('pointerup', onDragEnd)
+  window.removeEventListener('pointercancel', onDragEnd)
+})
 </script>
 
 <template>
-  <aside class="dev">
-    <header class="dev__head">
+  <aside
+    ref="rootEl"
+    class="dev"
+    :class="{ 'dev--dragging': dragging }"
+    :style="rootStyle"
+  >
+    <header ref="dragHead" class="dev__head" @pointerdown="onHeadPointerDown">
       <span class="dev__dot" />
       <span class="dev__title">开发者控制台</span>
       <span class="dev__status">{{ status }}</span>
-      <button type="button" class="dev__close" aria-label="关闭控制台" @click="close">
-        ×
+      <button
+        type="button"
+        class="dev__close"
+        aria-label="关闭控制台"
+        @pointerdown.stop
+        @click="close"
+      >
+        ✕
       </button>
     </header>
 
@@ -127,33 +256,56 @@ function close() {
   max-height: min(460px, calc(100vh - 24px));
   display: flex;
   flex-direction: column;
-  border: 1px solid rgba(124, 152, 64, 0.55);
-  background: linear-gradient(180deg, rgba(12, 15, 11, 0.98), rgba(6, 8, 6, 0.98));
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.75);
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  background: linear-gradient(180deg, rgba(17, 19, 20, 0.96), rgba(10, 12, 13, 0.97));
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
   font-family: var(--font-mono);
 }
 
+.dev::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 46px;
+  height: 2px;
+  background: var(--rust);
+}
+
 .dev__head {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 12px;
-  border-bottom: 1px solid rgba(124, 152, 64, 0.35);
-  background: rgba(124, 152, 64, 0.08);
+  padding: 10px 12px 10px 14px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(193, 74, 50, 0.06);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.dev--dragging,
+.dev--dragging * {
+  cursor: grabbing !important;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .dev__dot {
   width: 6px;
   height: 6px;
   flex: none;
-  background: var(--sick);
-  box-shadow: 0 0 8px rgba(124, 152, 64, 0.8);
+  background: var(--rust);
 }
 
 .dev__title {
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  color: var(--bone);
+  font-family: var(--font-title);
+  font-size: 14px;
+  letter-spacing: 0.16em;
+  color: var(--text);
 }
 
 .dev__status {
@@ -165,14 +317,20 @@ function close() {
 
 .dev__close {
   flex: none;
-  padding: 0 2px;
-  font-size: 15px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  font-size: 12px;
   line-height: 1;
-  color: var(--text-mute);
+  color: var(--text-dim);
   cursor: pointer;
+  transition: 0.2s;
 }
 
 .dev__close:hover {
+  border-color: var(--rust);
   color: var(--rust-soft);
 }
 
@@ -180,16 +338,30 @@ function close() {
   flex: 1;
   min-height: 150px;
   overflow-y: auto;
-  padding: 10px 12px;
+  padding: 11px 14px;
   display: flex;
   flex-direction: column;
   gap: 5px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(214, 208, 191, 0.22) transparent;
+}
+
+.dev__log::-webkit-scrollbar {
+  width: 6px;
+}
+
+.dev__log::-webkit-scrollbar-thumb {
+  background: rgba(214, 208, 191, 0.22);
+}
+
+.dev__log::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .dev__line {
   margin: 0;
   font-size: 10.5px;
-  line-height: 1.65;
+  line-height: 1.7;
   letter-spacing: 0.02em;
   color: var(--text-dim);
   white-space: pre-wrap;
@@ -197,12 +369,14 @@ function close() {
 }
 
 .dev__line--cmd {
-  color: var(--bone);
   margin-top: 3px;
+  padding-left: 8px;
+  border-left: 2px solid rgba(193, 74, 50, 0.55);
+  color: var(--text);
 }
 
 .dev__line--ok {
-  color: var(--sick);
+  color: var(--bone);
 }
 
 .dev__line--warn {
@@ -210,74 +384,83 @@ function close() {
 }
 
 .dev__form {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 7px;
   padding: 8px 10px;
-  border-top: 1px solid rgba(124, 152, 64, 0.3);
-  background: rgba(0, 0, 0, 0.35);
+  border-top: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.3);
 }
 
 .dev__prompt {
   font-size: 11px;
-  color: var(--sick);
+  color: var(--rust-soft);
 }
 
 .dev__input {
   flex: 1;
   min-width: 0;
-  height: 28px;
-  padding: 0 8px;
+  height: 30px;
+  padding: 0 9px;
   font-family: var(--font-mono);
   font-size: 11px;
-  color: var(--bone);
-  background: rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(124, 152, 64, 0.4);
+  color: var(--text);
+  background: rgba(8, 9, 10, 0.9);
+  border: 1px solid var(--line);
   outline: none;
+  transition: border-color 0.2s;
+}
+
+.dev__input::placeholder {
+  color: var(--text-mute);
 }
 
 .dev__input:focus {
-  border-color: rgba(124, 152, 64, 0.8);
+  border-color: var(--rust);
 }
 
 .dev__run {
-  height: 28px;
-  padding: 0 10px;
-  font-size: 10.5px;
+  height: 30px;
+  padding: 0 12px;
+  font-size: 11px;
   letter-spacing: 0.08em;
-  color: var(--bone);
-  border: 1px solid rgba(124, 152, 64, 0.5);
-  background: rgba(124, 152, 64, 0.14);
+  color: #f0e3d2;
+  border: 1px solid rgba(193, 74, 50, 0.7);
+  background: rgba(193, 74, 50, 0.18);
   cursor: pointer;
+  transition: 0.2s;
 }
 
 .dev__run:hover {
-  background: rgba(124, 152, 64, 0.26);
+  background: rgba(193, 74, 50, 0.32);
 }
 
 .dev__foot {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 10px;
-  border-top: 1px solid rgba(124, 152, 64, 0.22);
+  padding: 8px 10px;
+  border-top: 1px solid var(--line);
   font-size: 9px;
   color: var(--text-mute);
 }
 
 .dev__quick {
-  height: 22px;
-  padding: 0 7px;
+  height: 24px;
+  padding: 0 8px;
   font-family: var(--font-mono);
   font-size: 9px;
   color: var(--text-dim);
   border: 1px solid var(--line);
   cursor: pointer;
+  transition: 0.2s;
 }
 
 .dev__quick:hover {
-  color: var(--bone);
-  border-color: rgba(124, 152, 64, 0.5);
+  color: var(--text);
+  border-color: var(--rust);
 }
 
 @media (max-width: 560px) {

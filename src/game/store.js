@@ -2,6 +2,7 @@ import { computed, reactive, watch } from 'vue'
 import { ACHIEVEMENTS, DEFAULT_CHARACTER_NAME, DEFAULT_STATS, MAPS, STAT_DEFS, STAT_ENDINGS } from './config'
 import { preloadAssets } from './assets'
 import { startMusic } from './music'
+import { battle } from './battle'
 import {
   BACKPACK_MAX_SIZE,
   BACKPACK_SIZE,
@@ -307,6 +308,17 @@ export function notify(text, duration = 2400) {
 
 const ACHIEVEMENT_NAMES = Object.fromEntries(ACHIEVEMENTS.map((item) => [item.id, item.name]))
 
+/** 六种属性死亡：跨周目累计种类，用于「死神来了」 */
+const ATTRIBUTE_DEATHS = ['饥荒', '缺水', '自缢', '过劳', '尸变', '伤重不治']
+
+/** 按死亡结局直接解锁的成就：checkAchievements 在死亡后会提前返回，必须在此处理 */
+const DEATH_ENDING_ACHIEVEMENTS = {
+  恶魔: 'death-list',
+  溺水: 'swim-champion',
+  食人魔: 'become-barbecue',
+  高利贷: 'negative-second-gen',
+}
+
 const HIGH_TIER_NAMES = ['传说', '神话']
 
 /** 背包或已装备武器中是否拥有高品阶武器 */
@@ -317,6 +329,11 @@ function ownsHighTierWeapon() {
     game.equipment.ranged ? getItem(game.equipment.ranged.id) : null,
   ]
   return defs.some((def) => HIGH_TIER_NAMES.includes(def?.tier))
+}
+
+/** 专项训练完成计数：用于成就统计，随存档 flags 保存 */
+function recordTraining() {
+  game.flags.trainingTotal = (Number(game.flags.trainingTotal) || 0) + 1
 }
 
 /** 可自动判定的成就条件：读取当前存档状态即可 */
@@ -365,6 +382,22 @@ const ACHIEVEMENT_CHECKS = {
   'rocket-send': () => game.finale === ROCKET.finaleSend,
   'playtime-1h': () => globalStats.totalPlaytime >= 3600,
   'playtime-10h': () => globalStats.totalPlaytime >= 36000,
+  'first-dodge': () => (Number(game.flags.playerDodgeCount) || 0) >= 1,
+  'first-talent': () => Object.values(game.talents).some((level) => level > 0),
+  'first-spray': () => (Number(game.flags.sprayProcCount) || 0) >= 1,
+  'magic-10': () => (Number(game.flags.magicPeak) || 0) >= 10,
+  'insight-full': () => (Number(game.flags.insightPeak) || 0) >= 5,
+  'first-sweep': () => (Number(game.flags.sweepHitCount) || 0) >= 1,
+  'execution-3': () => (Number(game.flags.executeCount) || 0) >= 3,
+  'first-break': () => (Number(game.flags.weaponBrokenCount) || 0) >= 1,
+  'training-30': () => (Number(game.flags.trainingTotal) || 0) >= 30,
+  'talents-12': () =>
+    Object.values(game.talents).filter((level) => level > 0).length >= 12,
+  'talent-master': () =>
+    Object.values(TALENTS).some((talent) => (game.talents[talent.key] || 0) >= talent.maxLevel),
+  'mutiny-fame': () => game.finale === '油轮沉没',
+  'family-and-love': () => game.finale === '爱恨情仇',
+  'straw-hat': () => game.finale === '远洋航行',
 }
 
 let achievementGuard = false
@@ -801,8 +834,20 @@ function die(reason, ending = '') {
   game.dead = true
   game.deathReason = reason
   game.ending = ending
-  if (ending === '恶魔' && unlockAchievement('death-list')) {
-    notify('成就解锁 · 死亡名单')
+  // 「恶魔」在 FINALES 里有完整结局文案，补上 finale 让浮层优先展示；
+  // 其余死亡结局没有对应文案，仍走死亡卡片。
+  if (ending === '恶魔') game.finale = '恶魔'
+
+  const direct = DEATH_ENDING_ACHIEVEMENTS[ending]
+  if (direct && unlockAchievement(direct)) {
+    notify(`成就解锁 · ${ACHIEVEMENT_NAMES[direct] ?? direct}`)
+  }
+  if (ATTRIBUTE_DEATHS.includes(ending)) {
+    if (!globalStats.deathEndings.includes(ending)) globalStats.deathEndings.push(ending)
+    const seen = globalStats.deathEndings.filter((name) => ATTRIBUTE_DEATHS.includes(name)).length
+    if (seen >= ATTRIBUTE_DEATHS.length && unlockAchievement('death-reaper')) {
+      notify('成就解锁 · 死神来了')
+    }
   }
 }
 
@@ -922,7 +967,11 @@ export function sleepRest(kind) {
 
 /* ===== 地图 ===== */
 
-export function enterMap(mapId) {
+/**
+ * 进入地图。freeEntry 为 true 时跳过入场消耗，但仍执行全部校验
+ * （开放状态 / 解锁天数 / 港口封禁 / hidden / 身份冲突 / 当前区域）。
+ */
+export function enterMap(mapId, { freeEntry = false } = {}) {
   if (game.dead) return false
   const map = MAPS.find((item) => item.id === mapId)
   if (!map) return false
@@ -960,7 +1009,7 @@ export function enterMap(mapId) {
     return false
   }
 
-  adjustStats(ENTRY_COST)
+  if (!freeEntry) adjustStats(ENTRY_COST)
   game.location = mapId
   if (fieldMapById(mapId)) {
     const visited = Array.isArray(game.flags.visitedMaps) ? game.flags.visitedMaps : []
@@ -972,11 +1021,17 @@ export function enterMap(mapId) {
     notify(
       unlocked
         ? `进入「${map.name}」 · 成就解锁 · 望见曙光`
-        : `进入「${map.name}」 · 口渴 / 饱食 / 体力 -5`,
+        : freeEntry
+          ? `进入「${map.name}」`
+          : `进入「${map.name}」 · 口渴 / 饱食 / 体力 -5`,
       3200,
     )
   } else {
-    notify(`进入「${map.name}」 · 口渴 / 饱食 / 体力 -5`)
+    notify(
+      freeEntry
+        ? `进入「${map.name}」`
+        : `进入「${map.name}」 · 口渴 / 饱食 / 体力 -5`,
+    )
   }
   return true
 }
@@ -1101,6 +1156,7 @@ export function utopiaTrain(kind) {
   const before = game.talents[kind] || 0
   game.talents[kind] = level
   game.training[kind] = progress
+  recordTraining()
   if (level > before) {
     const title = talentTitle(kind, level)
     notes.push(`天赋提升 · ${title}`)
@@ -2841,7 +2897,7 @@ export function takeDevHealingGift() {
   return '游戏开发者推来一箱医疗物资：绷带 20、止痛药 20、止血带 20。「这次不用缝。」'
 }
 
-/** 一次性糖果礼包：开发者糖果 ×6 */
+/** 一次性糖果礼包：开发者糖果 ×10 */
 export function takeDevCandyGift() {
   const blocked = devGuard()
   if (blocked !== null) return blocked
@@ -2887,15 +2943,16 @@ const DEV_HELP = [
   '/day 数字 — 跳转到指定天数（不消耗回合）',
   '/tp 地图名字 — 0 回合传送到指定地图',
   '/get 物品名称 数量 — 获得对应物品',
+  '/remove — 移除背包里的所有物品（除开发者宝石）',
   '/kill on|off — 开启 / 关闭一击必杀',
-  '/lock — 锁定所有状态条，不再恶化',
-  '/unlock — 解除状态条锁定',
-  '/lock o — 锁定深海氧气，近战不再消耗氧气',
-  '/unlock o — 解除深海氧气锁定',
+  '/lock on|off — 锁定 / 解除状态条',
+  '/ox on|off — 锁定 / 解除深海氧气',
+  '/talent max|min — 所有天赋满级 / 重置',
   '/backpack — 背包容量提升至 200 格',
-  '/talent max — 所有天赋满级',
-  '/talent clear — 所有天赋重置为 0',
-  '/Re NPC名字 — 复活指定 NPC（可能影响任务，慎用）',
+  '/coin_a 数量 — 获得末日币',
+  '/coin_b 数量 — 获得曙光币',
+  '/gem — 获得除开发者宝石外的所有宝石',
+  '/re NPC名字 — 复活指定 NPC（可能影响任务，慎用）',
 ].join('\n')
 
 /** 按名字或地区简写查找地图 */
@@ -2951,23 +3008,29 @@ export function runDevCommand(input) {
   }
 
   if (command === '/lock') {
-    const target = (args[0] ?? '').toLowerCase()
-    if (target === 'o' || target === 'oxygen' || target === '氧气') {
-      devState.lockOxygen = true
-      return '氧气已锁定：深海战斗中近战不再消耗氧气。'
+    const mode = (args[0] ?? '').toLowerCase()
+    if (mode === 'on') {
+      devState.lockStats = true
+      return '状态条已锁定：生命、饱食、口渴、理智、体力不再下降，感染不再上升。'
     }
-    devState.lockStats = true
-    return '状态条已锁定：生命、饱食、口渴、理智、体力不再下降，感染不再上升。'
+    if (mode === 'off') {
+      devState.lockStats = false
+      return '状态条已解锁，恢复正常衰减。'
+    }
+    return '用法：/lock on 或 /lock off'
   }
 
-  if (command === '/unlock') {
-    const target = (args[0] ?? '').toLowerCase()
-    if (target === 'o' || target === 'oxygen' || target === '氧气') {
-      devState.lockOxygen = false
-      return '氧气锁定已解除，深海近战恢复每次 20 点消耗。'
+  if (command === '/ox') {
+    const mode = (args[0] ?? '').toLowerCase()
+    if (mode === 'on') {
+      devState.lockOxygen = true
+      return '深海氧气已锁定：深海战斗中近战不再消耗氧气。'
     }
-    devState.lockStats = false
-    return '状态条已解锁，恢复正常衰减。'
+    if (mode === 'off') {
+      devState.lockOxygen = false
+      return '深海氧气已解锁，深海近战恢复每次 20 点消耗。'
+    }
+    return '用法：/ox on 或 /ox off'
   }
 
   if (command === '/backpack') {
@@ -3000,6 +3063,49 @@ export function runDevCommand(input) {
       : `获得 ${def.name} ×${qty}。`
   }
 
+  if (command === '/remove') {
+    let removed = 0
+    for (let index = 0; index < game.inventory.length; index += 1) {
+      const entry = game.inventory[index]
+      if (!entry || entry.id === 'developer-gem') continue
+      game.inventory[index] = null
+      removed += 1
+    }
+    return removed > 0
+      ? `已移除背包里的 ${removed} 件物品，开发者宝石已保留。`
+      : '背包里没有可移除的物品（开发者宝石已保留）。'
+  }
+
+  if (command === '/gem') {
+    const gems = Object.values(ITEMS).filter(
+      (item) => item.category === 'gem' && item.special !== 'developer-gem',
+    )
+    const given = []
+    const missed = []
+    for (const gem of gems) {
+      const leftover = addItem(game.inventory, gem.id, 1)
+      if (leftover > 0) missed.push(gem.name)
+      else given.push(gem.name)
+    }
+    const lines = []
+    if (given.length) lines.push(`获得宝石：${given.join(' / ')}。`)
+    if (missed.length) lines.push(`背包空间不足，未能放入：${missed.join(' / ')}。`)
+    return lines.join('\n')
+  }
+
+  if (command === '/coin_a' || command === '/coin_b') {
+    const value = Number.parseInt(args[0], 10)
+    if (!Number.isFinite(value) || value <= 0) {
+      return `用法：${command} 数量（正整数）`
+    }
+    if (command === '/coin_a') {
+      game.coins += value
+      return `获得末日币 ×${value}，当前 ${game.coins}。`
+    }
+    game.dawnCoins += value
+    return `获得曙光币 ×${value}，当前 ${game.dawnCoins}。`
+  }
+
   if (command === '/talent') {
     const mode = (args[0] ?? '').toLowerCase()
     if (mode === 'max') {
@@ -3012,7 +3118,7 @@ export function runDevCommand(input) {
         .join(' · ')
       return `所有天赋已满级：${levels}。最多仍只能启用 ${TALENT_ACTIVE_LIMIT} 个。`
     }
-    if (mode === 'clear') {
+    if (mode === 'min') {
       for (const talent of Object.values(TALENTS)) {
         game.talents[talent.key] = 0
         game.training[talent.key] = 0
@@ -3020,7 +3126,7 @@ export function runDevCommand(input) {
       game.activeTalents = []
       return '所有天赋已重置为 0，熟练度与启用列表已清空。'
     }
-    return '用法：/talent max 或 /talent clear'
+    return '用法：/talent max 或 /talent min'
   }
 
   if (command === '/day') {
@@ -3060,7 +3166,7 @@ export function runDevCommand(input) {
   if (command === '/re') {
     const query = args.join(' ').trim()
     if (!query) {
-      return `用法：/Re NPC名字（可用：${Object.values(NPCS)
+      return `用法：/re NPC名字（可用：${Object.values(NPCS)
         .map((npc) => npc.name)
         .join(' / ')}）`
     }
@@ -3795,6 +3901,25 @@ export function useItem(slotIndex) {
   if (!entry) return
   const def = getItem(entry.id)
 
+  // 开发者宝石：战斗中禁止使用；使用后传送到郊区卖场并正常推进 1 回合，宝石不消失
+  if (def?.special === 'developer-gem') {
+    if (battle.active) {
+      notify('战斗中无法使用开发者宝石，请先结束这场战斗。', 3200)
+      return
+    }
+    if (game.dead) return
+    if (game.location && game.location !== 'suburb-market') leaveMap()
+    if (!enterMap('suburb-market', { freeEntry: true })) {
+      notify('开发者宝石未能开启传送门。', 3200)
+      return
+    }
+    advanceTurns(1)
+    if (!game.dead) {
+      notify('开发者宝石开启捷径 · 已传送至「郊区卖场」 · 消耗 1 回合', 3200)
+    }
+    return
+  }
+
   // 天使宝石：每天免费使用 4 次，全属性恢复 20%，使用后不消失
   if (def?.special === 'angel-gem') {
     const state = game.flags.angelGem
@@ -3868,6 +3993,13 @@ export function discardItem(slotIndex) {
   const entry = game.inventory[slotIndex]
   if (!entry) return
   const def = getItem(entry.id)
+
+  // 开发者宝石是开局唯一馈赠，丢弃后无法恢复，直接拒绝
+  if (def?.special === 'developer-gem') {
+    notify('开发者宝石是开局馈赠，无法丢弃。')
+    return
+  }
+
   const isBadge = def?.category === 'identity'
 
   if (entry.qty > 1) entry.qty -= 1
@@ -4099,6 +4231,7 @@ export function consumeMeleeDurability(cost = null) {
 
   game.equipment.melee = null
   syncHpCap()
+  game.flags.weaponBrokenCount = (Number(game.flags.weaponBrokenCount) || 0) + 1
   notify(`${def?.name ?? '武器'}已经彻底损坏`, 3000)
   return { broken: true, name: def?.name ?? '' }
 }
@@ -4435,6 +4568,12 @@ export function flyToAirship() {
   if (!helicopterReady()) return '直升机停在荒废警局的天台。'
   if (!game.flags[HELICOPTER.repairedFlag]) return HELICOPTER.notRepairedLine
 
+  // 油轮沉没后 365 天内禁入飞行船：起算日为沉没当天，与其他港口封禁同一写法
+  const portBanUntil = Number(game.flags.portBanUntilDay) || 0
+  if (portBanUntil > game.day) {
+    return '油轮沉没后你的名声臭了：暂时无法进入「末日飞行船」。'
+  }
+
   const have = helicopterGasoline()
   if (have < HELICOPTER.travelGasoline) {
     return `${HELICOPTER.noGasolineLine}前往末日飞行船需要 ${HELICOPTER.travelGasoline} 桶汽油（当前 ${have} 桶）。`
@@ -4584,6 +4723,7 @@ function practiceOnce(kind) {
   const before = game.talents[kind]
   game.talents[kind] = level
   game.training[kind] = progress
+  recordTraining()
   if (level > before) {
     const title = talentTitle(kind, level)
     notes.push(`天赋提升 · ${title}（${TALENTS[kind].stat} +${Math.round(talentBonus(kind, level) * 100)}%）`)
@@ -4820,6 +4960,7 @@ export function arenaFight() {
   const before = game.talents.arena
   game.talents.arena = level
   game.training.arena = progress
+  recordTraining()
 
   game.flags[ARENA.flag] = {
     day: actionDay,
@@ -4905,6 +5046,7 @@ export function corridorFight() {
   const before = game.talents.corridor
   game.talents.corridor = level
   game.training.corridor = progress
+  recordTraining()
 
   game.flags[CORRIDOR.flag] = {
     day: actionDay,

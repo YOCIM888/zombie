@@ -62,6 +62,15 @@ import {
 import { playWeaponSfx } from './sfx'
 import { unlockAchievement } from './save'
 
+/** 成就统计：累计次数与峰值，挂在当前存档 flags 上 */
+function bumpStat(key, delta = 1) {
+  game.flags[key] = (Number(game.flags[key]) || 0) + delta
+}
+
+function peakStat(key, value) {
+  if ((Number(game.flags[key]) || 0) < value) game.flags[key] = value
+}
+
 /** 丧尸技能数值：参考一代，按二代 100 血 / 手动回合制缩放 */
 const ABILITY = {
   tripSkip: 0.3,
@@ -573,6 +582,7 @@ function updateMagicStacks(critted) {
     return
   }
   battle.magicStacks = Math.min(MAGIC_GEM_STACK.max, battle.magicStacks + 1)
+  peakStat('magicPeak', battle.magicStacks)
   const percent = Math.round(MAGIC_GEM_STACK.critPerStack * 100)
   pushLog(`魔化 +1 层：暴击率临时 +${percent}%（当前 ${battle.magicStacks} 层）。`)
 }
@@ -793,6 +803,7 @@ export function meleeAttack() {
     // 横扫千军：只加成每轮第一击，连击追加段不吃加成
     if (sweepDamage > 0 && hits === 0) {
       damage = Math.max(1, Math.round(damage * (1 + sweepDamage)))
+      bumpStat('sweepHitCount')
     }
     // 单枪匹马：暴击且耐久足够时该击翻倍，并把该击耐久消耗替换为 critDurability
     let durabilityCost = null
@@ -819,6 +830,7 @@ export function meleeAttack() {
       damage = Math.round(damage * (1 + boneStacks * 0.1))
     }
     if (swordExecute && hits === 0) {
+      bumpStat('executeCount')
       damage = battle.zombie.isWorldBoss
         ? Math.min(500, battle.zombie.hp)
         : battle.zombie.hp
@@ -1065,6 +1077,7 @@ export function rangedAttack() {
     }, 0)
     extraDamage += threeShots
     sprayProc = true
+    bumpStat('sprayProcCount')
     pushLog(
       `泼射触发：追加三发${critShots > 0 ? `（${critShots} 发暴击）` : ''}，额外造成 ${threeShots} 点伤害。`,
     )
@@ -1074,6 +1087,7 @@ export function rangedAttack() {
   // 要害洞察：本次结算完再叠 1 层，跨回合保留、暴击不清空、满 5 层维持
   if (insightWeapon) {
     battle.insightStacks = Math.min(5, insightStacks + 1)
+    peakStat('insightPeak', battle.insightStacks)
     pushLog(`要害洞察 +1 层（${battle.insightStacks} / 5）。`)
   }
 
@@ -1101,6 +1115,7 @@ export function rangedAttack() {
   const dodgeChance = Math.min(1, (weapon.dodge ?? 0) + corridorTalent)
   if (Math.random() < dodgeChance) {
     pushLog('它扑了个空，你侧身退开，避开了这一击。')
+    bumpStat('playerDodgeCount')
     const bulldozerTalent = activeTalentEffects('bulldozer')
     const bulldozerWeapon =
       Array.isArray(bulldozerTalent.dodgeSegments) &&
@@ -1206,6 +1221,14 @@ export function useBattleItem(slotIndex) {
   const entry = game.inventory[slotIndex]
   if (!entry) return
   const def = getItem(entry.id)
+
+  // 开发者宝石在战斗中不可用：拒绝并提示，不消耗行动、不推进僵尸回合
+  if (def?.special === 'developer-gem') {
+    notify('战斗中无法使用开发者宝石，请先结束这场战斗。', 3200)
+    pushLog('开发者宝石在战斗中无法使用。')
+    return
+  }
+
   if (!def?.effects) return
 
   useItem(slotIndex)
