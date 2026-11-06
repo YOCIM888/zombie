@@ -14,7 +14,6 @@ import {
   TRADE_LISTING_LIMIT,
   UTOPIA_TRAININGS,
   WORLD_BOSSES,
-  WORLD_BOSS_HP,
   formatMoney,
   identityRank,
   mayorForDay,
@@ -141,11 +140,11 @@ function bossRowState(boss) {
     return { label: '已击杀', tone: 'done', left: '100%' }
   }
   const saved = Number(game.flags.worldBossHp?.[boss.id])
-  const hp = Number.isFinite(saved) && saved > 0 ? Math.min(WORLD_BOSS_HP, saved) : WORLD_BOSS_HP
-  const ratio = hp / WORLD_BOSS_HP
+  const hp = Number.isFinite(saved) && saved > 0 ? Math.min(boss.hp, saved) : boss.hp
+  const ratio = hp / boss.hp
   return {
-    label: `剩余 ${hp} / ${WORLD_BOSS_HP}`,
-    tone: hp < WORLD_BOSS_HP ? 'cooling' : 'ready',
+    label: `剩余 ${hp} / ${boss.hp}`,
+    tone: hp < boss.hp ? 'cooling' : 'ready',
     left: `${(ratio * 100).toFixed(1)}%`,
   }
 }

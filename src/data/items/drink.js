@@ -47,7 +47,7 @@ const DRINK_LIST = [
     '泥煤味很重，适合暖手也暖胃。'),
 
   /* ===== 限定 ===== */
-  drink('royal-mix', '皇家特调', { thirst: 60, sanity: 60, stamina: 60 },
+  drink('royal-mix', '皇家特调', { thirst: 50, sanity: 50, stamina: 50 },
     '琥珀色的酒液里浮着一层细金粉，杯沿还留着一小片干柠檬。', {
       tier: '限定',
       limited: true,

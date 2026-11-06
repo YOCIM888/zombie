@@ -9,7 +9,7 @@ import { TALENTS, UTOPIA_TRAININGS } from '../../../src/data/talents.js'
 import { GUILDS } from '../../../src/data/guilds.js'
 import { GEM_ITEMS } from '../../../src/data/items/gem.js'
 import { ZOMBIE_TYPES } from '../../../src/data/zombies.js'
-import { WORLD_BOSS_HP, WORLD_BOSSES } from '../../../src/data/worldBoss.js'
+import { WORLD_BOSSES } from '../../../src/data/worldBoss.js'
 import { NPCS } from '../../../src/data/npcs.js'
 import { SEA_TIERS } from '../../../src/data/sea.js'
 
@@ -112,11 +112,13 @@ function target(id, creature, extra = {}) {
     maxHp: creature.hp,
     isBoss: false,
     isSea: false,
+    critSuppression: 0,
     ...extra,
   }
 }
 
 const dragon = WORLD_BOSSES.find((boss) => boss.id === 'dragon') ?? WORLD_BOSSES[0]
+const sirenBoss = WORLD_BOSSES.find((boss) => boss.id === 'siren') ?? WORLD_BOSSES[2]
 const alex = NPCS.alex
 const abyssTier = SEA_TIERS.find((tier) => tier.id === 'special')
 const abyssDragon = abyssTier.creatures.find((creature) => creature.id === 'abyss-dragon')
@@ -140,12 +142,18 @@ export const TARGETS = [
   {
     id: 'boss',
     name: `世界BOSS ${dragon.name}`,
-    hp: WORLD_BOSS_HP,
-    atk: Math.round(((dragon.attackMin ?? 0) + (dragon.attackMax ?? 0)) / 2),
+    hp: dragon.hp,
+    atk: dragon.attack,
     dodge: 0,
     abilities: [],
-    maxHp: WORLD_BOSS_HP,
+    maxHp: dragon.hp,
     isBoss: true,
     isSea: false,
   },
+  target('siren', sirenBoss, {
+    isBoss: true,
+    isWorldBoss: true,
+    // 命中后 50% 概率窒息，下一次攻击暴击率 -100%，按期望折算为暴击率 ×0.5
+    critSuppression: sirenBoss.skill?.chance ?? 0.5,
+  }),
 ]

@@ -46,8 +46,7 @@ function dawnGun(id, name, note) {
 export const DAWN_MARKET = [
   { id: 'bandage', itemId: 'bandage', name: '绷带', price: DAWN_MARKET_PRICES.bandage, note: '生命 +30' },
   { id: 'painkiller', itemId: 'painkiller', name: '止痛药', price: DAWN_MARKET_PRICES.painkiller, note: '理智 +30' },
-  { id: 'canned-meat', itemId: 'canned-meat', name: '肉罐头', price: DAWN_MARKET_PRICES['canned-meat'], note: '饱食 +30' },
-  { id: 'canned-fish', itemId: 'canned-fish', name: '鱼罐头', price: DAWN_MARKET_PRICES['canned-fish'], note: '饱食 +30' },
+  { id: 'canned-fruit', itemId: 'canned-fruit', name: '水果罐头', price: DAWN_MARKET_PRICES['canned-fruit'], note: '饱食 +25，水分 +10' },  
   dawnGun('hunting-bow', '猎弓', '19 攻击 · 14% 暴击 · 35% 暴伤 · 22% 闪避 · 远程武器'),
   dawnGun('glock', 'Glock', '20 攻击 · 10% 暴击 · 28% 暴伤 · 16% 闪避 · 远程武器'),
   dawnGun('pm', 'PM', '20 攻击 · 8% 暴击 · 28% 暴伤 · 18% 闪避 · 远程武器'),
@@ -67,7 +66,7 @@ export const DAWN_BOND_SHOP = [
     badgeId: 'badge-nutritionist',
     badgeName: '营养师徽章',
     price: DAWN_BOND_PRICE,
-    note: '60 攻击 · 65% 暴击 · 2.65 暴伤 · 15% 闪避',
+    note: '88 攻击 · 65% 暴击 · 4 暴伤 · 15% 闪避',
   },
   {
     id: 'bond-meteor-shotgun',
@@ -76,7 +75,7 @@ export const DAWN_BOND_SHOP = [
     badgeId: 'badge-mechanic',
     badgeName: '机械师徽章',
     price: DAWN_BOND_PRICE,
-    note: '80 攻击 · 20% 暴击 · 1.2 暴伤 · 60% 闪避',
+    note: '100 攻击 · 25% 暴击 · 2.25 暴伤 · 60% 闪避',
   },
   {
     id: 'bond-daylight-sniper',
@@ -85,7 +84,7 @@ export const DAWN_BOND_SHOP = [
     badgeId: 'badge-mercenary',
     badgeName: '雇佣兵徽章',
     price: DAWN_BOND_PRICE,
-    note: '128 攻击 · 72% 暴击 · 1.5 暴伤 · 5% 闪避 · 可吃贯穿',
+    note: '128 攻击 · 75% 暴击 · 2.28 暴伤 · 5% 闪避 · 可吃贯穿',
   },
   {
     id: 'bond-frost-greatsword',
@@ -94,7 +93,7 @@ export const DAWN_BOND_SHOP = [
     badgeId: 'badge-farming-master',
     badgeName: '农业大师徽章',
     price: DAWN_BOND_PRICE,
-    note: '98 攻击 · 30% 暴击 · 2.22 暴伤 · 30% 连击 · 288 耐久',
+    note: '108 攻击 · 35% 暴击 · 3.12 暴伤 · 40% 连击 · 288 耐久',
   },
 ]
 
@@ -172,7 +171,7 @@ export const DAWN_RELIEF_TIERS = [
     rank: -1,
     fruitCount: 2,
     items: [],
-    desc: '还没有身份的人也能领一份，只有两个水果，没人会多问一句。',
+    desc: '无身份也能领一份，两个水果，没人会多问一句。',
   },
   {
     id: 'basic',
@@ -212,12 +211,13 @@ export const DAWN_RELIEF_TIERS = [
   },
 ]
 
-/** 每日工资：按当前曙光身份发放，四档共用每天一次 */
+/** 每日工资：按当前曙光身份发放，五档共用每天一次 */
 export const DAWN_SALARY = [
-  { identity: '队员', rank: 0, coins: 2 },
-  { identity: '队长', rank: 1, coins: 5 },
-  { identity: '指挥', rank: 2, coins: 8 },
-  { identity: '副首', rank: 3, coins: 10 },
+  { identity: '无身份', rank: -1, coins: 1 },
+  { identity: '队员', rank: 0, coins: 5 },
+  { identity: '队长', rank: 1, coins: 8 },
+  { identity: '指挥', rank: 2, coins: 10 },
+  { identity: '副首', rank: 3, coins: 15 },
 ]
 
 /** 首领·羿阳：人类，不吃感染 */

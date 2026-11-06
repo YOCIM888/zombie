@@ -56,19 +56,18 @@ export function claimDawnRelief(tierId = 'basic') {
   return `你从物资箱里领到「${tier.name}」：${parts.join('、')}。`
 }
 
-/** 每日工资：按当前曙光身份领取，四档共用每天一次 */
+/** 每日工资：按当前曙光身份领取，五档共用每天一次（无身份也有 1 曙光币） */
 export function claimDawnSalary() {
   if (!dawnReady()) return ''
   const identity = dawnInfo(game.dawnIdentity)
-  if (!identity) return '先联系管事加入曙光，才有工资可领。'
-  const salary = DAWN_SALARY.find((item) => item.rank === identity.rank)
+  const salary = DAWN_SALARY.find((item) => item.rank === (identity?.rank ?? -1))
   if (!salary) return ''
   if (!useCooldown('dawn-salary', PALACE_COOLDOWN.daily)) {
     return '今天的工资已经领过了，明天再来。'
   }
 
   game.dawnCoins += salary.coins
-  return `领取「${identity.name}」每日工资：曙光币 +${salary.coins}。`
+  return `领取「${identity?.name ?? '无身份'}」每日工资：曙光币 +${salary.coins}。`
 }
 
 /** 曙光市场：全部用曙光币结算 */

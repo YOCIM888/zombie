@@ -548,7 +548,7 @@ export const DEV_SHOP = {
     { id: 'canned-beans', qty: 30 },
     { id: 'cranberry', qty: 30 },
     { id: 'dagger', qty: 1 },
-    { id: 'glock', qty: 1 },
+    { id: 'm1911', qty: 1 },
   ],
   knightItems: [
     { id: 'badge-knight', qty: 1 },

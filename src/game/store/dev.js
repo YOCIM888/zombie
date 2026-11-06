@@ -36,7 +36,7 @@ export function takeDevNoviceGift() {
   game.coins += DEV_SHOP.noviceCoins
   game.dawnCoins += DEV_SHOP.noviceDawnCoins
   game.flags.devNoviceGiftTaken = true
-  return `游戏开发者递来一个新手礼包：末日币 +${DEV_SHOP.noviceCoins}，曙光币 +${DEV_SHOP.noviceDawnCoins}，外加万能灵药、抗感染针、罐头、越蔓梅、战术匕首和 Glock。「先活过这几天再说。」`
+  return `游戏开发者递来一个新手礼包：末日币 +${DEV_SHOP.noviceCoins}，曙光币 +${DEV_SHOP.noviceDawnCoins}，外加万能灵药、抗感染针、罐头、越蔓梅、战术匕首和 M1911。「先活过这几天再说。」`
 }
 
 /** 一次性骑士礼包：骑士徽章与白兰地 */
@@ -66,7 +66,7 @@ export function takeDevHealingGift() {
     addItem(game.inventory, item.id, item.qty)
   }
   game.flags.devHealingGiftTaken = true
-  return '游戏开发者推来一箱医疗物资：绷带 20、止痛药 20、止血带 20。「这次不用缝。」'
+  return '游戏开发者推来一箱医疗物资：绷带 10、止痛药 10、止血带 10。「这次不用缝。」'
 }
 
 /** 一次性糖果礼包：开发者糖果 ×10 */
@@ -81,7 +81,7 @@ export function takeDevCandyGift() {
     addItem(game.inventory, item.id, item.qty)
   }
   game.flags.devCandyGiftTaken = true
-  return '游戏开发者推来一袋糖果：开发者糖果 ×6。「甜的东西，至少不会咬你。」'
+  return '游戏开发者推来一袋糖果：开发者糖果 ×10。「甜的东西，至少不会咬你。」'
 }
 
 /** 背包扩容：按当前容量分段收费，每次增加 10 格，上限 200 格 */

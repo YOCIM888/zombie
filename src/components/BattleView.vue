@@ -29,6 +29,7 @@ import {
   meleeAttack,
   rangedAttack,
   useBattleItem,
+  worldBossAttackBonus,
 } from '../game/battle'
 
 const emit = defineEmits(['done'])
@@ -281,10 +282,28 @@ const worldBossDamage = computed(() =>
     : 0,
 )
 const enemyAttackText = computed(() => {
-  const { attackMin, attackMax, attack } = battle.zombie
+  const { attackMin, attackMax, attack, isWorldBoss } = battle.zombie
+  if (isWorldBoss) {
+    const bonus = worldBossAttackBonus(battle.zombie)
+    return bonus > 0 ? `${attack}（+${bonus}）` : `${attack}`
+  }
   return Number.isFinite(attackMin) && Number.isFinite(attackMax)
     ? `${attackMin}-${attackMax}`
     : attack
+})
+const bossSkillText = computed(() => battle.zombie.skill?.text ?? '')
+const bossSkillState = computed(() => {
+  const zombie = battle.zombie
+  const skill = zombie.skill
+  if (!skill) return ''
+  if (skill.type === 'dodge-rage') {
+    return `怒火 ${zombie.bossStacks || 0} / ${skill.maxStacks} 层`
+  }
+  if (skill.type === 'hp-enrage') {
+    const bonus = worldBossAttackBonus(zombie)
+    return bonus > 0 ? `狂暴 · 攻击 +${bonus}` : ''
+  }
+  return ''
 })
 const rangedLocked = computed(() => isSeaBattle.value || !ranged.value.canFire)
 const meleeHint = computed(() =>
@@ -392,6 +411,9 @@ function finish() {
           <span v-if="battle.kind === 'spar'" class="meta__ability">切磋 · 双方锁血 1</span>
           <span v-if="battle.kind === 'world-boss'" class="meta__ability">世界BOSS · 逃跑必定成功</span>
           <span v-if="battle.zombie.hpFloor" class="meta__ability">锁血 {{ battle.zombie.hpFloor }}</span>
+          <span v-if="bossSkillText" class="meta__ability">BOSS技能 · {{ bossSkillText }}</span>
+          <span v-if="bossSkillState">{{ bossSkillState }}</span>
+          <span v-if="battle.suffocated" class="meta__ability">窒息 · 下次攻击无法暴击</span>
           <span v-for="label in abilityLabels" :key="label" class="meta__ability">{{ label }}</span>
           <span v-if="battle.kind === 'mutiny'">
             第 {{ battle.mutinyStage + 1 }} / {{ HARBOR_MUTINY.crewCount + 1 }} 轮

@@ -20,15 +20,16 @@ const FOOD_LIST = [
     '包装皱成一团，热量密度高得不像食物。'),
   food('instant-noodle', '干脆面', { hunger: 20 },
     '塑料袋里压得粉碎，调料包倒进去，干嚼也能听见响声。'),
-  food('potato-chips', '薯片', { hunger: 20 },
+  food('potato-chips', '薯片', { hunger: 20, sanity: 2},
     '大半袋是空气，剩下的一半也碎得差不多了。'),
   food('compressed-biscuit', '压缩饼干', { hunger: 25 },
     '硬得像砖头，嚼久了会尝出一丝甜味。至少能填饱肚子。'),
-  food('whole-wheat-bread', '全麦面包', { hunger: 25 },
-    '边角发硬，中间还能撕出软芯。'),
   food('death-spicy-strip', '死神辣条', { hunger: 25, sanity: -2 },
     '红得发黑的辣条，包装上画着一个骷髅。辣得人眼冒金星，脑子里嗡嗡作响。'),
-  food('canned-fruit', '水果罐头', { hunger: 25, thirst: 10 },
+  food('whole-wheat-bread', '全麦面包', { hunger: 30 },
+    '边角发硬，中间还能撕出软芯。'),
+  //罐头食品
+  food('canned-fruit', '水果罐头', { hunger: 15, thirst: 15 },
     '糖水泡着的果块，保质期长得可疑。'),
   food('pickled-veg-can', '腌菜罐头', { hunger: 30 },
     '酸味冲鼻，却很下饭。'),
@@ -61,18 +62,18 @@ const FOOD_LIST = [
 
   /* ===== 深海：不进入常规探索池 ===== */
   food('mutant-fish', '变异鱼肉', {
-    hunger: 30, thirst: 30, stamina: 100, sanity: -80, infection: 80,
+    hunger: 30, thirst: 30, stamina: 100, sanity: -90, infection: 90,
   }, '鱼肉泛着不自然的蓝光，入口后胃里像有什么东西在慢慢苏醒。', {
     special: true,
   }),
   food('safe-fish', '无害化鱼肉', {
-    hunger: 30, thirst: 30, stamina: 50,
+    hunger: 40, thirst: 40, stamina: 65,
   }, '处理过的鱼肉不再发蓝，煎熟后只剩正常的腥香。', {
     special: true,
   }),
 
   /* ===== 限定 ===== */
-  food('royal-dessert', '皇家甜点', { hunger: 60, hp: 60, infection: -60 },
+  food('royal-dessert', '皇家甜点', { hunger: 50, hp: 50, infection: -50 },
     '奶油上压着王宫的家徽，甜得几乎不像末日里的东西。', {
       tier: '限定',
       limited: true,

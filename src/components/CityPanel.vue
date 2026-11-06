@@ -251,9 +251,9 @@ function loanRemainText(short = false) {
 /** 不同身份的逾期后果说明 */
 function loanWarning(tier) {
   if (!tier) return '没有身份时银行不会放贷。'
-  if (tier.deathOnDefault) return '逾期未还：直接死亡（结局「高利贷」）。'
+  if (tier.deathOnDefault) return '逾期未还：会有严重严重影响。'
   if (tier.confiscate) {
-    return '逾期未还：没收背包内全部食物、饮品与药品（仅一次），欠款保留；未还清前不可再借。'
+    return '逾期未还：抵押一部分生存物资，欠款保留；未还清前不可再借。'
   }
   return '逾期未还：欠款保留；未还清前不可再借。'
 }
@@ -370,7 +370,7 @@ function closePanel() {
         <span>34% 什么也没有</span>
       </div>
       <button type="button" class="btn btn--primary pane__action" @click="run(exploreCity)">
-        在此探索 · 1 回合
+        探索 · 1 回合
       </button>
     </section>
 
@@ -855,7 +855,7 @@ function closePanel() {
           持有：末日币 {{ formatMoney(game.coins) }} · 曙光币 {{ formatMoney(game.dawnCoins) }}
           <br v-if="rateInfo.cityFallback || rateInfo.dawnFallback" />
           <span v-if="rateInfo.cityFallback || rateInfo.dawnFallback">
-            未加入的阵营按最低身份（平民 / 队员）保底计算。
+            未加入的阵营按最低身份（平民 / 无身份）保底计算。
           </span>
         </p>
 
@@ -961,7 +961,7 @@ function closePanel() {
             <h4 class="row__name">成为骑士</h4>
             <p class="row__desc">需要 30 末日币，并已拥有平民身份。</p>
           </div>
-          <button type="button" class="btn" @click="run(becomeKnight)">办理 · 30 币</button>
+          <button type="button" class="btn" @click="run(becomeKnight)">办理</button>
         </article>
       </div>
 

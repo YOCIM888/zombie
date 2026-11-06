@@ -173,13 +173,13 @@ export const NPCS = {
     description: '他把猎弓靠在墙边，空着手走到市政厅的空地上，靴底在石板上敲了两下。',
     deathLine: '岑野退后一步，抬手示意到此为止。',
   }),
-  guildLeaderWarrior: npc('guild-leader-warrior', '铁山', 520, 34, {
+  guildLeaderWarrior: npc('guild-leader-warrior', '铁壁', 520, 34, {
     mapId: 'utopia-city',
     dodge: 0.08,
     hpFloor: 1,
     deathFlag: 'guildLeaderWarriorSparred',
-    description: '铁山把护甲扣紧，站定后把拳头抬到胸前，示意你随时可以开始。',
-    deathLine: '铁山放下拳头，护甲发出一声闷响。',
+    description: '铁壁把护甲扣紧，站定后把拳头抬到胸前，示意你随时可以开始。',
+    deathLine: '铁壁放下拳头，护甲发出一声闷响。',
   }),
   guildLeaderPriest: npc('guild-leader-priest', '白鸢', 380, 24, {
     mapId: 'utopia-city',

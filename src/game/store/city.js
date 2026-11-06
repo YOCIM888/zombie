@@ -227,10 +227,10 @@ export function waiveLoanInterest() {
   return `行长免去了 ${waived} 币利息：现在只还本金 ${game.loan.principal} 币，到期日顺延至第 ${game.loan.dueDay} 天。`
 }
 
-/** 兑换汇率：按两地历史最高身份的日收入购买力计算，1 曙光币 = ? 末日币 */
+/** 兑换汇率：按两地历史最高身份的日收入购买力计算；从未加入的阵营按最低身份保底（平民 / 无身份） */
 export function exchangeRateInfo() {
   const cityIdentity = game.maxIdentity ?? game.identity ?? '平民'
-  const dawnIdentity = game.maxDawnIdentity ?? game.dawnIdentity ?? '队员'
+  const dawnIdentity = game.maxDawnIdentity ?? game.dawnIdentity ?? '无身份'
   const labor = LABOR_TIERS.find((tier) => tier.identity === cityIdentity)?.coins ?? 0
   const cityIncome = labor + (PALACE_SALARY[cityIdentity] ?? 0)
   const dawnIncome =

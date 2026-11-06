@@ -25,6 +25,9 @@ const KNUCKLE = FIST_WEAPONS
 const KNIGHT_SWORD = 'knight-sword'
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v))
+/** 塞涅娅的窒息：靶标带 critSuppression 时，按触发概率折算期望暴击率 */
+const critAfterSuppression = (p, tg) =>
+  p * (1 - clamp(Number(tg && tg.critSuppression) || 0, 0, 1))
 const xi = (c) => 0.5 + 0.5 * (clamp(c || 0, 0, MAXCLEAN) / MAXCLEAN)
 const jamChance = (c) => {
   c = clamp(c || 0, 0, MAXCLEAN)
@@ -202,7 +205,7 @@ function meleeExact(D, tg, st) {
   const magic = st.magicStacks || 0
   const bone0 = Math.min(10, st.boneStacks || 0)
   const cd = S.critDamage ?? 0
-  const pCrit = cd >= 1 ? clamp(S.crit + (D.knightOK ? D.guild.critBonus || 0 : 0) + (D.warriorOK ? D.guild.critBonus || 0 : 0) + magic * MAGIC_GEM_STACK.critPerStack, 0, 1) : 0
+  const pCrit = cd >= 1 ? critAfterSuppression(clamp(S.crit + (D.knightOK ? D.guild.critBonus || 0 : 0) + (D.warriorOK ? D.guild.critBonus || 0 : 0) + magic * MAGIC_GEM_STACK.critPerStack, 0, 1), tg) : 0
   const ce = cd + (D.knightOK ? D.guild.critDamageBonus || 0 : 0) + (D.inHarvest ? D.harvestFx.critDamage || 0 : 0)
   const flat =
     D.flat +
@@ -322,7 +325,7 @@ function rangedExact(D, tg, st) {
   const pistolOn = D.inPistol
   const assaultOn = D.inAssault
   const cd = S.critDamage ?? 1
-  const pCrit = clamp(
+  const pCrit = critAfterSuppression(clamp(
     (S.crit || 0) +
       (D.rangedFx.crit || 0) +
       (pistolOn ? D.pistolFx.crit || 0 : 0) +
@@ -330,7 +333,7 @@ function rangedExact(D, tg, st) {
       magic * MAGIC_GEM_STACK.critPerStack,
     0,
     1,
-  )
+  ), tg)
   const F =
     cd +
     (pistolOn ? D.pistolFx.critDamage || 0 : 0) +
@@ -420,7 +423,7 @@ function meleeAction(D, st, tg, rnd) {
   const bm = bloodMult(st.hpPct)
   const seaBonus = D.isSea && D.weapon.id === 'trident' ? 1.5 : 1
   for (let c = 0; c < 500; c++) {
-    const critP = clamp(S.crit + (D.knightOK ? D.guild.critBonus || 0 : 0) + (D.warriorOK ? D.guild.critBonus || 0 : 0) + magicAtStart * MAGIC_GEM_STACK.critPerStack, 0, 1)
+    const critP = critAfterSuppression(clamp(S.crit + (D.knightOK ? D.guild.critBonus || 0 : 0) + (D.warriorOK ? D.guild.critBonus || 0 : 0) + magicAtStart * MAGIC_GEM_STACK.critPerStack, 0, 1), tg)
     const isCrit = rnd() < critP && (S.critDamage ?? 0) >= 1
     const ce = (S.critDamage ?? 0) + (D.knightOK ? D.guild.critDamageBonus || 0 : 0) + (D.inHarvest ? D.harvestFx.critDamage || 0 : 0)
     let G = Math.max(1, Math.round(D.atk * (isCrit ? ce : 1) * seaBonus))
@@ -513,7 +516,7 @@ function rangedAction(D, st, tg, rnd) {
   }
   const pistolOn = D.inPistol
   const assaultOn = D.inAssault
-  const critP = clamp(
+  const critP = critAfterSuppression(clamp(
     (S.crit || 0) +
       (D.rangedFx.crit || 0) +
       (pistolOn ? D.pistolFx.crit || 0 : 0) +
@@ -521,7 +524,7 @@ function rangedAction(D, st, tg, rnd) {
       magicAtStart * MAGIC_GEM_STACK.critPerStack,
     0,
     1,
-  )
+  ), tg)
   const F =
     (S.critDamage ?? 1) +
     (pistolOn ? D.pistolFx.critDamage || 0 : 0) +

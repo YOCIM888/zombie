@@ -32,7 +32,7 @@ const MEDICINE_LIST = [
     '白色药片，吞下去之后，疼的地方会变得很远。'),
   medicine('sedative', '镇静剂', { sanity: 60 },
     '透明安瓿里的药液很凉，推下去之后，耳朵里的声音会慢慢退远。'),
-  medicine('antibiotic', '抗生素', { infection: -20 },
+  medicine('antibiotic', '抗生素', { infection: -30 },
     '一板过期的胶囊，对付伤口里的东西比对付感冒更有用。'),
   medicine('anti-infection-shot', '抗感染针', { infection: -50 },
     '一支浑浊的药剂，推下去之后喉咙里全是苦味。'),

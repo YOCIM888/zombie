@@ -48,8 +48,8 @@ export const KNIGHT_COST = 20
 
 /** 王宫贵族商店：限定武器与饮食，按物品 id 定价（末日币） */
 export const PALACE_SHOP_PRICES = {
-  'royal-lance': 288,
-  'royal-scepter': 188,
+  'royal-lance': 388,
+  'royal-scepter': 288,
   'royal-mix': 10,
   'royal-dessert': 10,
 }
@@ -67,8 +67,7 @@ export const PALACE_ACTIVITY_PRICES = {
 export const DAWN_MARKET_PRICES = {
   bandage: 1,
   painkiller: 1,
-  'canned-meat': 1,
-  'canned-fish': 1,
+  'canned-fruit': 1,
 }
 
 /* ===== 货币兑换 ===== */
@@ -84,7 +83,7 @@ export function exchangeRateFromIncome(cityIncome, dawnIncome) {
 }
 
 /** 羁绊商店统一价：额外提交对应纪念徽章（曙光币） */
-export const DAWN_BOND_PRICE = 365
+export const DAWN_BOND_PRICE = 600
 
 /** 常驻人物服务：配餐 / 调配药剂 / 训练（曙光币，照看实验田免费） */
 export const DAWN_SERVICE_PRICES = {
@@ -95,12 +94,12 @@ export const DAWN_SERVICE_PRICES = {
 
 /** 物资回收：各品质的每日浮动区间（曙光币）；限定武器固定象征价 1 */
 export const DAWN_RECYCLE_RANGES = {
-  普通: [1, 3],
-  稀有: [4, 7],
-  精良: [8, 12],
-  史诗: [13, 20],
-  传说: [21, 30],
-  神话: [31, 50],
+  普通: [1, 5],
+  稀有: [6, 15],
+  精良: [16, 27],
+  史诗: [28, 45],
+  传说: [46, 60],
+  神话: [60, 80],
   限定: [1, 1],
 }
 

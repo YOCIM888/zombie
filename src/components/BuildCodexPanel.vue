@@ -129,6 +129,7 @@ const calc = computed(() => {
     abilities: target.abilities,
     isBoss: target.isBoss,
     isSea: target.isSea,
+    critSuppression: target.critSuppression ?? 0,
   }
   const derived = store.derive(
     { weapon: cfg.weapon, talents, guild: cfg.guild || null, gems: cfg.gems },
@@ -161,6 +162,14 @@ const calc = computed(() => {
     { label: '期望击数 / 回合', value: derived.isMelee ? num(exact.hits) : '1' },
     { label: '暴击率', value: pct(exact.pCrit) },
     { label: '爆伤倍率', value: `${num(exact.cdmg)}×` },
+  ]
+  if (target.critSuppression) {
+    rows.push({
+      label: '窒息暴击压制',
+      value: `期望暴击 ×${num(1 - target.critSuppression)}`,
+    })
+  }
+  rows.push(
     {
       label: '攻击基数',
       value: num(derived.atk) + (derived.flat ? `（+${derived.flat} 平砍）` : ''),
@@ -176,7 +185,7 @@ const calc = computed(() => {
       label: '期望碎骨叠层 / 回合',
       value: exact.bonePerTurn > 0 ? exact.bonePerTurn.toFixed(2) : '—',
     },
-  ]
+  )
   if (derived.gems.has('magic-gem')) {
     rows.push({ label: '魔化平均层数', value: `${magicStacks.toFixed(1)} / ${MAGIC_GEM_STACK.max}` })
   }
@@ -499,7 +508,11 @@ onMounted(async () => {
             <select v-model="cfg.target">
               <option v-for="target in data.targets" :key="target.id" :value="target.id">
                 {{ target.name }} · {{ target.hp }} HP · 攻 {{ target.atk
-                }}{{ target.isSea ? ' · 深海' : '' }}
+                }}{{ target.isSea ? ' · 深海' : '' }}{{
+                  target.critSuppression
+                    ? ` · 窒息 ${Math.round(target.critSuppression * 100)}%`
+                    : ''
+                }}
               </option>
             </select>
           </label>

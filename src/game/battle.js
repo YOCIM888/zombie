@@ -108,6 +108,7 @@ export const battle = reactive({
   tripped: false,
   blinded: false,
   frozen: false,
+  suffocated: false,
   summoned: false,
   coupStage: 0,
   coupNext: false,
@@ -146,6 +147,7 @@ export function resetBattle(enemy = DAWN_ZOMBIE, kind = 'zombie', mapId = null) 
   battle.tripped = false
   battle.blinded = false
   battle.frozen = false
+  battle.suffocated = false
   battle.summoned = false
   battle.coupStage = 0
   battle.coupNext = false
@@ -164,6 +166,7 @@ export function resetBattle(enemy = DAWN_ZOMBIE, kind = 'zombie', mapId = null) 
     dodge: Number(enemy.dodge) || 0,
     maxHp: Number.isFinite(enemy.maxHp) ? enemy.maxHp : enemy.hp,
     boneStacks: 0,
+    bossStacks: Number(enemy.bossStacks) || 0,
   }
 }
 
@@ -245,7 +248,7 @@ export function startMayorSpar() {
 }
 
 /**
- * 世界BOSS：尸化魔龙 / 火龙 / 海妖 / 妖精
+ * 世界BOSS：黑魔龙 / 火龙 / 海妖 / 妖精
  * 5 万生命，剩余血量写入存档；随时可以逃跑；击杀掉落对应宝石。
  */
 export function startWorldBossBattle(bossId) {
@@ -264,12 +267,12 @@ export function startWorldBossBattle(bossId) {
     name: boss.name,
     hp,
     maxHp: boss.hp,
-    attack: Math.round((boss.attackMin + boss.attackMax) / 2),
-    attackMin: boss.attackMin,
-    attackMax: boss.attackMax,
+    attack: boss.attack,
     infection: 0,
     dodge: 0,
     abilities: [],
+    skill: boss.skill ?? null,
+    bossStacks: 0,
     image: boss.image,
     description: boss.description,
     isWorldBoss: true,
@@ -281,6 +284,7 @@ export function startWorldBossBattle(bossId) {
   battle.active = true
   pushLog(`${boss.name}从市政厅地下的裂缝里爬了出来。`)
   pushLog(`生命 ${hp} / ${boss.hp}。它记得你造成的每一道伤。`)
+  if (boss.skill?.text) pushLog(`【BOSS技能】${boss.skill.text}`)
   return ''
 }
 
@@ -636,9 +640,30 @@ function guildSickleLifesteal() {
   pushLog(`盗贼公会的镰刃收割了 ${next - hp} 点生命（${hp} → ${next}）。`)
 }
 
-/** 世界BOSS的攻击在 40-60 之间浮动 */
+/** 世界BOSS技能带来的攻击加成：黑魔龙按闪避叠层，焚火龙按当前血量分档 */
+export function worldBossAttackBonus(zombie = battle.zombie) {
+  const skill = zombie?.skill
+  if (!skill) return 0
+  if (skill.type === 'dodge-rage') {
+    const stacks = Math.min(Number(skill.maxStacks) || 0, Number(zombie.bossStacks) || 0)
+    return stacks * (Number(skill.perStack) || 0)
+  }
+  if (skill.type === 'hp-enrage') {
+    const hp = Number(zombie.hp) || 0
+    return (skill.thresholds ?? []).reduce(
+      (bonus, tier) =>
+        hp < Number(tier.hpBelow) ? Math.max(bonus, Number(tier.attackBonus) || 0) : bonus,
+      0,
+    )
+  }
+  return 0
+}
+
 function enemyAttackValue() {
   const zombie = battle.zombie
+  if (zombie.isWorldBoss) {
+    return Math.max(0, (Number(zombie.attack) || 0) + worldBossAttackBonus(zombie))
+  }
   const min = Number(zombie.attackMin)
   const max = Number(zombie.attackMax)
   if (Number.isFinite(min) && Number.isFinite(max) && max >= min) {
@@ -789,6 +814,13 @@ export function meleeAttack() {
     return
   }
 
+  // 塞涅娅的窒息：本次攻击暴击率 -100%，攻击动作结算后消耗
+  const suffocated = battle.suffocated
+  if (suffocated) {
+    battle.suffocated = false
+    pushLog('窒息感压着你的手，这一击没能暴击。')
+  }
+
   let hits = 0
   let total = 0
   let crits = 0
@@ -848,7 +880,7 @@ export function meleeAttack() {
         (warrior ? (guild.critBonus ?? 0) : 0) +
         magicCritBonus(),
     )
-    const crit = Math.random() < critChance && (weapon.critDamage ?? 0) >= 1
+    const crit = !suffocated && Math.random() < critChance && (weapon.critDamage ?? 0) >= 1
     const critDamage =
       (weapon.critDamage ?? 0) +
       (knight ? (guild.critDamageBonus ?? 0) : 0) +
@@ -1081,13 +1113,19 @@ export function rangedAttack() {
   const attack = (weapon.attack ?? 0) + (assaultWeapon ? (assaultTalent.damage ?? 0) : 0)
   const pistolCrit = pistolWeapon ? (pistolTalent.crit ?? 0) : 0
   const pistolCritDamage = pistolWeapon ? (pistolTalent.critDamage ?? 0) : 0
+  // 塞涅娅的窒息：本次射击暴击率 -100%，射击动作结算后消耗
+  const suffocated = battle.suffocated
+  if (suffocated) {
+    battle.suffocated = false
+    pushLog('喉咙里的水压还没散，这一枪没能暴击。')
+  }
   const critChance = Math.min(
     1,
     (weapon.crit ?? 0) + rangedTalent + pistolCrit + assaultCrit + magicCritBonus(),
   )
   const effectiveCritDamage =
     (weapon.critDamage ?? 1) + pistolCritDamage + assaultCritDamage + insightCritDamage
-  const crit = Math.random() < critChance && effectiveCritDamage >= 1
+  const crit = !suffocated && Math.random() < critChance && effectiveCritDamage >= 1
   const frozen = battle.frozen
   if (frozen) battle.frozen = false
   const guild = activeGuild()
@@ -1181,6 +1219,7 @@ export function rangedAttack() {
   if (Math.random() < dodgeChance) {
     pushLog('它扑了个空，你侧身退开，避开了这一击。')
     bumpStat('playerDodgeCount')
+    onPlayerDodge()
     const bulldozerTalent = activeTalentEffects('bulldozer')
     const bulldozerWeapon =
       Array.isArray(bulldozerTalent.dodgeSegments) &&
@@ -1210,6 +1249,22 @@ export function rangedAttack() {
     return
   }
   zombieTurn()
+}
+
+/** 玩家闪避成功后：黑魔龙叠一层怒火，每层攻击 +5，至多 10 层 */
+function onPlayerDodge() {
+  const zombie = battle.zombie
+  const skill = zombie.skill
+  if (battle.kind !== 'world-boss' || !skill || skill.type !== 'dodge-rage') return
+  const max = Math.max(0, Number(skill.maxStacks) || 0)
+  const current = Math.max(0, Number(zombie.bossStacks) || 0)
+  if (current >= max) return
+  zombie.bossStacks = current + 1
+  pushLog(
+    `${zombie.name}的怒火上涨：${zombie.bossStacks} / ${max} 层，攻击 +${
+      zombie.bossStacks * (Number(skill.perStack) || 0)
+    }。`,
+  )
 }
 
 /** 逃跑：成功则结束战斗，失败会挨一次攻击 */
@@ -1380,6 +1435,22 @@ function zombieTurn() {
   if (game.dead) {
     markPlayerDead()
     return
+  }
+
+  // 世界BOSS技能：塞涅娅的窒息与堕精灵的理智/感染吸取都在命中后触发
+  const bossSkill = zombie.skill
+  const dealt = Math.max(0, -(Number(changes.hp) || 0))
+  if (bossSkill && dealt > 0) {
+    if (bossSkill.type === 'suffocate' && Math.random() < (Number(bossSkill.chance) || 0)) {
+      battle.suffocated = true
+      pushLog(`${zombie.name}的水压裹住你的喉咙：下一次攻击暴击率 -100%。`)
+    }
+    if (bossSkill.type === 'drain') {
+      const sanity = Math.max(0, Number(bossSkill.sanity) || 0)
+      const infection = Math.max(0, Number(bossSkill.infection) || 0)
+      applyStatChanges({ sanity: -sanity, infection })
+      pushLog(`${zombie.name}的翅膀扫过你的脸：理智 -${sanity}，感染 +${infection}。`)
+    }
   }
 
   if (battle.kind === 'spar' && game.stats.hp <= 1) {

@@ -39,7 +39,7 @@ export const GUILDS = [
     contributionShop: [
       {
         id: 'starfall-bow',
-        contribution: 60,
+        contribution: 80,
         coins: 300,
         dawnCoins: 300,
         once: true,
@@ -72,7 +72,7 @@ export const GUILDS = [
     contributionShop: [
       {
         id: 'might-axe',
-        contribution: 60,
+        contribution: 80,
         coins: 300,
         dawnCoins: 300,
         once: true,
@@ -109,7 +109,7 @@ export const GUILDS = [
     contributionShop: [
       {
         id: 'angel-gem',
-        contribution: 60,
+        contribution: 80,
         coins: 300,
         dawnCoins: 300,
         once: true,
@@ -120,10 +120,10 @@ export const GUILDS = [
     id: 'rogue',
     name: '盗贼公会',
     badgeId: 'guild-rogue',
-    requirementText: '在末日都城进行盗窃 20 次',
+    requirementText: '在末日都城进行盗窃 15 次',
     buffText:
       '镰刀 / 镰刀-战意 / 镰刀-恶魔 / 镰刀-晶花攻击时 50% 概率恢复 10 点生命；都城盗窃 60% 产出 3 币、30% 产出白兰地、10% 产出普通近战武器；沿街乞讨奖励翻倍。',
-    requirement: { thefts: 20 },
+    requirement: { thefts: 15 },
     weaponIds: SICKLE_WEAPON_IDS,
     lifestealChance: 0.5,
     lifestealHp: 10,
@@ -145,7 +145,7 @@ export const GUILDS = [
     contributionShop: [
       {
         id: 'time-gem',
-        contribution: 60,
+        contribution: 80,
         coins: 300,
         dawnCoins: 300,
         once: true,
@@ -175,7 +175,7 @@ export const GUILDS = [
     contributionShop: [
       {
         id: 'tenacity-gem',
-        contribution: 60,
+        contribution: 80,
         coins: 300,
         dawnCoins: 300,
         once: true,
@@ -212,7 +212,7 @@ export const GUILDS = [
     contributionShop: [
       {
         id: 'guardian-gem',
-        contribution: 60,
+        contribution: 80,
         coins: 300,
         dawnCoins: 300,
         once: true,

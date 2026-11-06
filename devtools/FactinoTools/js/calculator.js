@@ -115,6 +115,7 @@ function calc() {
     abilities: target.abilities,
     isBoss: target.isBoss,
     isSea: target.isSea,
+    critSuppression: target.critSuppression ?? 0,
   }
   const derived = derive({ weapon: cfg.weapon, talents: cfg.talents, guild: cfg.guild, gems: cfg.gems }, tg)
   if (!derived) {
@@ -180,6 +181,9 @@ function calc() {
     ['击杀回合数（模拟）', fight.meanTurns ? fight.meanTurns.toFixed(2) + `（胜率 ${(fight.winRate * 100).toFixed(0)}%）` : '—'],
     ['期望碎骨叠层/回合', exact.bonePerTurn > 0 ? exact.bonePerTurn.toFixed(2) : '—'],
   ]
+  if (target.critSuppression) {
+    rows.push(['窒息暴击压制', `期望暴击 ×${num(1 - target.critSuppression)}`])
+  }
   if (derived.gems.has('magic-gem')) {
     rows.push(
       ['魔化平均层数', `${magicStacks.toFixed(1)} / ${MAGIC_GEM_STACK.max}`],
@@ -303,7 +307,10 @@ export function initCalc() {
   TARGETS.forEach((target) => {
     const option = el('option')
     option.value = target.id
-    option.textContent = `${target.name} · ${target.hp} HP · 攻 ${target.atk}` + (target.isSea ? ' · 深海' : '')
+    option.textContent =
+      `${target.name} · ${target.hp} HP · 攻 ${target.atk}` +
+      (target.isSea ? ' · 深海' : '') +
+      (target.critSuppression ? ` · 窒息 ${Math.round(target.critSuppression * 100)}%` : '')
     targetSelect.appendChild(option)
   })
 

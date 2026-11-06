@@ -2,8 +2,8 @@
 export const FISH_PROCESSING = {
   inputId: 'mutant-fish',
   outputId: 'safe-fish',
-  coins: 6,
-  dawnCoins: 3,
+  coins: 5,
+  dawnCoins: 5,
 }
 
 export const KRAKEN_BLADE_CRAFT = {

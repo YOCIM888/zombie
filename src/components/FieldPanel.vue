@@ -1264,7 +1264,7 @@ function closePanel() {
               <span>豆类罐头 ×30</span>
               <span>越蔓梅 ×30</span>
               <span>战术匕首 ×1</span>
-              <span>Glock ×1</span>
+              <span>M1911 ×1</span>
             </div>
             <p v-if="noviceGiftTaken" class="extra__desc">
               新手礼包已经在你包里了。

@@ -77,7 +77,7 @@ const MENU = [
   { id: 'fight', no: '01', name: '清理丧尸', desc: '消耗 1 回合（有衰减），进入手动回合制战斗。' },
   { id: 'relief', no: '02', name: '领取救济', desc: '每天一次，五档按曙光身份开放：普通 / 基础 / 进阶 / 高级 / 特级。' },
   { id: 'contact', no: '03', name: '联系管事', desc: '徽章补办、加入曙光，或申请晋升。' },
-  { id: 'salary', no: '04', name: '每日工资', desc: '按曙光身份发放，每天一次：队员 2、队长 5、指挥 8、副首 10 曙光币。' },
+  { id: 'salary', no: '04', name: '每日工资', desc: `按曙光身份发放，每天一次：${DAWN_SALARY.map((item) => `${item.identity} ${item.coins}`).join('、')} 曙光币。` },
   ...DAWN_NPCS.map((npc) => ({ ...npc, placeholder: !npc.implemented })),
   { id: 'market', no: '10', name: '曙光市场', desc: '普通远程武器、绷带与罐头，明码标价。' },
   { id: 'bond', no: '11', name: '羁绊商店', desc: '提交四种纪念徽章之一，各换一件限定武器。' },
@@ -419,11 +419,10 @@ function closePanel() {
             </h4>
             <p class="row__desc">{{ tier.desc }}</p>
             <p class="row__meta">
-              <span>一种随机水果 ×{{ tier.fruitCount }}</span>
+              <span>随机水果 ×{{ tier.fruitCount }}</span>
               <span v-for="entry in tier.items" :key="entry.itemId">
                 {{ getItem(entry.itemId)?.name ?? entry.itemId }} ×{{ entry.qty }}
               </span>
-              <span>免费 · 共享每日次数</span>
             </p>
           </div>
           <button
@@ -450,7 +449,7 @@ function closePanel() {
         <button type="button" class="link" @click="backToMenu">← 返回选项</button>
       </header>
       <p class="pane__desc">
-        管事按身份发工资，四档共用每天一次。身份越高，信封越厚。
+        管事按身份发工资，五档共用每天一次；没有身份也能领一份最薄的。身份越高，信封越厚。
       </p>
       <div class="chips">
         <span v-for="item in DAWN_SALARY" :key="item.rank">
@@ -470,7 +469,7 @@ function closePanel() {
       <p class="cure__note">
         {{
           !salary
-            ? '先联系管事加入曙光，才有工资可领。'
+            ? '暂无对应档位，先在管事处登记身份。'
             : salaryLeft > 0
               ? `今日工资已领取，${salaryLeft} 天后可再次领取。`
               : '今天的工资还没有领。'
@@ -484,7 +483,7 @@ function closePanel() {
       >
         {{
           !salary
-            ? '需先加入曙光'
+            ? '暂无工资档位'
             : salaryLeft > 0
               ? `${salaryLeft} 天后可领`
               : `领取 ${salary.coins} 曙光币`
