@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { COMPANIONS, npcById } from '../data'
+import { COMPANIONS, npcById, panelBackground } from '../data'
 import { cooldownLeft, game, harvestLulu, harvestYanran } from '../game/store'
 import ModalShell from './ModalShell.vue'
 
@@ -61,6 +61,8 @@ function claim(action) {
   <ModalShell
     title="伙伴收获"
     sub="她们每天出去一趟，带回的东西不一样"
+    :bg="panelBackground('companion')"
+    bg-tone="normal"
     @close="$emit('close')"
   >
     <p v-if="!anyJoined" class="empty">还没有伙伴加入。去核心商圈或公立医院看看。</p>
@@ -132,7 +134,8 @@ function claim(action) {
   flex-direction: column;
   gap: 9px;
   padding: 16px;
-  background: #0d0f10;
+  background: rgba(8, 10, 11, 0.6);
+  backdrop-filter: blur(4px) saturate(0.9);
 }
 
 .partner.is-off {

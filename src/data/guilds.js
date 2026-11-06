@@ -1,6 +1,8 @@
 // 乌托邦城公会：徽章、加入条件、日常委托、公会商店与贡献兑换
 // 公会商店按「末日币 + 曙光币」复合定价，取自武器定价与实用价值
 
+import { SICKLE_WEAPON_IDS } from './weapons'
+
 /** 日常委托统一奖励 */
 export const GUILD_COMMISSION_REWARD = { coins: 2, dawnCoins: 2, contribution: 1 }
 
@@ -11,7 +13,7 @@ export const GUILDS = [
     badgeId: 'guild-hunter',
     requirementText: '上交猎弓、复合弓、十字弩各一把',
     buffText:
-      '猎弓 / 复合弓 / 十字弩 / 天星之弓伤害 +25；清洁度不再降低伤害，但清洁度消耗翻倍。',
+      '猎弓 / 复合弓 / 十字弩 / 天星之弓伤害 +25；清洁度不再降低伤害，每次攻击额外消耗 1 点清洁度。',
     requirement: {
       items: [
         { id: 'hunting-bow', qty: 1 },
@@ -22,7 +24,7 @@ export const GUILDS = [
     weaponIds: ['hunting-bow', 'compound-bow', 'crossbow', 'starfall-bow'],
     damageBonus: 25,
     noCleanlinessDecay: true,
-    cleanlinessCostMultiplier: 2,
+    cleanlinessExtraCost: 1,
     commission: {
       type: 'kill',
       weaponIds: ['hunting-bow', 'compound-bow', 'crossbow'],
@@ -49,11 +51,13 @@ export const GUILDS = [
     name: '战士公会',
     badgeId: 'guild-warrior',
     requirementText: '累计击杀 30 只丧尸',
-    buffText: '战术匕首 / 长矛 / 手斧 / 威能战斧伤害 +25，但耐久消耗翻倍。',
+    buffText:
+      '战术匕首 / 长矛 / 手斧 / 威能战斧伤害 +25，暴击率 +5%，每次攻击额外消耗 1 点耐久。',
     requirement: { kills: 30 },
     weaponIds: ['dagger', 'spear', 'hand-axe', 'might-axe'],
     damageBonus: 25,
-    durabilityCostMultiplier: 2,
+    critBonus: 0.05,
+    durabilityExtraCost: 1,
     commission: {
       type: 'kill',
       weaponIds: ['dagger', 'spear', 'hand-axe'],
@@ -81,17 +85,17 @@ export const GUILDS = [
     badgeId: 'guild-priest',
     requirementText: '提交 3 支肾上腺素 + 3 支体能针',
     buffText:
-      '绷带 / 止痛药 / 抗生素的效果翻倍；使用食物或饮品时，50% 概率额外恢复 10 点体力。',
+      '使用创可贴 / 止血带 / 绷带 / 缝合包 / 医疗箱有 50% 概率额外恢复 20 点生命；使用肾上腺素 / 体能针不再产生负面效果。',
     requirement: {
       items: [
         { id: 'adrenaline', qty: 3 },
         { id: 'stamina-shot', qty: 3 },
       ],
     },
-    medicineIds: ['bandage', 'painkiller', 'antibiotic'],
-    medicineMultiplier: 2,
-    mealStaminaChance: 0.5,
-    mealStaminaBonus: 10,
+    healMedicineIds: ['band-aid', 'tourniquet', 'bandage', 'suture-kit', 'medical-kit'],
+    healBonusChance: 0.5,
+    healBonusHp: 20,
+    noNegEffectMedicineIds: ['adrenaline', 'stamina-shot'],
     commission: {
       type: 'medicine',
       count: 5,
@@ -116,11 +120,16 @@ export const GUILDS = [
     id: 'rogue',
     name: '盗贼公会',
     badgeId: 'guild-rogue',
-    requirementText: '在末日都城进行盗窃 10 次',
+    requirementText: '在末日都城进行盗窃 20 次',
     buffText:
-      '都城盗窃 60% 产出 3 币、30% 产出白兰地、10% 产出普通近战武器；沿街乞讨奖励翻倍。',
-    requirement: { thefts: 10 },
+      '镰刀 / 镰刀-战意 / 镰刀-恶魔 / 镰刀-晶花攻击时 50% 概率恢复 10 点生命；都城盗窃 60% 产出 3 币、30% 产出白兰地、10% 产出普通近战武器；沿街乞讨奖励翻倍。',
+    requirement: { thefts: 20 },
+    weaponIds: SICKLE_WEAPON_IDS,
+    lifestealChance: 0.5,
+    lifestealHp: 10,
     theftCoins: 3,
+    theftCoinChance: 0.6,
+    theftBrandyChance: 0.3,
     beggingMultiplier: 2,
     commission: {
       type: 'rogue',
@@ -148,8 +157,10 @@ export const GUILDS = [
     name: '诗人公会',
     badgeId: 'guild-poet',
     requirementText: '提交 10 瓶白兰地',
-    buffText: '饱食 / 口渴 / 理智 / 体力归零后不会直接死亡，每回合扣 20 生命。',
+    buffText:
+      '战斗时拥有额外 25% 逃跑概率；饱食 / 口渴 / 理智 / 体力归零或感染值满后不会直接死亡，每回合扣 20 生命。',
     requirement: { items: [{ id: 'brandy', qty: 10 }] },
+    fleeBonus: 0.25,
     zeroStatDrain: 20,
     commission: {
       type: 'wine',

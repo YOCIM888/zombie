@@ -1,4 +1,4 @@
-// 期望伤害总览：16 套构筑全部实时计算
+// 期望伤害总览：17 套构筑全部实时计算
 import { BUILD_METRICS } from '../build-metrics.js'
 import { $, el, esc, num } from '../ui.js'
 

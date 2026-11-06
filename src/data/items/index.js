@@ -10,7 +10,7 @@ import { GEM_ITEMS } from './gem'
 import { QUEST_ITEMS } from './quest'
 
 export { MELEE_TIERS, MELEE_TIER_COLORS, RANGED_TIERS }
-export { MAGIC_GEM_STACK } from './gem'
+export { MAGIC_GEM_STACK, TIME_GEM } from './gem'
 
 /** 全部物品总表 */
 export const ITEMS = {

@@ -6,7 +6,17 @@ export const MAGIC_GEM_STACK = {
   critPerStack: 0.05,
 }
 
+/** 时间宝石：主动快进天数、冷却天数，以及镰刀吸血概率 / 最大生命比例 */
+export const TIME_GEM = {
+  advanceDays: 3,
+  cooldownDays: 3,
+  lifestealChance: 0.2,
+  lifestealRatio: 0.1,
+}
+
 const MAGIC_CRIT_PERCENT = Math.round(MAGIC_GEM_STACK.critPerStack * 100)
+const TIME_GEM_LIFESTEAL_PERCENT = Math.round(TIME_GEM.lifestealChance * 100)
+const TIME_GEM_LIFESTEAL_RATIO_PERCENT = Math.round(TIME_GEM.lifestealRatio * 100)
 
 function gem(id, name, description, extra = {}) {
   return {
@@ -29,7 +39,7 @@ const GEM_LIST = [
       limited: true,
     }),
   gem('time-gem', '时间宝石',
-    '宝石内部像有一圈走不完的钟面。使用后时间快进 6 回合，不产生回合消耗，一天只能使用一次，宝石不会消失。', {
+    `宝石内部像有一圈走不完的钟面。使用后快进 ${TIME_GEM.advanceDays} 天，不产生任何属性消耗，之后冷却 ${TIME_GEM.cooldownDays} 天（按游戏天数计算）。装备镰刀类武器时，攻击有 ${TIME_GEM_LIFESTEAL_PERCENT}% 概率吸取 ${TIME_GEM_LIFESTEAL_RATIO_PERCENT}% 最大生命。宝石不会消失。`, {
       special: 'time-gem',
       limited: true,
     }),
@@ -59,7 +69,7 @@ const GEM_LIST = [
       limited: true,
     }),
   gem('fairy-gem', '精灵宝石',
-    '背包内被动生效：小憩不再产生负面消耗；背包中持有时使用矿泉水额外恢复 25 点生命。', {
+    '背包内被动生效：持有时解锁睡觉里的精灵茶会（每日 2 次）与大精灵床（每日 1 次）。', {
       passive: true,
       limited: true,
     }),

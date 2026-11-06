@@ -101,15 +101,15 @@ button {
   background: linear-gradient(90deg, var(--line-strong), transparent);
 }
 
-/* 通用弹窗 */
+/* 通用弹窗：窗口外壳铺满可视区域，滚动只发生在内容区 */
 .modal-mask {
   position: fixed;
   inset: 0;
   z-index: 40;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 0;
   background: rgba(4, 5, 6, 0.72);
   backdrop-filter: blur(6px);
   animation: mask-in 0.25s ease both;
@@ -119,20 +119,25 @@ button {
   position: relative;
   display: flex;
   flex-direction: column;
-  width: min(880px, 100%);
-  max-height: min(82vh, 720px);
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
   overflow: hidden;
-  padding: 28px 32px 32px;
+  padding: clamp(20px, 2.2vw, 34px) clamp(18px, 3vw, 64px) clamp(24px, 2.6vw, 40px);
   background: linear-gradient(180deg, rgba(17, 19, 20, 0.96), rgba(10, 12, 13, 0.97));
   border: 1px solid var(--line-strong);
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+  box-shadow: none;
   animation: card-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .modal-body {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
 }
 
 /* 战斗视图：父级下内边距会让 sticky 操作栏在滚到底部时被向上顶起 */
@@ -285,13 +290,8 @@ button {
 }
 
 @media (max-width: 720px) {
-  .modal-mask {
-    padding: 12px;
-  }
-
   .modal-card {
-    padding: 20px 18px 24px;
-    max-height: 88vh;
+    padding: 16px 16px 20px;
   }
 
   .toast {

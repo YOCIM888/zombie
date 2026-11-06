@@ -10,7 +10,7 @@ defineEmits(['close'])
 
 const STORAGE_KEY = 'xingshi.build-calc.v1'
 /** 只有这几颗宝石会进入伤害公式，其余是消耗品/地形，避免玩家误选 */
-const CALC_GEM_IDS = ['blood-gem', 'tenacity-gem', 'guardian-gem', 'magic-gem', 'ocean-gem']
+const CALC_GEM_IDS = ['blood-gem', 'tenacity-gem', 'guardian-gem', 'magic-gem', 'ocean-gem', 'time-gem']
 const TIER_COLORS = {
   普通: '#8a8578',
   稀有: '#7d9c4e',
@@ -180,6 +180,12 @@ const calc = computed(() => {
   if (derived.gems.has('magic-gem')) {
     rows.push({ label: '魔化平均层数', value: `${magicStacks.toFixed(1)} / ${MAGIC_GEM_STACK.max}` })
   }
+  if (derived.inHarvest) {
+    rows.push({
+      label: '期望回血 / 回合',
+      value: `≈ ${num(store.sustainHeal(derived))} 生命（单次攻击动作判定）`,
+    })
+  }
 
   const weapon = store.weapons[cfg.weapon]
   const whitelistKey = Object.keys(mech.value.whitelists).find((key) =>
@@ -290,6 +296,7 @@ onMounted(async () => {
       meleeExact: model.meleeExact,
       rangedExact: model.rangedExact,
       magicMeanStacks: model.magicMeanStacks,
+      sustainHeal: model.sustainHeal,
     }
     restore()
   } catch (error) {
@@ -301,7 +308,7 @@ onMounted(async () => {
 <template>
   <ModalShell
     title="流派构筑"
-    sub="16 套流派搭配与期望伤害，数值随 src/data 实时重算"
+    :sub="`${builds.length || 17} 套流派搭配与期望伤害，数值随 src/data 实时重算`"
     wide
     @close="$emit('close')"
   >
@@ -378,6 +385,10 @@ onMounted(async () => {
               </div>
               <div><dt>公会</dt><dd>{{ guildName(build.guild) }}</dd></div>
               <div><dt>宝石</dt><dd>{{ gemNames(build.gems) }}</dd></div>
+              <div v-if="build.main.healPerTurn">
+                <dt>吸血</dt>
+                <dd>≈ {{ num(build.main.healPerTurn) }} HP / 回合（满血以下）</dd>
+              </div>
               <div><dt>击数</dt><dd>{{ num(build.main.hits) }} · 100 HP 游荡丧尸 · 满血</dd></div>
             </dl>
 

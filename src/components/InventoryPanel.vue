@@ -12,6 +12,7 @@ import {
   cleanlinessMultiplier,
   countUsedSlots,
   getItem,
+  panelBackground,
   talentEffects,
   talentTitle,
 } from '../data'
@@ -25,6 +26,7 @@ import {
   isTalentActive,
   notify,
   organizeBackpack,
+  timeGemCooldownLeft,
   toggleTalentActive,
   useItem,
 } from '../game/store'
@@ -77,7 +79,12 @@ function effectText(effects) {
   return entries
     .map(([key, value]) => {
       const label = TALENT_EFFECT_LABELS[key] ?? key
-      if (key === 'damage' || key === 'critDamage' || key === 'critDurability') {
+      if (
+        key === 'damage' ||
+        key === 'critDamage' ||
+        key === 'critDurability' ||
+        key === 'harvestHeal'
+      ) {
         return `${label} +${value}`
       }
       if (key === 'critMult') return `${label} ×${value}`
@@ -156,6 +163,12 @@ const selectedDef = computed(() => {
 const canUse = computed(() => Boolean(selectedDef.value?.effects || selectedDef.value?.special))
 const devGemLocked = computed(
   () => battle.active && selectedDef.value?.special === 'developer-gem',
+)
+/** 时间宝石冷却：按游戏天数计算，0 天表示可用 */
+const timeGemLeft = computed(() => timeGemCooldownLeft())
+const timeGemAvailable = computed(() => timeGemLeft.value <= 0)
+const selectedTimeGemLocked = computed(
+  () => selectedDef.value?.special === 'time-gem' && !timeGemAvailable.value,
 )
 const canEquipMelee = computed(
   () => selectedDef.value?.category === 'melee' && Boolean(selectedDef.value?.weapon),
@@ -272,6 +285,8 @@ function weaponLine(weapon) {
     title="背包"
     sub="物品栏 · 支持整理、分类与装备详情"
     wide
+    :bg="panelBackground('inventory')"
+    bg-tone="normal"
     @close="$emit('close')"
   >
     <div class="view-switch" role="tablist" aria-label="背包视图">
@@ -383,6 +398,12 @@ function weaponLine(weapon) {
               </span>
             </div>
 
+            <div v-if="selectedDef.special === 'time-gem'" class="detail__tags">
+              <span :class="{ 'is-ready': timeGemAvailable }">
+                {{ timeGemAvailable ? '可用' : `冷却中 · 剩余 ${timeGemLeft} 天` }}
+              </span>
+            </div>
+
             <p v-if="selectedDef.stackable" class="detail__stack">
               可堆叠 · 当前 {{ selectedEntry.qty }} / 上限
               {{ Math.min(selectedDef.maxStack ?? STACK_LIMIT, STACK_LIMIT) }}
@@ -407,6 +428,13 @@ function weaponLine(weapon) {
       <div v-if="gemItems.length" class="gem-grid">
         <article v-for="item in gemItems" :key="item.id" class="gem-card">
           <span class="gem-card__tag">{{ item.def.special ? '主动' : '背包被动' }}</span>
+          <span
+            v-if="item.def.special === 'time-gem'"
+            class="gem-card__state"
+            :class="{ 'is-ready': timeGemAvailable }"
+          >
+            {{ timeGemAvailable ? '可用' : `冷却中 · 剩余 ${timeGemLeft} 天` }}
+          </span>
           <img v-if="item.def.image" :src="item.def.image" :alt="item.def.name" />
           <h4>{{ item.def.name }} ×{{ item.qty }}</h4>
           <p>{{ item.def.description }}</p>
@@ -515,6 +543,9 @@ function weaponLine(weapon) {
         <span v-if="devGemLocked" class="foot-lock">
           战斗中无法使用开发者宝石，请先结束战斗。
         </span>
+        <span v-else-if="selectedTimeGemLocked" class="foot-lock">
+          时间宝石冷却中，剩余 {{ timeGemLeft }} 天。
+        </span>
         <span class="foot-item">{{ selectedDef.name }} ×{{ selectedEntry.qty }}</span>
         <button
           v-if="canEquipMelee"
@@ -532,7 +563,7 @@ function weaponLine(weapon) {
         >
           装备远程位
         </button>
-        <button v-if="canUse" type="button" class="btn btn--primary" :disabled="devGemLocked" @click="handleUse">
+        <button v-if="canUse" type="button" class="btn btn--primary" :disabled="devGemLocked || selectedTimeGemLocked" @click="handleUse">
           使用
         </button>
         <button
@@ -570,7 +601,8 @@ function weaponLine(weapon) {
   font-size: 12px;
   letter-spacing: 0.12em;
   color: var(--text-mute);
-  background: #0d0f10;
+  background: rgba(8, 10, 11, 0.62);
+  backdrop-filter: blur(4px) saturate(0.9);
   transition:
     color 0.2s,
     background 0.2s;
@@ -1199,6 +1231,22 @@ function weaponLine(weapon) {
   border: 1px solid rgba(205, 185, 141, 0.4);
 }
 
+.gem-card__state {
+  align-self: flex-start;
+  padding: 2px 7px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: var(--text-mute);
+  border: 1px solid var(--line);
+}
+
+.gem-card__state.is-ready,
+.detail__tags span.is-ready {
+  color: var(--bone);
+  border-color: rgba(205, 185, 141, 0.5);
+}
+
 .gem-card img {
   width: 76px;
   height: 76px;
@@ -1248,7 +1296,8 @@ function weaponLine(weapon) {
     z-index: 4;
     order: -1;
     padding-bottom: 8px;
-    background: #0c0e0f;
+    background: rgba(8, 10, 11, 0.78);
+    backdrop-filter: blur(8px) saturate(0.9);
   }
 
   .detail {

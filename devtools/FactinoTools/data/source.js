@@ -54,7 +54,7 @@ export const WEAPON_LIST = [...MELEE_LIST, ...RANGED_LIST].map((weapon) => ({
   dodge: weapon.stats.dodge,
 }))
 
-/** 八条专项训练 = 天赋白名单；通用天赋（如挥砍，weaponIds 为 null）不进入白名单 */
+/** 全部专项训练 = 天赋白名单；通用天赋（如挥砍，weaponIds 为 null）不进入白名单 */
 export const WHITELISTS = Object.fromEntries(
   UTOPIA_TRAININGS.filter((training) => Array.isArray(training.weaponIds)).map((training) => [
     training.kind,

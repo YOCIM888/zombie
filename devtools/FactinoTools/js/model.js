@@ -11,7 +11,7 @@ import {
   SPRAY_SEGMENTS,
   SPRAY_EXTRA_CLEANLINESS,
 } from '../../../src/data/weapons.js'
-import { MAGIC_GEM_STACK } from '../../../src/data/items/gem.js'
+import { MAGIC_GEM_STACK, TIME_GEM } from '../../../src/data/items/gem.js'
 
 const MAXCLEAN = CLEANLINESS_MAX
 const CLEAN_PER_SHOT = CLEANLINESS_PER_SHOT
@@ -78,6 +78,7 @@ function derive(cfg, tg) {
     polearmFx: fx('polearm'),
     insightFx: fx('insight'),
     bulldozerFx: fx('bulldozer'),
+    harvestFx: fx('harvest'),
   }
   const D = Object.assign({}, G, {
     weapon: w,
@@ -101,10 +102,11 @@ function derive(cfg, tg) {
     inPolearm: inWl('polearm'),
     inInsight: inWl('insight'),
     inBulldozer: inWl('bulldozer'),
+    inHarvest: inWl('harvest'),
     isSea: !!(tg && tg.isSea),
     gems: new Set(cfg.gems || []),
-    durMult: g && g.durabilityCostMultiplier && guildHas(cfg.weapon) ? g.durabilityCostMultiplier : 1,
-    cleanMult: g && g.cleanlinessCostMultiplier && guildHas(cfg.weapon) ? g.cleanlinessCostMultiplier : 1,
+    durMult: 1 + (g && g.durabilityExtraCost && guildHas(cfg.weapon) ? Number(g.durabilityExtraCost) || 0 : 0),
+    cleanPerShot: CLEAN_PER_SHOT + (g && g.cleanlinessExtraCost && guildHas(cfg.weapon) ? Number(g.cleanlinessExtraCost) || 0 : 0),
     maxHp: g && g.id === 'knight' && cfg.weapon === KNIGHT_SWORD ? 100 + (g.maxHpBonus || 20) : 100,
   })
   D.noExecute = !!cfg.noExecute
@@ -118,14 +120,34 @@ function derive(cfg, tg) {
         1,
       )
     : 0
-  D.critBase = clamp((S.crit || 0) + (knightOK ? g.critBonus || 0 : 0), 0, 1)
-  D.critM = (S.critDamage ?? 1) + (knightOK ? g.critDamageBonus || 0 : 0)
+  D.critBase = clamp((S.crit || 0) + (knightOK ? g.critBonus || 0 : 0) + (warriorOK ? g.critBonus || 0 : 0), 0, 1)
+  D.critM = (S.critDamage ?? 1) + (knightOK ? g.critDamageBonus || 0 : 0) + (D.inHarvest ? D.harvestFx.critDamage || 0 : 0)
   D.rangedAtk = (S.attack || 0) + (D.inAssault ? (G.assaultFx.damage || 0) : 0)
   D.atk = D.isMelee
     ? (S.attack || 0) + (D.arenaOK ? D.arenaFx.damage || 0 : 0) + (D.slashFx?.damage || 0)
     : D.rangedAtk
   D.flat = warriorOK || knightOK ? g.damageBonus || 0 : 0
   return D
+}
+
+/* ---------------- 生存属性：收割 / 时间宝石的期望回血 ---------------------------- */
+/**
+ * 吸血不进入伤害模型。收割与时间宝石都是「每次近战攻击动作判定一次」，
+ * 连击追加段不重复掷骰，因此这里不乘期望击数，只按每回合一次动作计算。
+ * 满血时会跳过掷骰，长期在血线以下作战才接近这个期望值。
+ */
+function sustainHeal(D) {
+  if (!D || !D.isMelee || !D.inHarvest) return 0
+  const harvest = (D.harvestFx.harvestChance || 0) * (D.harvestFx.harvestHeal || 0)
+  const time = D.gems.has('time-gem')
+    ? TIME_GEM.lifestealChance * Math.max(1, Math.round(D.maxHp * TIME_GEM.lifestealRatio))
+    : 0
+  // 盗贼公会的镰刀吸血只影响生存，不进入伤害模型
+  const rogue =
+    D.guild?.id === 'rogue'
+      ? (D.guild.lifestealChance || 0) * (D.guild.lifestealHp || 0)
+      : 0
+  return harvest + time + rogue
 }
 
 /* ---------------- 魔化宝石：稳态平均层数（计算器近似） ---------------- */
@@ -180,8 +202,8 @@ function meleeExact(D, tg, st) {
   const magic = st.magicStacks || 0
   const bone0 = Math.min(10, st.boneStacks || 0)
   const cd = S.critDamage ?? 0
-  const pCrit = cd >= 1 ? clamp(S.crit + (D.knightOK ? D.guild.critBonus || 0 : 0) + magic * MAGIC_GEM_STACK.critPerStack, 0, 1) : 0
-  const ce = cd + (D.knightOK ? D.guild.critDamageBonus || 0 : 0)
+  const pCrit = cd >= 1 ? clamp(S.crit + (D.knightOK ? D.guild.critBonus || 0 : 0) + (D.warriorOK ? D.guild.critBonus || 0 : 0) + magic * MAGIC_GEM_STACK.critPerStack, 0, 1) : 0
+  const ce = cd + (D.knightOK ? D.guild.critDamageBonus || 0 : 0) + (D.inHarvest ? D.harvestFx.critDamage || 0 : 0)
   const flat =
     D.flat +
     (D.gems.has('guardian-gem') && D.weapon.id === KNIGHT_SWORD ? 40 : 0) +
@@ -344,7 +366,7 @@ function rangedExact(D, tg, st) {
     spray = sprayP * perProc
   }
   const cleanCost =
-    CLEAN_PER_SHOT * D.cleanMult +
+    D.cleanPerShot +
     (D.inSpray ? sprayP * SPRAY_EXTRA_CLEANLINESS : 0)
   /* 推土机：闪避成功概率 × 追加段期望；每段独立暴击、按武器攻击力取整 */
   let bulldozer = 0
@@ -398,9 +420,9 @@ function meleeAction(D, st, tg, rnd) {
   const bm = bloodMult(st.hpPct)
   const seaBonus = D.isSea && D.weapon.id === 'trident' ? 1.5 : 1
   for (let c = 0; c < 500; c++) {
-    const critP = clamp(S.crit + (D.knightOK ? D.guild.critBonus || 0 : 0) + magicAtStart * MAGIC_GEM_STACK.critPerStack, 0, 1)
+    const critP = clamp(S.crit + (D.knightOK ? D.guild.critBonus || 0 : 0) + (D.warriorOK ? D.guild.critBonus || 0 : 0) + magicAtStart * MAGIC_GEM_STACK.critPerStack, 0, 1)
     const isCrit = rnd() < critP && (S.critDamage ?? 0) >= 1
-    const ce = (S.critDamage ?? 0) + (D.knightOK ? D.guild.critDamageBonus || 0 : 0)
+    const ce = (S.critDamage ?? 0) + (D.knightOK ? D.guild.critDamageBonus || 0 : 0) + (D.inHarvest ? D.harvestFx.critDamage || 0 : 0)
     let G = Math.max(1, Math.round(D.atk * (isCrit ? ce : 1) * seaBonus))
     if (D.inSweep && hits === 0 && (D.sweepFx.sweepDamage || 0) > 0) {
       G = Math.max(1, Math.round(G * (1 + D.sweepFx.sweepDamage)))
@@ -486,8 +508,8 @@ function rangedAction(D, st, tg, rnd) {
   const bm = bloodMult(st.hpPct)
   if (rnd() < (tg.dodge || 0)) return { total: 0, hits: 0, crits: 0, cleanUsed: 0, skipped: true }
   if (rnd() < jamChance(st.clean)) {
-    st.clean = Math.max(0, st.clean - CLEAN_PER_SHOT * D.cleanMult)
-    return { total: 0, hits: 0, crits: 0, cleanUsed: CLEAN_PER_SHOT * D.cleanMult, jammed: true }
+    st.clean = Math.max(0, st.clean - D.cleanPerShot)
+    return { total: 0, hits: 0, crits: 0, cleanUsed: D.cleanPerShot, jammed: true }
   }
   const pistolOn = D.inPistol
   const assaultOn = D.inAssault
@@ -553,8 +575,8 @@ function rangedAction(D, st, tg, rnd) {
     total += extra
     st.zHp = Math.max(0, st.zHp - Math.max(1, extra))
   }
-  st.clean = Math.max(0, st.clean - CLEAN_PER_SHOT * D.cleanMult)
-  cleanUsed = CLEAN_PER_SHOT * D.cleanMult
+  st.clean = Math.max(0, st.clean - D.cleanPerShot)
+  cleanUsed = D.cleanPerShot
   if (spray) {
     st.clean = Math.max(0, st.clean - SPRAY_EXTRA_CLEANLINESS)
     cleanUsed += SPRAY_EXTRA_CLEANLINESS
@@ -729,4 +751,5 @@ export {
   xi,
   jamChance,
   mul32,
+  sustainHeal,
 }

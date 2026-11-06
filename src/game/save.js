@@ -41,6 +41,7 @@ export const globalStats = reactive({
 
 export const settings = reactive({
   volume: Number.isFinite(storedSettings.volume) ? storedSettings.volume : 0.7,
+  sfxVolume: Number.isFinite(storedSettings.sfxVolume) ? storedSettings.sfxVolume : 0.7,
   muted: Boolean(storedSettings.muted),
   track: typeof storedSettings.track === 'string' ? storedSettings.track : 'background',
   survivalHints: storedSettings.survivalHints !== false,
@@ -61,6 +62,7 @@ function persistGlobal() {
 export function persistSettings() {
   writeJSON(SETTINGS_KEY, {
     volume: settings.volume,
+    sfxVolume: settings.sfxVolume,
     muted: settings.muted,
     track: settings.track,
     survivalHints: settings.survivalHints,

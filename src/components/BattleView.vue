@@ -87,7 +87,7 @@ const melee = computed(() => {
   if (hasItem('guardian-gem') && def?.id === 'knight-sword') attackParts.push(['守护', 40])
   if (hasItem('ocean-gem') && battle.kind === 'deep-sea') attackParts.push(['海洋', 20])
   const critParts = []
-  if (knight && guild?.critBonus) critParts.push([guild.name, guild.critBonus])
+  if ((knight || warrior) && guild?.critBonus) critParts.push([guild.name, guild.critBonus])
   const critDamageParts = []
   if (knight && guild?.critDamageBonus) critDamageParts.push([guild.name, guild.critDamageBonus])
   const comboParts = []
@@ -262,13 +262,13 @@ const oxygenPercent = computed(() =>
     ? Math.max(0, Math.min(100, (battle.oxygen / battle.oxygenMax) * 100))
     : 0,
 )
-const fleeChance = computed(() =>
-  battle.kind === 'world-boss'
-    ? 1
-    : isSeaBattle.value && battle.mermaidBlessed
-      ? 0.8
-      : DAWN_FLEE_CHANCE,
-)
+const fleeChance = computed(() => {
+  if (battle.kind === 'world-boss') return 1
+  if (isSeaBattle.value) return battle.mermaidBlessed ? 0.8 : DAWN_FLEE_CHANCE
+  const guild = activeGuild()
+  const poetBonus = guild?.id === 'poet' ? (guild.fleeBonus ?? 0) : 0
+  return Math.min(1, DAWN_FLEE_CHANCE + poetBonus)
+})
 const oceanGem = computed(() =>
   game.inventory.some((entry) => entry?.id === 'ocean-gem'),
 )
@@ -730,9 +730,9 @@ function finish() {
   inset: 0;
   z-index: 60;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 0;
   background: rgba(4, 5, 6, 0.72);
   backdrop-filter: blur(6px);
 }
@@ -740,22 +740,29 @@ function finish() {
 .bag {
   display: flex;
   flex-direction: column;
-  width: min(520px, 100%);
-  max-height: min(76vh, 620px);
-  overflow: auto;
-  padding: 16px 18px 18px;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  padding: clamp(16px, 2vw, 28px) clamp(16px, 3vw, 48px) clamp(20px, 2.4vw, 32px);
   border: 1px solid var(--line-strong);
   background: linear-gradient(180deg, rgba(17, 19, 20, 0.98), rgba(10, 12, 13, 0.99));
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+  box-shadow: none;
 }
 
 .bag__head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding-bottom: 9px;
   border-bottom: 1px solid var(--line);
+  background: #111314;
 }
 
 .bag__head h4 {

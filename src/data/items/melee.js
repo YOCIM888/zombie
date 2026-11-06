@@ -85,6 +85,8 @@ const MELEE_LIST = [
     '短柄斧，单手抡起来毫不费力。'),
   melee('fire-axe', '消防斧', '精良', { attack: 45, crit: 0.1, critDamage: 1.55, combo: 0.1, durability: 180 },
     '红色斧身，斧刃还印着消防编号。'),
+  melee('sickle-battle', '镰刀-战意', '精良', { attack: 46, crit: 0.26, critDamage: 1.86, combo: 0.36, durability: 150 },
+    '比普通镰刀更有效率，能割下更多。'),
   melee('mountain-chopper', '开山刀', '精良', { attack: 46, crit: 0.12, critDamage: 1.55, combo: 0.14, durability: 190 },
     '刃长背厚，砍柴和开路都靠它。'),
   melee('knight-sword', '骑士剑', '精良', { attack: 48, crit: 0.24, critDamage: 1.98, combo: 0.25, durability: 170 },
@@ -93,7 +95,7 @@ const MELEE_LIST = [
   /* ===== 史诗 ===== */
   melee('knuckle-silver', '指虎-银使', '史诗', { attack: 30, crit: 0.31, critDamage: 1.78, combo: 0.05, durability: 600 },
     '银色的浮雕不影响它结构简单结实耐用，可靠性高。'),
-  melee('knuckle-gold', '指虎-金使', '史诗', { attack: 40, crit: 0.17, critDamage: 2.2, combo: 0.08, durability: 800 },
+  melee('knuckle-gold', '指虎-金使', '史诗', { attack: 40, crit: 0.17, critDamage: 2.21, combo: 0.08, durability: 800 },
     '金色的浮雕不影响它结构简单结实耐用，可靠性高。'),
   melee('butterfly-silver', '蝴蝶刀-银蝶', '史诗', { attack: 50, crit: 0.26, critDamage: 1.95, combo: 0.42, durability: 150 },
     '银色刀身翻起来像翅膀，熟练的人从不割到自己。'),
@@ -121,18 +123,22 @@ const MELEE_LIST = [
     '出鞘时有细微电弧，刀身亮得刺眼。'),
   melee('trident', '三叉戟-海歌', '限定', { attack: 99, crit: 0.42, critDamage: 2.48, combo: 0.28, durability: 230 },
     '三叉上缠着贝壳和藤条，靠近能听见水声。在水下对海洋生物额外造成 50% 伤害。', { limited: true }),
+  melee('sickle-devil', '镰刀-恶魔', '神话', { attack: 100, crit: 0.42, critDamage: 2.12, combo: 0.41, durability: 250 },
+    '镰刀身上的黑气是邪恶和收割的证明。'),
 
   /* ===== 神话 ===== */
-  melee('crusader-cross-sword', '十字剑-圣战', '神话', { attack: 105, crit: 0.36, critDamage: 2.55, combo: 0.32, durability: 280 },
+  melee('crusader-cross-sword', '十字剑-圣战', '神话', { attack: 105, crit: 0.36, critDamage: 2.55, combo: 0.34, durability: 280 },
     '剑柄是十字架，剑身上刻满祷文。'),
-  melee('longsword-frost', '长剑-寒芒', '神话', { attack: 110, crit: 0.44, critDamage: 2.75, combo: 0.4, durability: 245 },
+  melee('longsword-frost', '长剑-寒芒', '神话', { attack: 110, crit: 0.44, critDamage: 2.75, combo: 0.41, durability: 245 },
     '拔出时空气变冷，剑锋上凝着白霜。'),
   melee('longsword-rose-dark', '长剑-暗夜玫瑰', '神话', { attack: 112, crit: 0.42, critDamage: 2.7, combo: 0.46, durability: 250 },
     '剑身黑得吸光，只有刃口一线银。'),
   melee('longsword-silver-rose', '长剑-银色玫瑰', '神话', { attack: 118, crit: 0.45, critDamage: 2.92, combo: 0.39, durability: 260 },
     '银白剑身雕着玫瑰纹理，轻得不像它的体量。'),
-  melee('scarlet-greatsword', '猩红巨剑', '神话', { attack: 128, crit: 0.33, critDamage: 2.6, combo: 0.25, durability: 320 },
+  melee('scarlet-greatsword', '猩红巨剑', '神话', { attack: 128, crit: 0.38, critDamage: 2.65, combo: 0.28, durability: 320 },
     '整块剑身泛红，血干了也和它分不清。'),
+  melee('sickle-diamond', '镰刀-晶花', '神话', { attack: 144, crit: 0.44, critDamage: 1.44, combo: 0.44, durability: 444 },
+    '全水晶刀身，没人知道它是艺术品还是武器。'),
 
   /* ===== 限定 ===== */
   melee('royal-scepter', '皇家权杖', '限定', { attack: 40, crit: 0.39, critDamage: 2.88, combo: 0.66, durability: 600 },
@@ -140,15 +146,15 @@ const MELEE_LIST = [
       limited: true,
       image: '/image/末日都城限定/皇家权杖.webp',
     }),
-  melee('frost-greatsword', '寒霜大剑-冰晶', '限定', { attack: 100, crit: 0.35, critDamage: 3.72, combo: 0.4, durability: 288 },
-    '剑身是从一整块冰晶里凿出来的，握久了掌心会留下霜痕。', {
-      limited: true,
-      image: '/image/曙光阵地限定/寒霜大剑-冰晶.webp',
-    }),
-  melee('might-axe', '威能战斧', '限定', { attack: 80, crit: 0.01, critDamage: 4.56, combo: 0.5, durability: 800 },
+  melee('might-axe', '威能战斧', '限定', { attack: 80, crit: 0.01, critDamage: 3.88, combo: 0.5, durability: 800 },
     '斧刃宽得像一面小盾，挥动时带起沉闷的风声。', {
       limited: true,
       image: '/image/公会限定武器/威能战斧.webp',
+    }),
+  melee('frost-greatsword', '寒霜大剑-冰晶', '限定', { attack: 108, crit: 0.35, critDamage: 3.12, combo: 0.4, durability: 288 },
+    '剑身是从一整块冰晶里凿出来的，握久了掌心会留下霜痕。', {
+      limited: true,
+      image: '/image/曙光阵地限定/寒霜大剑-冰晶.webp',
     }),
   melee('kraken-blade', '沧龙之刃', '限定', { attack: 130, crit: 0.36, critDamage: 2.28, combo: 0.4, durability: 400 },
     '整条剑身像从沧龙脊背上剥下来的黑鳞，边缘却薄得能切开风。', {

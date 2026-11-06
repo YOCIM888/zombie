@@ -1,4 +1,6 @@
 // 天赋数据：近战、远程、斗兽拳头三条成长线
+import { SICKLE_WEAPON_IDS } from './weapons'
+
 export const TALENTS = {
   melee: {
     key: 'melee',
@@ -234,6 +236,21 @@ export const TALENTS = {
       { dodgeSegments: [0.5, 0.4, 0.3, 0.2, 0.1] },
     ],
   },
+  harvest: {
+    key: 'harvest',
+    label: '收割天赋',
+    primary: 'critDamage',
+    stat: '镰刀暴击伤害',
+    maxLevel: 4,
+    titles: ['收割高手', '收割大师', '收割宗师', '收割战神'],
+    // 爆伤按现有天赋惯例（手枪 / 突击）取倍率绝对值 +0.1；回血为固定点数
+    effects: [
+      { critDamage: 0.1, harvestChance: 0.5, harvestHeal: 2 },
+      { critDamage: 0.2, harvestChance: 0.5, harvestHeal: 5 },
+      { critDamage: 0.3, harvestChance: 0.5, harvestHeal: 8 },
+      { critDamage: 0.4, harvestChance: 0.5, harvestHeal: 10 },
+    ],
+  },
 }
 
 export const TALENT_ACTIVE_LIMIT = 2
@@ -257,6 +274,8 @@ export const TALENT_EFFECT_LABELS = {
   critDurability: '暴击耐久消耗',
   insightCrit: '洞察每层爆伤',
   dodgeSegments: '闪避追加段',
+  harvestChance: '收割回血概率',
+  harvestHeal: '收割回血',
 }
 
 /** 乌托邦专项训练：对应天赋、可选武器、消耗与每日次数 */
@@ -398,7 +417,6 @@ export const UTOPIA_TRAININGS = [
     costType: 'durability',
     weaponIds: [
       'snake-sword',
-      'sickle',
       'scimitar',
       'cleaver',
       'huan-shou-dao',
@@ -452,6 +470,23 @@ export const UTOPIA_TRAININGS = [
     awayLine: '切磋场在曙光阵地。',
     desc: '和曙光阵地的守备队员拆招，谁的刀先乱谁就先退。',
   },
+  {
+    kind: 'harvest',
+    name: '清理杂草',
+    tab: '清理杂草',
+    location: 'abandoned-village',
+    weaponSlot: 'melee',
+    costType: 'durability',
+    // 与时间宝石吸血、盗贼公会共用同一份镰刀白名单
+    weaponIds: SICKLE_WEAPON_IDS,
+    weaponText: '镰刀 / 镰刀-战意 / 镰刀-恶魔 / 镰刀-晶花',
+    dailyLimit: 2,
+    cost: 10,
+    progressMin: 5,
+    progressMax: 10,
+    awayLine: '杂草地在废弃村庄。',
+    desc: '在废弃村庄的田埂上挥镰除草，顺手练出收割的手感。',
+  },
 ]
 
 export const UTOPIA_TRAINING_BY_KIND = Object.fromEntries(
@@ -499,6 +534,8 @@ export function talentSummary(kind, level) {
       return `每层暴击伤害 +${percentText(effects.insightCrit)}（最多 ${TALENTS.insight.maxStacks} 层）`
     case 'bulldozer':
       return `闪避成功追加 ${(effects.dodgeSegments || []).map(percentText).join(' / ')}`
+    case 'harvest':
+      return `暴击伤害 +${effects.critDamage} · ${percentText(effects.harvestChance)} 概率恢复 ${effects.harvestHeal} 点生命`
     default:
       return ''
   }

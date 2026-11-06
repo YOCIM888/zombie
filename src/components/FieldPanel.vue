@@ -32,6 +32,7 @@ import {
   fieldMapById,
   getItem,
   lootCategoryText,
+  mapBackground,
   npcById,
   rarityText,
   talentEffects,
@@ -158,6 +159,35 @@ const dummyEffectText = computed(() => {
 })
 function trainDummy() {
   const message = utopiaTrain('assault')
+  if (message) notify(message)
+}
+
+/* 清理杂草：废弃村庄专用的收割天赋训练，与时间宝石 / 盗贼公会共用镰刀白名单 */
+const harvestTraining = UTOPIA_TRAINING_BY_KIND.harvest
+const harvestLevel = computed(() => Math.round(Number(game.talents.harvest) || 0))
+const harvestProgress = computed(() => Math.min(100, Number(game.training.harvest) || 0))
+const harvestMelee = computed(() => game.equipment.melee)
+const harvestMeleeItem = computed(() => getItem(harvestMelee.value?.id))
+const harvestFits = computed(() =>
+  Boolean(harvestTraining.weaponIds.includes(harvestMelee.value?.id)),
+)
+const harvestDurability = computed(() => {
+  const value = harvestMelee.value?.durability
+  if (Number.isFinite(value)) return value
+  return harvestMeleeItem.value?.weapon?.durability ?? 0
+})
+const harvestLeft = computed(() => utopiaTrainingLeft('harvest'))
+const harvestLimit = computed(() => utopiaTrainingLimit('harvest'))
+const harvestBlocked = computed(() => utopiaTrainingGuard('harvest'))
+const harvestFull = computed(() => harvestLevel.value >= TALENTS.harvest.maxLevel)
+const harvestTitle = computed(() => talentTitle('harvest', harvestLevel.value) || '尚未训练')
+const harvestEffectText = computed(() => {
+  if (!harvestLevel.value) return '暂无加成'
+  const effect = talentEffects('harvest', harvestLevel.value)
+  return `爆伤 +${effect.critDamage || 0}× / ${Math.round((effect.harvestChance || 0) * 100)}% 概率回 ${effect.harvestHeal || 0} 血`
+})
+function trainHarvest() {
+  const message = utopiaTrain('harvest')
   if (message) notify(message)
 }
 
@@ -356,6 +386,12 @@ const fieldMenu = computed(() => {
         name: '果园采摘',
         desc: `随机水果 ×${ORCHARD.quantity}，同一片果园要缓上几天。`,
         tag: orchardLeft.value > 0 ? `冷却 ${orchardLeft.value} 天` : '可采摘',
+      },
+      {
+        id: 'harvest',
+        name: '清理杂草',
+        desc: `${harvestTraining.name}：1 回合、耐久 ${harvestTraining.cost}，每天 ${harvestLimit.value} 次。`,
+        tag: harvestFull.value ? '已满级' : `剩余 ${harvestLeft.value}/${harvestLimit.value}`,
       },
       {
         id: 'seed',
@@ -718,6 +754,7 @@ function closePanel() {
     :title="map.name"
     :sub="`${map.level} · ${map.difficulty} · 第 ${game.day} 天 · ${currentPhase}`"
     wide
+    :bg="mapBackground(game.location)"
     @close="closePanel"
   >
     <template #hud>
@@ -902,6 +939,42 @@ function closePanel() {
           >
             下潜 · 1 回合
           </button>
+        </article>
+
+        <article v-else-if="view === 'harvest'" class="extra">
+          <header class="extra__head">
+            <h4 class="extra__title">清理杂草 · 镰刀</h4>
+            <span class="extra__tag">{{ harvestFull ? '已满级' : `Lv ${harvestLevel}` }}</span>
+          </header>
+          <p class="extra__desc">{{ harvestTraining.desc }}</p>
+          <div class="chips">
+            <span>
+              装备：{{ harvestMeleeItem?.name || '未装备近战武器' }}
+              {{ harvestFits ? '（合格）' : '（不合格）' }}
+            </span>
+            <span>耐久 {{ harvestDurability }}</span>
+            <span>今日剩余 {{ harvestLeft }} / {{ harvestLimit }} 次</span>
+            <span>消耗 耐久 {{ harvestTraining.cost }} · 1 回合</span>
+            <span>进度 +{{ harvestTraining.progressMin }}%–{{ harvestTraining.progressMax }}%</span>
+          </div>
+          <div class="dummy-bar"><i :style="{ width: `${harvestProgress}%` }" /></div>
+          <p class="extra__desc">
+            熟练度 {{ harvestProgress }}% · {{ harvestTitle }} · {{ harvestEffectText }}
+          </p>
+          <p v-if="harvestBlocked" class="extra__desc">{{ harvestBlocked }}</p>
+          <p v-else-if="!isTalentActive('harvest')" class="extra__desc">
+            「收割天赋」尚未启用，请到天赋页占用一个启用位。
+          </p>
+          <div class="extra__actions">
+            <button
+              type="button"
+              class="btn btn--primary"
+              :disabled="Boolean(harvestBlocked)"
+              @click="trainHarvest"
+            >
+              {{ harvestFull ? '已满级' : '训练 · 1 回合' }}
+            </button>
+          </div>
         </article>
 
         <article v-else-if="view === 'orchard'" class="extra">
@@ -1894,8 +1967,18 @@ function closePanel() {
   flex-direction: column;
   gap: 8px;
   padding: 12px;
-  border: 1px solid var(--line);
-  background: #0d0f10;
+  border: 1px solid rgba(214, 208, 191, 0.16);
+  background: rgba(8, 10, 11, 0.58);
+  -webkit-backdrop-filter: blur(6px) saturate(0.92);
+  backdrop-filter: blur(6px) saturate(0.92);
+  transition:
+    background 0.2s,
+    border-color 0.2s;
+}
+
+.extra:focus-within {
+  border-color: rgba(193, 74, 50, 0.45);
+  background: rgba(193, 74, 50, 0.1);
 }
 
 .extra__head {
@@ -2063,7 +2146,9 @@ function closePanel() {
   margin-top: auto;
   padding: 12px 0 4px;
   border-top: 1px solid var(--line);
-  background: #0c0e0f;
+  background: rgba(8, 10, 11, 0.72);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
 }
 
 .actions .btn {

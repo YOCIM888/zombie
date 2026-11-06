@@ -44,8 +44,8 @@ const showRename = ref(false)
 const showDevConsole = ref(false)
 const renameDraft = ref('')
 
-/** 隐藏入口：头像连续点击 10 次；相邻两次超过 700ms 视为重新开始 */
-const DEV_TAP_TARGET = 10
+/** 隐藏入口：头像连续点击 8 次；相邻两次超过 700ms 视为重新开始 */
+const DEV_TAP_TARGET = 8
 const DEV_TAP_GAP = 700
 const devTapCount = ref(0)
 let devTapLast = 0
@@ -443,6 +443,8 @@ function percentOf(key) {
       v-if="showLeave"
       title="返回主菜单"
       sub="未保存的进度将会丢失"
+      bg="/image/背景图/返回主菜单.webp"
+      bg-light
       @close="showLeave = false"
     >
       <p class="leave__text">

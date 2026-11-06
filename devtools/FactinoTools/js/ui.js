@@ -49,6 +49,8 @@ const STAT_LABELS = {
   critDurability: '暴击耐久消耗',
   insightCrit: '洞察每层爆伤',
   dodgeSegments: '闪避追加段',
+  harvestChance: '收割回血概率',
+  harvestHeal: '收割回血',
 }
 
 /** 百分比属性：0.05 显示为 5% */
@@ -68,10 +70,11 @@ const PERCENT_KEYS = [
   'sweepDamage',
   'insightCrit',
   'dodgeSegments',
+  'harvestChance',
 ]
 
 /** 平加数值：直接显示原值，不加百分号 */
-const FLAT_KEYS = ['damage', 'critDurability']
+const FLAT_KEYS = ['damage', 'critDurability', 'harvestHeal']
 
 const warnUnknown = (key) =>
   console.warn(`[FactinoTools] 天赋效果字段「${key}」缺少中文映射，已回退为「未命名效果」，请补 STAT_LABELS。`)

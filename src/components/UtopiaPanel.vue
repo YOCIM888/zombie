@@ -18,6 +18,7 @@ import {
   countItem,
   getItem,
   identityRank,
+  mapBackground,
   mayorForDay,
   talentEffects,
   talentTitle,
@@ -588,6 +589,7 @@ function back() {
     title="乌托邦城"
     :sub="`相对安全 · 第 ${game.day} 天 · ${currentPhase}`"
     wide
+    :bg="mapBackground(game.location)"
     @close="closeUtopia"
   >
     <template #hud>
@@ -2018,7 +2020,7 @@ function back() {
   align-items: center;
   gap: 4px;
   padding: 8px 4px;
-  background: #0d0f10;
+  background: rgba(8, 10, 11, 0.58);
   opacity: 0.45;
 }
 
@@ -2058,7 +2060,14 @@ function back() {
   align-items: center;
   gap: 14px;
   padding: 12px 14px;
-  background: #0d0f10;
+  background: rgba(8, 10, 11, 0.58);
+  -webkit-backdrop-filter: blur(6px) saturate(0.92);
+  backdrop-filter: blur(6px) saturate(0.92);
+  transition: background 0.2s;
+}
+
+.mayor-option:hover {
+  background: rgba(193, 74, 50, 0.12);
 }
 
 .mayor-option__main {

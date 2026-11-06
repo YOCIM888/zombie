@@ -38,8 +38,12 @@ export function renderGuilds() {
         if (guild.critBonus) extra.push('暴击 +' + Math.round(guild.critBonus * 100) + '%')
         if (guild.critDamageBonus) extra.push('爆伤 +' + Math.round(guild.critDamageBonus * 100) + '%')
         if (guild.comboBonus) extra.push('连击 +' + Math.round(guild.comboBonus * 100) + '%')
-        if (guild.durabilityCostMultiplier) extra.push('耐久消耗 ×' + guild.durabilityCostMultiplier)
-        if (guild.cleanlinessCostMultiplier) extra.push('清洁度消耗 ×' + guild.cleanlinessCostMultiplier)
+        if (guild.durabilityExtraCost) extra.push('每击耐久 +' + guild.durabilityExtraCost)
+        if (guild.cleanlinessExtraCost) extra.push('每击清洁度 +' + guild.cleanlinessExtraCost)
+        if (guild.healBonusChance) extra.push('治疗药 ' + Math.round(guild.healBonusChance * 100) + '% 额外 +' + guild.healBonusHp)
+        if (guild.lifestealChance) extra.push('镰刀 ' + Math.round(guild.lifestealChance * 100) + '% 吸血 ' + guild.lifestealHp)
+        if (guild.fleeBonus) extra.push('逃跑 +' + Math.round(guild.fleeBonus * 100) + '%')
+        if (guild.zeroStatDrain) extra.push('属性归零/感染满 每回合 -' + guild.zeroStatDrain + ' 生命')
         return `<tr><td><b>${esc(guild.name)}</b><br><span class="badge">${guild.id}</span></td>
         <td class="small">${weapons === '—' ? '—' : esc(weapons) + '<br><span class="muted">每击平砍 +' + (guild.damageBonus || 0) + '</span>'}</td>
         <td class="small">${extra.join('<br>') || esc(guild.buff)}</td>
@@ -49,7 +53,7 @@ export function renderGuilds() {
     `</tbody>`
 
   $('#guildNote').innerHTML =
-    '<b>三个带武器加成的公会同时只能进一个。</b>骑士公会的五项加成全部锁死在骑士剑上；猎人是唯一能绕开清洁度伤害衰减的通道，但清洁度消耗 ×2。'
+    '<b>三个带武器加成的公会同时只能进一个。</b>骑士公会的五项加成全部锁死在骑士剑上；猎人能绕开清洁度伤害衰减，代价是每枪多耗 1 点清洁度；战士每击多耗 1 点耐久。'
 }
 
 export function renderGems() {

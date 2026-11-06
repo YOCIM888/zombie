@@ -3,9 +3,11 @@ import { computed } from 'vue'
 import { MUSIC_TRACKS } from '../game/assets'
 import { settings, persistSettings } from '../game/save'
 import { updateMusicSettings, startMusic } from '../game/music'
+import { previewWeaponSfx } from '../game/sfx'
 import ModalShell from './ModalShell.vue'
 
 const volumePercent = computed(() => Math.round(settings.volume * 100))
+const sfxVolumePercent = computed(() => Math.round(settings.sfxVolume * 100))
 const currentTrack = computed(
   () => MUSIC_TRACKS.find((track) => track.id === settings.track) ?? MUSIC_TRACKS[0],
 )
@@ -39,6 +41,28 @@ function resetVolume() {
 function toggleSurvivalHints() {
   settings.survivalHints = !settings.survivalHints
   persistSettings()
+}
+
+// 音效音量：拖动即时保存并试听，试听节流避免每次 input 都炸响
+let lastPreviewAt = 0
+function onSfxVolumeInput(event) {
+  settings.sfxVolume = Number(event.target.value) / 100
+  persistSettings()
+  const now = performance.now()
+  if (now - lastPreviewAt < 140) return
+  lastPreviewAt = now
+  previewWeaponSfx()
+}
+
+function onSfxVolumeChange() {
+  lastPreviewAt = 0
+  previewWeaponSfx()
+}
+
+function resetSfxVolume() {
+  settings.sfxVolume = 0.7
+  persistSettings()
+  previewWeaponSfx()
 }
 </script>
 
@@ -114,10 +138,30 @@ function toggleSurvivalHints() {
           <button type="button" class="btn" @click="resetVolume">恢复默认</button>
         </div>
       </div>
+
+      <div class="row row--stack">
+        <div class="row__info">
+          <h3>音效音量</h3>
+          <p>当前 {{ sfxVolumePercent }}% · 仅影响武器攻击音效，拖动即时试听</p>
+        </div>
+        <div class="slider">
+          <input
+            type="range"
+            min="0"
+            max="100"
+            step="1"
+            :value="sfxVolumePercent"
+            @input="onSfxVolumeInput"
+            @change="onSfxVolumeChange"
+            aria-label="音效音量"
+          />
+          <button type="button" class="btn" @click="resetSfxVolume">恢复默认</button>
+        </div>
+      </div>
     </section>
 
     <template #footer>
-      <span>更多设置项（画面、语言、快捷键）将在后续版本补充。</span>
+      <span>设置将会持久化生效</span>
       <span class="mode">SETTINGS</span>
     </template>
   </ModalShell>

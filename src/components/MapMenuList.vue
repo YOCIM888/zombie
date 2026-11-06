@@ -39,13 +39,19 @@ defineEmits(['select'])
   align-items: flex-start;
   gap: 8px;
   padding: 12px;
-  background: #0d0f10;
+  border: 1px solid rgba(214, 208, 191, 0.16);
+  background: rgba(8, 10, 11, 0.58);
+  -webkit-backdrop-filter: blur(6px) saturate(0.92);
+  backdrop-filter: blur(6px) saturate(0.92);
   text-align: left;
-  transition: background 0.2s;
+  transition:
+    background 0.2s,
+    border-color 0.2s;
 }
 
 .map-menu__item:hover:not(:disabled) {
-  background: #121516;
+  border-color: rgba(193, 74, 50, 0.5);
+  background: rgba(193, 74, 50, 0.2);
 }
 
 .map-menu__item:disabled {

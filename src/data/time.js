@@ -24,6 +24,26 @@ export const REST_OPTIONS = {
     desc: '把门反锁，躺回床上。这一次睡得很沉。',
     effects: { hp: 50, thirst: -20, hunger: -20, sanity: 50, stamina: 50 },
   },
+  tea: {
+    id: 'tea',
+    name: '精灵茶会',
+    turns: 1,
+    gemOnly: true,
+    dailyLimit: 2,
+    dropCategory: 'drink',
+    desc: '精灵们围坐在杯沿上，替你续了三次水。醒来时茶杯还是温的。',
+    effects: { hp: 10, thirst: 5, hunger: 5, sanity: 10, stamina: 10 },
+  },
+  bed: {
+    id: 'bed',
+    name: '大精灵床',
+    turns: 4,
+    gemOnly: true,
+    dailyLimit: 1,
+    dropCategory: 'medicine',
+    desc: '藤蔓把你托进一张铺满苔藓的床。精灵在枕边守了一整夜。',
+    effects: { hp: 50, sanity: 50, stamina: 50 },
+  },
 }
 
 export function phaseLabel(index) {

@@ -18,6 +18,7 @@ import {
   formatMoney,
   identityRank,
   mayorForDay,
+  panelBackground,
 } from '../data'
 import {
   activeGuild,
@@ -392,7 +393,7 @@ const GROUPS = [
       },
       ...UTOPIA_TRAININGS.map((training) => ({
         name: training.name,
-        cycle: () => `每天 ${utopiaTrainingLimit()} 次`,
+        cycle: () => `每天 ${utopiaTrainingLimit(training.kind)} 次`,
         customState: () => trainingRowState(training.kind),
       })),
     ],
@@ -510,6 +511,8 @@ const stockChanges = computed(() => {
     title="备忘录"
     :sub="`第 ${game.day} 天 · 冷却、剩余次数与飞行船行情`"
     wide
+    :bg="panelBackground('notebook')"
+    bg-tone="deep"
     @close="$emit('close')"
   >
     <template #hud>
@@ -682,7 +685,9 @@ const stockChanges = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding-top: 4px;
+  padding: 12px 14px 14px;
+  border: 1px solid var(--line);
+  background: rgba(8, 10, 11, 0.42);
 }
 
 .book__empty {

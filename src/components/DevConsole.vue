@@ -4,7 +4,7 @@ import { battle } from '../game/battle'
 import { devState, game, notify, runDevCommand } from '../game/store'
 
 const emit = defineEmits(['close'])
-const input = ref('')
+const input = ref('/')
 const inputEl = ref(null)
 const logEl = ref(null)
 const lines = ref([
@@ -170,6 +170,11 @@ onMounted(async () => {
     pos.value = clampPos(saved.x, saved.y)
     savePos(pos.value)
   }
+
+  // 打开即激活输入框，预填的 "/" 已就位，光标停在斜杠之后
+  await nextTick()
+  inputEl.value?.focus()
+  inputEl.value?.setSelectionRange(1, 1)
 })
 
 onBeforeUnmount(() => {

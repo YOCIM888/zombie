@@ -20,6 +20,7 @@ import {
   SEA_OXYGEN_DEFAULT,
   SPRAY_EXTRA_CLEANLINESS,
   SPRAY_SEGMENTS,
+  TIME_GEM,
   UTOPIA_TRAINING_BY_KIND,
   pickSeaCreature,
   UNARMED,
@@ -31,6 +32,7 @@ import {
   getItem,
   identityRank,
   isFistTalentWeapon,
+  isSickleWeapon,
   mafeiQuestForTarget,
   mayorForDay,
   npcById,
@@ -587,6 +589,53 @@ function updateMagicStacks(critted) {
   pushLog(`魔化 +1 层：暴击率临时 +${percent}%（当前 ${battle.magicStacks} 层）。`)
 }
 
+/** 收割天赋：仅对镰刀类武器生效，每次近战攻击动作只判定一次（与时间宝石同一粒度）；
+    恢复固定点数，受生命上限约束，满血时不掷骰。 */
+function harvestLifesteal() {
+  const talent = activeTalentEffects('harvest')
+  if (!talent.harvestChance) return
+  const sickleIds = UTOPIA_TRAINING_BY_KIND.harvest.weaponIds
+  if (!game.equipment.melee || !sickleIds?.includes(game.equipment.melee.id)) return
+  const cap = statCap('hp')
+  const hp = Number(game.stats.hp) || 0
+  if (hp >= cap) return
+  if (Math.random() >= talent.harvestChance) return
+  const heal = Math.max(0, Number(talent.harvestHeal) || 0)
+  if (heal <= 0) return
+  const next = Math.min(cap, hp + heal)
+  game.stats.hp = next
+  pushLog(`收割天赋：镰刃带回 ${next - hp} 点生命（${hp} → ${next}）。`)
+}
+
+/** 时间宝石吸血：装备镰刀类武器时，每次近战攻击动作只判定一次；
+    连击追加段、拔刀斩与背刺的追加段都不再单独判定，泼射属于远程攻击不触发。
+    恢复量按最大生命计算，满血时不掷骰。 */
+function timeGemLifesteal() {
+  if (!hasGem('time-gem') || !isSickleWeapon(game.equipment.melee)) return
+  const cap = statCap('hp')
+  const hp = Number(game.stats.hp) || 0
+  if (hp >= cap) return
+  if (Math.random() >= TIME_GEM.lifestealChance) return
+  const heal = Math.max(1, Math.round(cap * TIME_GEM.lifestealRatio))
+  const next = Math.min(cap, hp + heal)
+  game.stats.hp = next
+  pushLog(`时间宝石吸取了 ${next - hp} 点生命（${hp} → ${next}）。`)
+}
+
+/** 盗贼公会：装备镰刀类武器时，每次近战攻击动作只判定一次，触发后恢复固定生命 */
+function guildSickleLifesteal() {
+  const guild = activeGuild()
+  if (guild?.id !== 'rogue' || !isSickleWeapon(game.equipment.melee)) return
+  const cap = statCap('hp')
+  const hp = Number(game.stats.hp) || 0
+  if (hp >= cap) return
+  if (Math.random() >= (guild.lifestealChance ?? 0)) return
+  const heal = Math.max(1, Number(guild.lifestealHp) || 10)
+  const next = Math.min(cap, hp + heal)
+  game.stats.hp = next
+  pushLog(`盗贼公会的镰刃收割了 ${next - hp} 点生命（${hp} → ${next}）。`)
+}
+
 /** 世界BOSS的攻击在 40-60 之间浮动 */
 function enemyAttackValue() {
   const zombie = battle.zombie
@@ -774,7 +823,14 @@ export function meleeAttack() {
     initialMelee && UTOPIA_TRAINING_BY_KIND.polearm.weaponIds.includes(initialMelee.id)
   const polearmCritDur = polearmWeapon ? (polearmTalent.critDurability ?? 0) : 0
   const polearmCritMult = polearmWeapon ? (polearmTalent.critMult ?? 1) : 1
+  const harvestTalent = activeTalentEffects('harvest')
+  const harvestWeapon =
+    initialMelee && UTOPIA_TRAINING_BY_KIND.harvest.weaponIds.includes(initialMelee.id)
+  const harvestCritDamage = harvestWeapon ? (harvestTalent.critDamage ?? 0) : 0
   if (frozen) battle.frozen = false
+
+  // 世界BOSS 与「游戏开发者」生死角斗共用一套封顶：处决 500、切割 200
+  const cappedBoss = battle.zombie.isWorldBoss || battle.kind === 'dev-duel'
 
   while (loops < 500) {
     loops += 1
@@ -787,11 +843,16 @@ export function meleeAttack() {
     const warrior = guild?.id === 'warrior' && guild.weaponIds?.includes(def?.id)
     const critChance = Math.min(
       1,
-      (weapon.crit ?? 0) + (knight ? (guild.critBonus ?? 0) : 0) + magicCritBonus(),
+      (weapon.crit ?? 0) +
+        (knight ? (guild.critBonus ?? 0) : 0) +
+        (warrior ? (guild.critBonus ?? 0) : 0) +
+        magicCritBonus(),
     )
     const crit = Math.random() < critChance && (weapon.critDamage ?? 0) >= 1
     const critDamage =
-      (weapon.critDamage ?? 0) + (knight ? (guild.critDamageBonus ?? 0) : 0)
+      (weapon.critDamage ?? 0) +
+      (knight ? (guild.critDamageBonus ?? 0) : 0) +
+      harvestCritDamage
     const slash = isTalentActive('slash') ? talentEffects('slash', game.talents.slash) : {}
     const attack = (weapon.attack ?? 0) + (arena.damage ?? 0) + (slash.damage ?? 0)
     const seaBonus = battle.kind === 'deep-sea' && def?.id === 'trident' ? 1.5 : 1
@@ -829,15 +890,16 @@ export function meleeAttack() {
     if (bluntWeapon && boneStacks > 0) {
       damage = Math.round(damage * (1 + boneStacks * 0.1))
     }
+    // 世界BOSS 与「游戏开发者」生死角斗共用一套封顶：处决 500、切割 200
     if (swordExecute && hits === 0) {
       bumpStat('executeCount')
-      damage = battle.zombie.isWorldBoss
-        ? Math.min(500, battle.zombie.hp)
-        : battle.zombie.hp
+      damage = cappedBoss ? Math.min(500, battle.zombie.hp) : battle.zombie.hp
       pushLog(
         battle.zombie.isWorldBoss
           ? '致命一击被厚重的尸壳挡住，只撕开 500 点伤口。'
-          : '致命一击：剑尖找到了那一瞬间的空门。',
+          : battle.kind === 'dev-duel'
+            ? '致命一击被开发者的测试血条挡住，只撕开 500 点伤口。'
+            : '致命一击：剑尖找到了那一瞬间的空门。',
       )
     }
     if (battle.tenacityEmpower) {
@@ -888,6 +950,9 @@ export function meleeAttack() {
   }
   if (broken) pushLog(`${broken}在最后一次挥砍中断成了两截。`)
   updateMagicStacks(crits > 0)
+  harvestLifesteal()
+  timeGemLifesteal()
+  guildSickleLifesteal()
   companionAssist()
 
   if (
@@ -897,7 +962,7 @@ export function meleeAttack() {
     Math.random() < (drawTalent.cutChance ?? 0)
   ) {
     let cut = Math.max(1, Math.ceil(battle.zombie.maxHp * 0.2))
-    if (battle.zombie.isWorldBoss) cut = Math.min(cut, 200)
+    if (cappedBoss) cut = Math.min(cut, 200)
     damageEnemy(cut)
     pushLog(`拔刀斩触发切割，追加 ${cut} 点真实伤害。`)
   }
@@ -1179,8 +1244,15 @@ export function fleeBattle() {
     return
   }
 
-  const fleeChance =
-    battle.kind === 'deep-sea' && battle.mermaidBlessed ? 0.8 : DAWN_FLEE_CHANCE
+  // 诗人公会只加成常规逃跑；深海、政变与世界BOSS沿用各自的特殊判定
+  const guild = activeGuild()
+  const poetBonus =
+    guild?.id === 'poet' && battle.kind !== 'deep-sea' ? (guild.fleeBonus ?? 0) : 0
+  const fleeChance = Math.min(
+    1,
+    (battle.kind === 'deep-sea' && battle.mermaidBlessed ? 0.8 : DAWN_FLEE_CHANCE) +
+      poetBonus,
+  )
   if (Math.random() < fleeChance) {
     battle.active = false
     battle.finished = true

@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue'
+import { panelBackground } from '../data'
 import { saveSlots } from '../game/save'
 import { currentPlaytime, game, loadFromSlot, notify, saveToSlot } from '../game/store'
 import { formatDuration } from '../game/format'
@@ -36,7 +37,13 @@ function labelFor(index) {
 </script>
 
 <template>
-  <ModalShell title="查看存档" sub="本局进度 · 手动保存，随时读取" @close="emit('close')">
+  <ModalShell
+    title="查看存档"
+    sub="本局进度 · 手动保存，随时读取"
+    :bg="panelBackground('save')"
+    bg-tone="soft"
+    @close="emit('close')"
+  >
     <div class="slots">
       <SlotRow
         v-for="(slot, index) in saveSlots.list"
@@ -69,6 +76,24 @@ function labelFor(index) {
 <style scoped>
 .slots {
   padding-top: 2px;
+}
+
+/* 存档位原本是近乎透明的行，压上一层浅底避免背景图干扰槽位信息 */
+.slots :deep(.slot) {
+  background: rgba(8, 10, 11, 0.55);
+  backdrop-filter: blur(4px) saturate(0.9);
+}
+
+.slots :deep(.slot:hover) {
+  background: rgba(16, 19, 20, 0.68);
+}
+
+.slots :deep(.slot--active) {
+  background: rgba(193, 74, 50, 0.18);
+}
+
+.slots :deep(.slot--empty) {
+  background: rgba(8, 10, 11, 0.42);
 }
 
 .mode {

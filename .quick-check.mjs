@@ -1,0 +1,16 @@
+import { createServer } from 'vite'
+const server = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' })
+const m = await server.ssrLoadModule('/devtools/FactinoTools/js/build-metrics.js')
+const model = await server.ssrLoadModule('/devtools/FactinoTools/js/model.js')
+const source = await server.ssrLoadModule('/devtools/FactinoTools/data/source.js')
+const MOB = source.TARGETS.find((t) => t.id === 'mob')
+const TG = { hp: MOB.hp, maxHp: MOB.maxHp, attack: MOB.atk, dodge: MOB.dodge, armor: MOB.abilities.includes('armor'), frozen: false, abilities: MOB.abilities, isBoss: MOB.isBoss }
+const b = m.BUILD_METRICS.find((x) => x.id === 'harvest')
+console.log('count', m.BUILD_METRICS.length, '| perTurn', b.main.perTurn, '| heal', b.main.healPerTurn, '| guild', b.guild)
+const D = model.derive({ weapon: b.weapon, talents: b.talents, guild: b.guild, gems: b.gems }, TG)
+console.log('recalc perTurn', model.meleeExact(D, TG, { hpPct: 1, cleanliness: 100, boneStacks: 0, magicStacks: model.magicMeanStacks(D) }).perTurn, '| heal', model.sustainHeal(D))
+const none = model.derive({ weapon: b.weapon, talents: b.talents, guild: null, gems: b.gems }, TG)
+console.log('no-guild perTurn', model.meleeExact(none, TG, { hpPct: 1, cleanliness: 100, boneStacks: 0, magicStacks: model.magicMeanStacks(none) }).perTurn)
+const rows = [...m.BUILD_METRICS].sort((a, c) => c.main.perTurn - a.main.perTurn)
+console.log('rank', rows.findIndex((x) => x.id === 'harvest') + 1)
+await server.close()

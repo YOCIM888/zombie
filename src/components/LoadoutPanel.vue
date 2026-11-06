@@ -98,7 +98,7 @@ const meleeAttackText = computed(() => {
 })
 const meleeCritText = computed(() => {
   const parts =
-    knightMelee.value && activeGuildInfo.value?.critBonus
+    (knightMelee.value || warriorMelee.value) && activeGuildInfo.value?.critBonus
       ? [[activeGuildInfo.value.name, activeGuildInfo.value.critBonus]]
       : []
   return percentBreakdown(melee.value.crit ?? 0, parts)

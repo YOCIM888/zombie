@@ -143,9 +143,10 @@ export const AIRSHIP = {
   oil: {
     title: '储油仓库',
     desc: '仓库里码着一排铁皮油桶，空气里全是汽油味。这里只认末日币，不认人情。',
-    sellRate: AIRSHIP_OIL_PRICING.sellRate,
     buyMin: AIRSHIP_OIL_PRICING.buyMin,
     buyMax: AIRSHIP_OIL_PRICING.buyMax,
+    sellMin: AIRSHIP_OIL_PRICING.sellMin,
+    sellMax: AIRSHIP_OIL_PRICING.sellMax,
   },
   nobles: {
     moran: {
@@ -470,10 +471,21 @@ export function commissionForDay(day) {
   }
 }
 
-/** 储油仓库当日收购 / 出售价：购买价 1-3 末日币，按天刷新 */
+/** 当日购买汽油的单价：区间按「分」取整后落在 0.75-3.99，同一天不变 */
 export function oilPriceForDay(day) {
-  const { buyMin, buyMax } = AIRSHIP_OIL_PRICING
-  return buyMin + (dayHash(day, 4) % (buyMax - buyMin + 1))
+  return priceInCentsRange(dayHash(day, 4), AIRSHIP_OIL_PRICING.buyMin, AIRSHIP_OIL_PRICING.buyMax)
+}
+
+/** 当日提交汽油的回收单价：区间按「分」取整后落在 0.25-2.25，同一天不变 */
+export function oilSellPriceForDay(day) {
+  return priceInCentsRange(dayHash(day, 5), AIRSHIP_OIL_PRICING.sellMin, AIRSHIP_OIL_PRICING.sellMax)
+}
+
+/** 在 [min, max] 内按「分」取整取值：先把端点换算成整数分，再落回元，避免浮点误差 */
+function priceInCentsRange(hash, min, max) {
+  const low = Math.round(min * 100)
+  const high = Math.round(max * 100)
+  return (low + (hash % (high - low + 1))) / 100
 }
 
 /** 商店标题与描述 */

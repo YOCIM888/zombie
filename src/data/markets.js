@@ -144,11 +144,12 @@ export const AIRSHIP_TREASURE_PRICING = {
   spread: 111,
 }
 
-/** 储油仓库：每日买入价区间与提交回收价（末日币） */
+/** 储油仓库：每日买入 / 卖出价区间（末日币，精确到分） */
 export const AIRSHIP_OIL_PRICING = {
-  buyMin: 1,
-  buyMax: 3,
-  sellRate: 1,
+  buyMin: 0.75,
+  buyMax: 3.99,
+  sellMin: 0.25,
+  sellMax: 2.25,
 }
 
 /** 投资中心：六支股票的基础价（末日币） */
@@ -180,9 +181,9 @@ export const STOCK_DAY_MOVE = { min: 5, max: 15 }
 /** 背包扩容：按当前容量分段计价，每次 +10 格；两种货币等额收取 */
 export const DEV_SHOP_EXPAND_TIERS = [
   { from: 20, to: 50, coins: 5, dawnCoins: 5 },
-  { from: 50, to: 100, coins: 8, dawnCoins: 8 },
-  { from: 100, to: 150, coins: 10, dawnCoins: 10 },
-  { from: 150, to: 200, coins: 15, dawnCoins: 15 },
+  { from: 50, to: 100, coins: 10, dawnCoins: 10 },
+  { from: 100, to: 150, coins: 15, dawnCoins: 15 },
+  { from: 150, to: 200, coins: 20, dawnCoins: 20 },
 ]
 
 /** 指定容量下的单次扩容价；已到上限返回 null */

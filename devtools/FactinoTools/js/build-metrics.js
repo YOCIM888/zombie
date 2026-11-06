@@ -1,7 +1,7 @@
-// 16 套构筑的实时指标：每次载入都按 src/data 重算，不保存任何旧数值
+// 17 套构筑的实时指标：每次载入都按 src/data 重算，不保存任何旧数值
 import { BUILDS } from '../data/builds.js'
 import { TARGETS } from '../data/source.js'
-import { derive, meleeExact, rangedExact, magicMeanStacks } from './model.js'
+import { derive, meleeExact, rangedExact, magicMeanStacks, sustainHeal } from './model.js'
 
 const MOB = TARGETS.find((target) => target.id === 'mob')
 const TG = {
@@ -33,6 +33,7 @@ function metricsFor(weaponId, talents, guild, gems) {
     durPerTurn: exact.durPerTurn,
     cleanPerTurn: exact.cleanPerTurn,
     bonePerTurn: exact.bonePerTurn,
+    healPerTurn: sustainHeal(derived),
   }
 }
 

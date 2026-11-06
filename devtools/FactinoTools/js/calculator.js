@@ -1,6 +1,6 @@
 // 构筑计算器：随选随算，武器/天赋/公会/宝石/靶标全部实时
 import { WEAPON_LIST, MECH, TARGETS, WEAPONS } from '../data/source.js'
-import { derive, meleeExact, rangedExact, perTurnMC, fightStats, magicMeanStacks } from './model.js'
+import { derive, meleeExact, rangedExact, perTurnMC, fightStats, magicMeanStacks, sustainHeal } from './model.js'
 import { MAGIC_GEM_STACK } from '../../../src/data/items/gem.js'
 import { $, $$, el, esc, num } from './ui.js'
 
@@ -189,6 +189,9 @@ function calc() {
       ],
     )
   }
+  if (derived.inHarvest) {
+    rows.push(['期望回血/回合', `≈ ${num(sustainHeal(derived))} 生命（单次攻击动作判定）`])
+  }
   $('#oKv').innerHTML = rows.map(([key, value]) => `<dt>${key}</dt><dd>${value}</dd>`).join('')
 
   const warns = []
@@ -208,6 +211,8 @@ function calc() {
     )
   if (Object.keys(cfg.talents).includes('assault') && !MECH.whitelists.assault.weaponIds.includes(cfg.weapon))
     warns.push(`突击天赋只对 10 把步枪生效，${WEAPONS[cfg.weapon].name} 拿不到 +攻击 / +暴击 / +爆伤。`)
+  if (Object.keys(cfg.talents).includes('harvest') && !MECH.whitelists.harvest.weaponIds.includes(cfg.weapon))
+    warns.push(`收割天赋只对 4 把镰刀生效，${WEAPONS[cfg.weapon].name} 拿不到 +爆伤与回血。`)
   if (cfg.weapon === 'trident' && !target.isSea)
     warns.push('三叉戟的海洋伤害 +50% 只在深海战斗生效，当前靶标不是深海。')
   if (cfg.gems.includes('ocean-gem') && !target.isSea)
@@ -282,7 +287,7 @@ export function initCalc() {
   MECH.guilds.forEach((guild) => {
     const option = el('option')
     option.value = guild.id
-    option.textContent = guild.name + (guild.weaponIds ? '（武器 +25）' : '')
+    option.textContent = guild.name + (guild.damageBonus ? `（武器 +${guild.damageBonus}）` : '')
     guildSelect.appendChild(option)
   })
 

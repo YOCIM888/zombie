@@ -79,14 +79,23 @@ function getAudio(src) {
 
 /** 播放当前武器对应的攻击音效；未装备武器时使用通用近战音效 */
 export function playWeaponSfx(def) {
-  if (typeof Audio === 'undefined' || settings.muted || settings.volume <= 0) return
   const key = sfxKeyFor(def)
   if (!key) return
+  playSfxKey(key)
+}
+
+/** 设置面板试听：用通用近战音效，不受音乐开关影响，只受音效音量控制 */
+export function previewWeaponSfx() {
+  playSfxKey(MELEE_FALLBACK)
+}
+
+function playSfxKey(key) {
+  if (typeof Audio === 'undefined' || settings.sfxVolume <= 0) return
 
   try {
     const audio = getAudio(SFX_ROOT + SFX_FILES[key])
     audio.currentTime = 0
-    audio.volume = Math.min(1, settings.volume)
+    audio.volume = Math.min(1, settings.sfxVolume)
     const played = audio.play()
     if (played) played.catch(() => {})
   } catch {

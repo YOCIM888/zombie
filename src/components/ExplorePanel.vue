@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { MAPS } from '../game/config'
 import { enterMap, game } from '../game/store'
-import { ENTRY_COST, HARBOR_MUTINY } from '../data'
+import { ENTRY_COST, HARBOR_MUTINY, mapBackground } from '../data'
 import ModalShell from './ModalShell.vue'
 
 const emit = defineEmits(['close', 'enter'])
@@ -57,6 +57,16 @@ function enter(map) {
         class="map"
         :class="{ 'map--locked': !mapAvailable(map) }"
       >
+        <img
+          class="map__bg"
+          :src="mapBackground(map.id)"
+          alt=""
+          loading="lazy"
+          decoding="async"
+          draggable="false"
+        />
+        <div class="map__veil" aria-hidden="true" />
+
         <header class="map__head">
           <span class="map__level">{{ map.level }}</span>
           <span class="map__difficulty" :class="`risk-${map.risk}`">{{ map.difficulty }}</span>
@@ -125,10 +135,42 @@ function enter(map) {
   display: flex;
   flex-direction: column;
   gap: 9px;
+  overflow: hidden;
   padding: 18px;
   border: 1px solid var(--line);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
   transition: 0.25s;
+}
+
+/* 卡片背景：图片在最底层，渐变遮罩压暗，文字层在最上层 */
+.map__bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  filter: saturate(0.72) brightness(0.66);
+  pointer-events: none;
+}
+
+.map__veil {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(8, 9, 10, 0.52) 0%,
+    rgba(8, 9, 10, 0.78) 55%,
+    rgba(8, 9, 10, 0.93) 100%
+  );
+}
+
+.map > :not(.map__bg):not(.map__veil) {
+  position: relative;
+  z-index: 2;
 }
 
 .map:hover {

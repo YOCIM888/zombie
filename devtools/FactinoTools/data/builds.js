@@ -1,4 +1,4 @@
-// 16 套流派配置。伤害、排行与耗损全部由 js/build-metrics.js 在页面载入时按 src/data 实时计算，
+// 17 套流派配置。伤害、排行与耗损全部由 js/build-metrics.js 在页面载入时按 src/data 实时计算，
 // 这里只保留构筑选型与说明，不再保存任何旧评测数值。
 export const BUILDS = [
   {
@@ -435,5 +435,31 @@ export const BUILDS = [
     ],
     "wlKey": "bulldozer",
     "note": "推土机把闪避成功变成第二套输出来源：每次闪避追加多段攻击，每段独立判定暴击。AA12 的基础攻击与爆伤更高，闪避触发后的追加段也更重；陨星靠更高的武器闪避把段数机会拉满，但单发伤害更弱。"
+  },
+  {
+    "id": "harvest",
+    "group": "专项",
+    "name": "镰刀吸血流",
+    "tagline": "镰刀专属的收割爆伤与回血，伤害与续航同一条线",
+    "weapon": "sickle-diamond",
+    "talents": {
+      "harvest": 4,
+      "melee": 3
+    },
+    "guild": "rogue",
+    "gems": [
+      "magic-gem",
+      "blood-gem",
+      "tenacity-gem",
+      "time-gem"
+    ],
+    "alts": [
+      "sickle-diamond",
+      "sickle-devil",
+      "sickle-battle",
+      "sickle"
+    ],
+    "wlKey": "harvest",
+    "note": "收割天赋是镰刀专属的爆伤与回血来源；另一个启用位在近战与挥砍之间取舍时，镰刀普遍自带连击，近战天赋按比例放大整条连击链，期望收益高于挥砍的固定平加。公会选盗贼：镰刀吸血只影响生存，不改变伤害，属于纯增益；宝石沿用魔化/焚血/坚毅，另配时间宝石把吸血续航补齐。回血只影响生存，不参与伤害排名。"
   }
 ]

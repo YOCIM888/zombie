@@ -23,6 +23,7 @@ import {
   countItem,
   getItem,
   npcById,
+  mapBackground,
   repairCoinCost,
   repairPriceForTier,
   recyclePriceForDay,
@@ -355,6 +356,7 @@ function closePanel() {
     title="曙光阵地"
     :sub="`${map.difficulty} · 第 ${game.day} 天 · ${currentPhase}`"
     wide
+    :bg="mapBackground(game.location)"
     @close="closePanel"
   >
     <template #hud>
@@ -1258,7 +1260,14 @@ function closePanel() {
   justify-content: space-between;
   gap: 16px;
   padding: 13px 14px;
-  background: #0d0f10;
+  background: rgba(8, 10, 11, 0.58);
+  -webkit-backdrop-filter: blur(6px) saturate(0.92);
+  backdrop-filter: blur(6px) saturate(0.92);
+  transition: background 0.2s;
+}
+
+.row:hover {
+  background: rgba(193, 74, 50, 0.12);
 }
 
 .row__name {
@@ -1342,7 +1351,9 @@ function closePanel() {
   gap: 14px;
   padding: 10px 12px;
   border: 1px solid var(--line);
-  background: #0d0f10;
+  background: rgba(8, 10, 11, 0.58);
+  -webkit-backdrop-filter: blur(6px) saturate(0.92);
+  backdrop-filter: blur(6px) saturate(0.92);
 }
 
 .good__img {

@@ -20,6 +20,13 @@ export const UNARMED = {
   },
 }
 
+/** 镰刀类武器白名单：后续新增镰刀只需在这里补 id */
+export const SICKLE_WEAPON_IDS = ['sickle', 'sickle-battle', 'sickle-devil', 'sickle-diamond']
+
+export function isSickleWeapon(equipped) {
+  return Boolean(equipped) && SICKLE_WEAPON_IDS.includes(equipped.id)
+}
+
 /** 能吃到拳头天赋的武器：空手，或三把指虎（唯一例外） */
 export const FIST_TALENT_WEAPON_IDS = ['knuckle', 'knuckle-silver', 'knuckle-gold']
 

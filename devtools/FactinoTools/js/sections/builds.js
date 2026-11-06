@@ -1,4 +1,4 @@
-// 16 套流派详解：数值实时计算 + 快速筛选
+// 17 套流派详解：数值实时计算 + 快速筛选
 import { BUILD_METRICS } from '../build-metrics.js'
 import { MECH } from '../../data/source.js'
 import { $, el, esc, num, statName, statValue, tierTag } from '../ui.js'
@@ -110,6 +110,7 @@ export function renderBuilds() {
         <div class="brow">
           <span>击数 <b>${num(main.hits)}</b></span>
           <span>口径 <b>100 HP 游荡丧尸 · 满血 · 满清洁</b></span>
+          ${main.healPerTurn ? `<span>吸血 <b>≈ ${num(main.healPerTurn)} HP / 回合</b></span>` : ''}
         </div>
         <details class="brank">
           <summary>名单内武器排行（实时）</summary>

@@ -16,6 +16,7 @@ import {
   commissionForDay,
   countItem,
   identityRank,
+  mapBackground,
   npcById,
   questLine,
   talentBonus,
@@ -28,6 +29,7 @@ import {
   airshipBanquet,
   airshipChoreCommission,
   airshipGasolinePrice,
+  airshipGasolineSellPrice,
   airshipPartyCommission,
   airshipSpeech,
   buyAirshipGasoline,
@@ -184,10 +186,11 @@ const choreLeft = computed(() =>
 
 const gasolineCount = computed(() => countItem(game.inventory, HELICOPTER.gasolineId))
 const oilPrice = computed(() => airshipGasolinePrice())
+const oilSellPrice = computed(() => airshipGasolineSellPrice())
 const sellCount = computed(() => Math.max(0, Math.floor(Number(sellQty.value) || 0)))
 const buyCount = computed(() => Math.max(0, Math.floor(Number(buyQty.value) || 0)))
-const sellTotal = computed(() => sellCount.value * AIRSHIP.oil.sellRate)
-const buyTotal = computed(() => buyCount.value * oilPrice.value)
+const sellTotal = computed(() => roundToCents(sellCount.value * oilSellPrice.value))
+const buyTotal = computed(() => roundToCents(buyCount.value * oilPrice.value))
 
 const stockRows = computed(() => {
   const market = game.market
@@ -406,6 +409,7 @@ function closePanel() {
     :title="map.name"
     :sub="`${map.level} · ${map.difficulty} · 第 ${game.day} 天 · ${currentPhase}`"
     wide
+    :bg="mapBackground(game.location)"
     @close="closePanel"
   >
     <template #hud>
@@ -800,7 +804,7 @@ function closePanel() {
         <article class="extra">
           <header class="extra__head">
             <h4 class="extra__title">提交汽油</h4>
-            <span class="extra__tag">1 桶 = 1 末日币</span>
+            <span class="extra__tag">1 桶 = {{ oilSellPrice.toFixed(2) }} 末日币</span>
           </header>
           <p class="extra__desc">{{ AIRSHIP.oil.desc }}</p>
           <div class="chips">
@@ -818,7 +822,7 @@ function closePanel() {
               step="1"
               :max="gasolineCount"
             />
-            <span class="deal__hint">可获得 {{ sellTotal }} 末日币</span>
+            <span class="deal__hint">可获得 {{ formatMoney(sellTotal) }} 末日币</span>
           </div>
           <button
             type="button"
@@ -826,21 +830,21 @@ function closePanel() {
             :disabled="game.dead || sellCount <= 0 || sellCount > gasolineCount"
             @click="submitGas"
           >
-            提交 {{ sellCount }} 桶 · +{{ sellTotal }} 末日币
+            提交 {{ sellCount }} 桶 · +{{ formatMoney(sellTotal) }} 末日币
           </button>
         </article>
 
         <article class="extra">
           <header class="extra__head">
             <h4 class="extra__title">购买汽油</h4>
-            <span class="extra__tag">今日单价 {{ oilPrice }} 末日币</span>
+            <span class="extra__tag">今日单价 {{ oilPrice.toFixed(2) }} 末日币</span>
           </header>
           <p class="extra__desc">
             价格每天浮动。铁皮桶按桶卖，不赊账，也不讲价。
           </p>
           <div class="chips">
             <span>末日币 {{ formatMoney(game.coins) }}</span>
-            <span>单价 {{ oilPrice }} 末日币 / 桶</span>
+            <span>单价 {{ oilPrice.toFixed(2) }} 末日币 / 桶</span>
             <span>每日价格刷新</span>
           </div>
           <div class="deal">
@@ -864,7 +868,7 @@ function closePanel() {
             :disabled="game.dead || buyCount <= 0 || game.coins < buyTotal"
             @click="buyGas"
           >
-            {{ buyCount <= 0 ? '请输入数量' : `购买 ${buyCount} 桶 · ${buyTotal} 末日币` }}
+            {{ buyCount <= 0 ? '请输入数量' : `购买 ${buyCount} 桶 · ${formatMoney(buyTotal)} 末日币` }}
           </button>
         </article>
       </div>
@@ -1144,7 +1148,10 @@ function closePanel() {
   flex-direction: column;
   gap: 8px;
   padding: 12px;
-  background: #0d0f10;
+  border: 1px solid rgba(214, 208, 191, 0.16);
+  background: rgba(8, 10, 11, 0.58);
+  -webkit-backdrop-filter: blur(6px) saturate(0.92);
+  backdrop-filter: blur(6px) saturate(0.92);
 }
 
 .extra--wide {
@@ -1226,7 +1233,8 @@ function closePanel() {
 }
 
 .menu-item:hover:not(:disabled) {
-  background: #121516;
+  border-color: rgba(193, 74, 50, 0.5);
+  background: rgba(193, 74, 50, 0.2);
 }
 
 .menu-item--locked {
@@ -1385,8 +1393,8 @@ function closePanel() {
   gap: 8px;
   padding: 10px 12px;
   text-align: left;
-  background: #0d0f10;
-  border: 1px solid transparent;
+  background: rgba(8, 10, 11, 0.58);
+  border: 1px solid rgba(214, 208, 191, 0.16);
   cursor: pointer;
   transition:
     background 0.2s,
@@ -1394,7 +1402,8 @@ function closePanel() {
 }
 
 .stock:hover {
-  background: #121516;
+  border-color: rgba(193, 74, 50, 0.5);
+  background: rgba(193, 74, 50, 0.18);
 }
 
 .stock--active {
@@ -1524,7 +1533,10 @@ function closePanel() {
   justify-content: space-between;
   gap: 16px;
   padding: 10px 12px;
-  background: #0d0f10;
+  border: 1px solid var(--line);
+  background: rgba(8, 10, 11, 0.58);
+  -webkit-backdrop-filter: blur(6px) saturate(0.92);
+  backdrop-filter: blur(6px) saturate(0.92);
 }
 
 .good__img {
