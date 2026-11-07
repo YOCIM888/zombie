@@ -250,7 +250,14 @@ function onShortcutKeyDown(event) {
 const bgStyle = computed(() => ({
   backgroundImage: `url("${encodeURI(BACKGROUND_IMAGE)}")`,
 }))
-const finaleText = computed(() => FINALES[game.finale] ?? null)
+const finaleText = computed(() => {
+  const entry = FINALES[game.finale] ?? null
+  // 米娅已死时「新秩序」使用变体文案，标题与结局判定不变
+  if (entry?.queenDeadText && game.flags.queenKilled) {
+    return { ...entry, text: entry.queenDeadText }
+  }
+  return entry
+})
 
 const slotLabel = computed(() =>
   game.slotIndex === null ? '—' : String(game.slotIndex + 1).padStart(2, '0'),

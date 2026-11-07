@@ -39,7 +39,7 @@ export function takeDevNoviceGift() {
   return `游戏开发者递来一个新手礼包：末日币 +${DEV_SHOP.noviceCoins}，曙光币 +${DEV_SHOP.noviceDawnCoins}，外加万能灵药、抗感染针、罐头、越蔓梅、战术匕首和 M1911。「先活过这几天再说。」`
 }
 
-/** 一次性骑士礼包：骑士徽章与白兰地 */
+/** 一次性骑士礼包：都城骑士徽章与白兰地 */
 export function takeDevKnightGift() {
   const blocked = devGuard()
   if (blocked !== null) return blocked
@@ -48,10 +48,10 @@ export function takeDevKnightGift() {
   if (brandy && !canStoreItems(game.inventory, [brandy])) {
     return '背包放不下这份礼包，先腾出几格再来。'
   }
-  if (!grantIdentity('骑士')) return '背包已满，骑士徽章无处安放。'
+  if (!grantIdentity('骑士')) return '背包已满，都城骑士徽章无处安放。'
   if (brandy) addItem(game.inventory, brandy.id, brandy.qty)
   game.flags.devKnightGiftTaken = true
-  return `游戏开发者递来一枚骑士徽章和 ${brandy?.qty ?? 0} 瓶白兰地：「别问哪来的。」`
+  return `游戏开发者递来一枚都城骑士徽章和 ${brandy?.qty ?? 0} 瓶白兰地：「别问哪来的。」`
 }
 
 /** 一次性治疗礼包：绷带、止痛药与止血带 */

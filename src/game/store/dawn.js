@@ -1,5 +1,4 @@
 import {
-  DAWN_JOIN_KILLS,
   DAWN_BOND_SHOP,
   DAWN_MARKET,
   DAWN_RELIEF_TIERS,
@@ -24,8 +23,8 @@ export function dawnReady() {
   return !game.dead && game.location === 'dawn-post'
 }
 
-/** 领取救济：五档共用每天一次，按曙光身份等级开放 */
-export function claimDawnRelief(tierId = 'basic') {
+/** 领取救济：六档共用每天一次，按曙光身份等级开放 */
+export function claimDawnRelief(tierId = 'initiate') {
   if (!dawnReady()) return ''
   const tier = DAWN_RELIEF_TIERS.find((item) => item.id === tierId)
   if (!tier) return ''
@@ -56,18 +55,19 @@ export function claimDawnRelief(tierId = 'basic') {
   return `你从物资箱里领到「${tier.name}」：${parts.join('、')}。`
 }
 
-/** 每日工资：按当前曙光身份领取，五档共用每天一次（无身份也有 1 曙光币） */
+/** 领取工资：按当前曙光身份领取，六档共用每天一次 */
 export function claimDawnSalary() {
   if (!dawnReady()) return ''
   const identity = dawnInfo(game.dawnIdentity)
-  const salary = DAWN_SALARY.find((item) => item.rank === (identity?.rank ?? -1))
-  if (!salary) return ''
+  if (!identity) return '你还没有曙光身份，先去联系管事加入。'
+  const salary = DAWN_SALARY.find((item) => item.rank === identity.rank)
+  if (!salary) return '当前身份没有对应的工资档位。'
   if (!useCooldown('dawn-salary', PALACE_COOLDOWN.daily)) {
     return '今天的工资已经领过了，明天再来。'
   }
 
   game.dawnCoins += salary.coins
-  return `领取「${identity?.name ?? '无身份'}」每日工资：曙光币 +${salary.coins}。`
+  return `领取「${identity.name}」工资：曙光币 +${salary.coins}。`
 }
 
 /** 曙光市场：全部用曙光币结算 */
@@ -113,15 +113,12 @@ export function restoreDawnIdentity() {
   return `已补办历史最高曙光身份「${game.maxDawnIdentity}」的徽章。`
 }
 
-/** 加入曙光：需要累计击杀 5 只行尸 */
+/** 加入曙光：直接登记名册，领取见习徽章 */
 export function joinDawn() {
   if (!dawnReady()) return ''
   if (game.dawnIdentity) return `你已经是曙光「${game.dawnIdentity}」，无需再加入。`
-  if (game.zombieKills < DAWN_JOIN_KILLS) {
-    return `管事翻了个白眼：实力不足，先杀够 ${DAWN_JOIN_KILLS} 只行尸再来（当前 ${game.zombieKills}）。`
-  }
-  if (!grantDawnIdentity('队员')) return '背包已满，队员徽章无处安放。'
-  return '管事在名册上写下你的名字，你领到一枚「曙光队员徽章」。'
+  if (!grantDawnIdentity('见习')) return '背包已满，见习徽章无处安放。'
+  return '管事在名册上写下你的名字，你领到一枚「曙光见习徽章」。'
 }
 
 /* ===== 曙光常驻人物服务 ===== */

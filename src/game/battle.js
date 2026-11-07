@@ -11,6 +11,7 @@ import {
   DEV_SHOP,
   GIANT_PUPPET,
   HARBOR_MUTINY,
+  WAR_PREP,
   MA_SAN,
   MAGIC_GEM_STACK,
   MERMAID,
@@ -56,6 +57,7 @@ import {
   isTalentActive,
   questStatus,
   recordGuildKill,
+  recordZombieKill,
   statCap,
   useItem,
   waiveLoanInterest,
@@ -114,6 +116,8 @@ export const battle = reactive({
   coupNext: false,
   mutinyStage: 0,
   mutinyNext: false,
+  warStage: 0,
+  warNext: false,
   tenacityPending: false,
   tenacityEmpower: false,
   magicStacks: 0,
@@ -153,6 +157,8 @@ export function resetBattle(enemy = DAWN_ZOMBIE, kind = 'zombie', mapId = null) 
   battle.coupNext = false
   battle.mutinyStage = 0
   battle.mutinyNext = false
+  battle.warStage = 0
+  battle.warNext = false
   battle.tenacityPending = false
   battle.tenacityEmpower = false
   battle.magicStacks = 0
@@ -486,6 +492,143 @@ export function continueHarborMutiny() {
   const next = battle.mutinyStage + 1
   if (next >= HARBOR_MUTINY.crewCount + 1) return false
   return startMutinyStage(next)
+}
+
+/* ===== 末日飞行船 · 战争准备：袭击王宫 ===== */
+
+function warGuardEnemy(index) {
+  const raid = WAR_PREP.raid
+  return {
+    id: `war-guard-${index + 1}`,
+    name: raid.guardName,
+    hp:
+      raid.guardHpMin +
+      Math.floor(Math.random() * (raid.guardHpMax - raid.guardHpMin + 1)),
+    attack:
+      raid.guardAttackMin +
+      Math.floor(Math.random() * (raid.guardAttackMax - raid.guardAttackMin + 1)),
+    infection: 0,
+    dodge: 0,
+    abilities: [],
+    image: raid.guardImage,
+    description: raid.guardDescription,
+  }
+}
+
+/** 第 index 场：0-18 是禁卫，19 是国王 */
+function startWarStage(index) {
+  const raid = WAR_PREP.raid
+  const enemy =
+    index < raid.guardCount ? warGuardEnemy(index) : npcById(raid.kingId)
+  if (!enemy) return false
+
+  resetBattle(enemy, 'war-raid', AIRSHIP.mapId)
+  battle.warStage = index
+  battle.warNext = false
+  battle.active = true
+
+  if (index === 0) {
+    pushLog(raid.startLine)
+  } else if (index < raid.guardCount) {
+    pushLog(raid.guardNextLine)
+  } else {
+    pushLog(raid.kingIntroLine)
+  }
+  pushLog(enemy.description)
+  return true
+}
+
+/** 袭击王宫：十九名禁卫 + 国王，中途没有退路 */
+export function startWarRaidBattle() {
+  if (game.dead || battle.active) return ''
+  if (game.location !== AIRSHIP.mapId) return '战争准备只能在末日飞行船上进行。'
+  if (!game.flags.airshipCoupDone) return WAR_PREP.unlockLine
+  if ((Number(game.flags.warPrepDone) || 0) < 5) {
+    return '五项准备还没有完成，现在动手只会把命丢在台阶上。'
+  }
+  if (game.flags.warPrepKingDefeated) return '国王已经倒下了。'
+  if (game.flags.warPrepNewOrder || game.flags.warPrepTerminal) {
+    return '王宫的事情已经结束了。'
+  }
+  // 马斐线可能提前杀死国王；没有目标就不能开战
+  if (game.flags.kingKilled) return '你似乎没有需要开战的目标'
+
+  advanceTurns(1)
+  if (game.dead) return ''
+
+  if (!startWarStage(0)) return ''
+  return ''
+}
+
+/** 打赢一名禁卫后继续下一场；国王之后不再继续 */
+export function continueWarRaid() {
+  if (game.dead || battle.active) return false
+  if (battle.kind !== 'war-raid' || !battle.warNext) return false
+  const next = battle.warStage + 1
+  if (next > WAR_PREP.raid.guardCount) return false
+  return startWarStage(next)
+}
+
+/** 选择杀死皇后：进入最后一场战斗 */
+export function startWarQueenBattle() {
+  if (game.dead || battle.active) return ''
+  if (!game.flags.warPrepChoicePending) return '王座之间已经没有需要你决定的人了。'
+  if (game.flags.warPrepChoiceKill) return '皇后已经在等着你。'
+  if (game.flags.queenKilled) {
+    // 皇后已死，选择不成立：直接结算新秩序，避免选择悬空
+    if (!applyNewOrder()) return '王宫的事情已经结束了。'
+    pushLog(WAR_PREP.raid.queenGoneLine)
+    return WAR_PREP.raid.queenGoneLine
+  }
+
+  const raid = WAR_PREP.raid
+  const npc = npcById(raid.queenId)
+  if (!npc) return '找不到皇后。'
+
+  game.flags.warPrepChoicePending = false
+  game.flags.warPrepChoiceKill = true
+
+  // 皇后数值直接引用 npcs.js，不在此处覆写
+  resetBattle(npc, 'war-queen', AIRSHIP.mapId)
+  battle.active = true
+  pushLog(raid.killChoiceLine)
+  pushLog(raid.queenIntroLine)
+  return ''
+}
+
+/** 写入「新秩序」的唯一入口：保证只有一个结局被结算 */
+function applyNewOrder() {
+  if (game.flags.warPrepTerminal || game.flags.warPrepNewOrder) return false
+  const raid = WAR_PREP.raid
+  game.flags.warPrepChoicePending = false
+  game.flags.warPrepChoiceKill = false
+  game.flags.warPrepNewOrder = true
+  game.flags.kingKilled = true
+  game.flags.warPrepDone = WAR_PREP.tasks.length
+  game.finale = raid.newOrder
+  unlockAchievement('war-new-order')
+  return true
+}
+
+/** 兜底：皇后已死但选择悬空时，直接落到「新秩序」 */
+export function settleWarQueenGone() {
+  if (!game.flags.warPrepChoicePending || !game.flags.queenKilled) return ''
+  if (!applyNewOrder()) return ''
+  pushLog(WAR_PREP.raid.queenGoneLine)
+  notify('皇后已经不在了。王座之间没有需要你决定的人。')
+  return WAR_PREP.raid.queenGoneLine
+}
+
+/** 选择不杀皇后：直接写入可继续结局「新秩序」 */
+export function resolveNewOrder() {
+  if (game.dead) return ''
+  if (!game.flags.warPrepChoicePending) return '王座之间已经没有需要你决定的人了。'
+
+  const raid = WAR_PREP.raid
+  if (!applyNewOrder()) return '王宫的事情已经结束了。'
+  pushLog(raid.spareChoiceLine)
+  notify('王座之间没有血。都城的旧秩序，到此为止了。')
+  return raid.spareChoiceLine
 }
 
 /* ===== 长滩海港 · 潜入深海 ===== */
@@ -1276,6 +1419,11 @@ export function fleeBattle() {
     return
   }
 
+  if (battle.kind === 'war-raid' || battle.kind === 'war-queen') {
+    pushLog('王宫的大门已经在你身后合上，没有退路。')
+    return
+  }
+
   // 政变中逃跑必定成功，但算政变失败并清空声望
   if (battle.kind === 'airship-coup') {
     battle.active = false
@@ -1516,7 +1664,11 @@ function markPlayerDead() {
         ? '你倒在了银行大厅的大理石地面上，账本上的数字还没抹掉。'
         : battle.kind === 'airship-coup'
           ? AIRSHIP.coup.defeatedLine
-          : '伤口太深了，你没能撑到哨塔的灯下。'
+          : battle.kind === 'war-raid'
+            ? '你倒在王座前的台阶上，第十九级还没数完。'
+            : battle.kind === 'war-queen'
+              ? '皇后把礼剑收回鞘里。你听见自己最后一口气落在地毯上。'
+              : '伤口太深了，你没能撑到哨塔的灯下。'
   if (battle.kind === 'airship-coup') game.flags.airshipCoupStep = 0
   pushLog('你倒下了，眼前的废墟慢慢变黑。')
 }
@@ -1550,7 +1702,7 @@ function resolveZombieVictory() {
 
   battle.result = 'victory'
   luluHeal()
-  game.zombieKills += 1
+  recordZombieKill()
   recordGuildKill(killWeaponId())
   pushLog(`${battle.zombie.name}终于不动了。`)
   return true
@@ -1607,6 +1759,56 @@ function winBattle() {
     game.flags.portBanUntilDay = game.day + HARBOR_MUTINY.banDays
     game.finale = HARBOR_MUTINY.finale
     battle.summary = `${HARBOR_MUTINY.captainDeathLine}\n\n结局达成 · ${HARBOR_MUTINY.finale}`
+    pushLog(battle.summary)
+    return
+  }
+
+  if (battle.kind === 'war-raid') {
+    battle.result = 'victory'
+    const raid = WAR_PREP.raid
+    const stage = battle.warStage
+
+    if (stage < raid.guardCount) {
+      battle.warNext = true
+      battle.summary =
+        stage + 1 < raid.guardCount
+          ? `第 ${stage + 1} / ${raid.guardCount} 名${raid.guardName}倒下了。台阶上还有人在等你。`
+          : `第 ${raid.guardCount} 名${raid.guardName}倒下了。台阶尽头，国王已经拔出了剑。`
+      pushLog(battle.summary)
+      return
+    }
+
+    battle.warNext = false
+    game.flags.kingKilled = true
+    game.flags.warPrepDone = WAR_PREP.tasks.length
+    game.flags.warPrepKingDefeated = true
+
+    // 皇后已被马斐线提前杀死：选择不成立，直接走「新秩序」
+    if (game.flags.queenKilled) {
+      applyNewOrder()
+      battle.summary = `${raid.kingDefeatedLine}\n\n${raid.queenGoneLine}\n\n结局达成 · ${raid.newOrder}`
+      pushLog(battle.summary)
+      return
+    }
+
+    game.flags.warPrepChoicePending = true
+    battle.summary = `${raid.kingDefeatedLine}\n\n${raid.choicePrompt}`
+    pushLog(battle.summary)
+    return
+  }
+
+  if (battle.kind === 'war-queen') {
+    battle.result = 'victory'
+    const raid = WAR_PREP.raid
+    game.flags.queenKilled = true
+    game.flags.warPrepTerminal = true
+    game.flags.warPrepChoicePending = false
+    game.flags.warPrepDone = WAR_PREP.tasks.length
+    game.finale = raid.terminal
+    if (unlockAchievement('war-without-zombies') && typeof window !== 'undefined') {
+      notify('成就解锁 · 无关行尸的战争')
+    }
+    battle.summary = `皇后倒下了。王座之间再没有第二个活人。\n\n结局达成 · ${raid.terminal}`
     pushLog(battle.summary)
     return
   }
@@ -1749,7 +1951,7 @@ function winBattle() {
 
   battle.result = 'victory'
   luluHeal()
-  game.zombieKills += 1
+  recordZombieKill()
   recordGuildKill(killWeaponId())
   pushLog(`${battle.zombie.name}终于不动了。`)
 

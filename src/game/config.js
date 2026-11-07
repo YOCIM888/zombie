@@ -155,7 +155,7 @@ export const ACHIEVEMENTS = [
   { id: 'city-knight', category: 'story', name: '封骑士', desc: '在末日都城获得骑士或更高身份。' },
   { id: 'city-heir', category: 'story', name: '王座之前', desc: '在末日都城获得储君身份。' },
   { id: 'dawn-command', category: 'story', name: '曙光指挥', desc: '在曙光阵地晋升到指挥。' },
-  { id: 'dawn-deputy', category: 'story', name: '曙光副首', desc: '在曙光阵地晋升到副首。' },
+  { id: 'dawn-deputy', category: 'story', name: '曙光总督', desc: '在曙光阵地晋升到总督。' },
   { id: 'coin-tycoon', category: 'economy', name: '富甲一方', desc: '手头攒下 200 枚末日币。' },
   { id: 'dawn-wealth', category: 'economy', name: '曙光之富', desc: '手头攒下 300 枚曙光币。' },
   { id: 'ma-san', category: 'combat', name: '掀了烧烤摊', desc: '拒绝冷面阿三的邀请，并把他打倒。' },
@@ -188,6 +188,8 @@ export const ACHIEVEMENTS = [
   { id: 'mutiny-fame', category: 'story', name: '我名声很好', desc: '在长滩海港掀翻邮轮，成为三座城都不欢迎的人。' },
   { id: 'family-and-love', category: 'story', name: '亲情与爱情', desc: '替皇后送完最后一封信，见证爱与恨的结局。' },
   { id: 'straw-hat', category: 'story', name: '我草帽在哪', desc: '把一整船人驶向没有被末日吞掉的海平线。' },
+  { id: 'war-new-order', category: 'story', name: '新秩序', desc: '攻入王宫，放过皇后，让都城的旧王座彻底倒下。' },
+  { id: 'war-without-zombies', category: 'story', name: '无关行尸的战争', desc: '攻入王宫，杀死皇后，赢下一座没有活人的死城。' },
 ]
 
 /** 成就分类：顺序即面板筛选条顺序，id 与 ACHIEVEMENTS 的 category 一一对应 */

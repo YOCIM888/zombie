@@ -4,11 +4,9 @@ import {
   CLEANLINESS_MAX,
   CORRIDOR,
   DAWN_IDENTITY_LEVELS,
-  DAWN_JOIN_KILLS,
   DAWN_BOND_SHOP,
   DAWN_MARKET,
   DAWN_NPCS,
-  DAWN_PROMOTIONS,
   DAWN_RECYCLE_RANGES,
   DAWN_RELIEF_TIERS,
   DAWN_SALARY,
@@ -33,13 +31,17 @@ import {
 } from '../data'
 import { MAPS } from '../game/config'
 import {
+  MIA_LEADER_TEXT,
+  MIA_LEADER_TEXT_YIYANG_DEAD,
   claimDawnRelief,
   claimDawnSalary,
+  claimMiaLeader,
   cooldownLeft,
   corridorFight,
   corridorLeft,
   countFruits,
   currentPhase,
+  dawnPromotionState,
   game,
   buyDawnBond,
   buyDawnGood,
@@ -77,9 +79,9 @@ import StatusHud from './StatusHud.vue'
 
 const MENU = [
   { id: 'fight', no: '01', name: '清理丧尸', desc: '消耗 1 回合（有衰减），进入手动回合制战斗。' },
-  { id: 'relief', no: '02', name: '领取救济', desc: '每天一次，五档按曙光身份开放：普通 / 基础 / 进阶 / 高级 / 特级。' },
-  { id: 'contact', no: '03', name: '联系管事', desc: '徽章补办、加入曙光，或申请晋升。' },
-  { id: 'salary', no: '04', name: '每日工资', desc: `按曙光身份发放，每天一次：${DAWN_SALARY.map((item) => `${item.identity} ${item.coins}`).join('、')} 曙光币。` },
+  { id: 'relief', no: '02', name: '领取救济', desc: '每天一次，六档按曙光身份开放：见习 / 队员 / 队长 / 指挥 / 总督 / 领袖。' },
+  { id: 'contact', no: '03', name: '联系管事', desc: '加入曙光直接领见习徽章；队员 / 队长 / 指挥按累计击杀晋升。' },
+  { id: 'salary', no: '04', name: '领取工资', desc: `按曙光身份发放，每天一次：${DAWN_SALARY.map((item) => `${item.identity} ${item.coins}`).join('、')} 曙光币。` },
   ...DAWN_NPCS.map((npc) => ({ ...npc, placeholder: !npc.implemented })),
   { id: 'market', no: '10', name: '曙光市场', desc: '普通远程武器、绷带与罐头，明码标价。' },
   { id: 'bond', no: '11', name: '羁绊商店', desc: '提交四种纪念徽章之一，各换一件限定武器。' },
@@ -104,28 +106,85 @@ const dawnRank = computed(() => identity.value?.rank ?? -1)
 const reliefLeft = computed(() => cooldownLeft('dawn-relief', 1))
 const salaryLeft = computed(() => cooldownLeft('dawn-salary', 1))
 const salary = computed(
-  () =>
-    DAWN_SALARY.find((item) => item.rank === (identity.value?.rank ?? -1)) ?? null,
+  () => DAWN_SALARY.find((item) => item.rank === (identity.value?.rank ?? -1)) ?? null,
 )
-const joinLeft = computed(() => Math.max(0, DAWN_JOIN_KILLS - game.zombieKills))
 
 function bondBadgeCount(good) {
   return countItem(game.inventory, good.badgeId)
 }
 const placeholder = computed(() => selected.value)
-const promotion = computed(
-  () => DAWN_PROMOTIONS.find((item) => item.from === game.dawnIdentity) ?? null,
-)
+const promotionState = computed(() => dawnPromotionState())
+const promotionReady = computed(() => promotionState.value.state === 'ready')
 const promotionText = computed(() => {
-  if (!game.dawnIdentity) return '尚未加入曙光，先联系管事登记名册。'
-  if (!promotion.value) {
-    return game.dawnIdentity === '指挥'
-      ? '副首只能由首领羿阳亲自授予。'
-      : '你已经是曙光「副首」，没有更高的位置。'
+  const info = promotionState.value
+  if (info.state === 'not-joined') return '尚未加入曙光，先在上方登记名册。'
+  if (info.state === 'locked') {
+    const left = info.left > 0 ? ` · 还差 ${info.left}` : ' · 已达标'
+    return `晋升${info.promotion.to}需要累计击杀 ${info.promotion.kills} 只（当前 ${info.kills}${left}）`
   }
-  const left = Math.max(0, promotion.value.kills - game.zombieKills)
-  return `累计击杀 ${promotion.value.kills} 只可晋升${promotion.value.to}（当前 ${game.zombieKills}${left > 0 ? ` · 还差 ${left}` : ' · 已达标'}）`
+  if (info.state === 'ready') {
+    return `累计击杀已达 ${info.promotion.kills} 只，可以晋升${info.promotion.to}。`
+  }
+  if (info.state === 'quest-only') {
+    return '总督只能由首领羿阳亲自授予，不通过管事处晋升。'
+  }
+  if (info.state === 'leader-locked') {
+    return '领袖徽章暂不可获取：名册最后一页还没有该给的人。'
+  }
+  if (info.state === 'leader-story') {
+    return '领袖徽章已经解锁：去「羿阳的妹妹」那里找米娅领取。'
+  }
+  if (info.state === 'leader-mia-dead') {
+    return '米娅已经不在了，名册最后一页这一局无人交付。'
+  }
+  if (info.state === 'leader-no-badge') {
+    return '羿阳已经不在了：这一局的领袖徽章无处可寻，无法获取。'
+  }
+  return '你已经是曙光「领袖」，没有更高的位置。'
 })
+
+/* ===== 新秩序 · 羿阳的妹妹 ===== */
+const warNewOrder = computed(() => Boolean(game.flags.warPrepNewOrder))
+const miaClaimed = computed(
+  () => Boolean(game.flags.miaLeaderClaimed) || game.dawnIdentity === '领袖',
+)
+const yiyangDead = computed(() => Boolean(game.flags.dawnLeaderKilled))
+const miaMissingBadge = computed(() => Boolean(game.flags.miaLeaderMissingBadge))
+const leaderStoryText = computed(() => {
+  if (game.dawnIdentity === '领袖') return '已获取'
+  if (warNewOrder.value && game.flags.queenKilled) return '无人交付'
+  if (warNewOrder.value && yiyangDead.value) return '徽章无处可寻'
+  return warNewOrder.value ? '可领取' : '剧情解锁'
+})
+const menu = computed(() => {
+  // 米娅已死则不再出现「羿阳的妹妹」
+  if (!warNewOrder.value || game.flags.queenKilled) return MENU
+  return [
+    ...MENU,
+    {
+      id: 'mia',
+      no: '15',
+      name: '羿阳的妹妹',
+      desc: yiyangDead.value
+        ? '米娅在哨塔下等你。名册的最后一页还在，只是没有人能签字。'
+        : '米娅在哨塔下等你，曙光名册的最后一页终于有了名字。',
+    },
+  ]
+})
+/* 羿阳已死时米娅仍在：文案变体 + 不发放徽章 */
+const miaText = computed(() =>
+  yiyangDead.value ? MIA_LEADER_TEXT_YIYANG_DEAD : MIA_LEADER_TEXT,
+)
+const miaActionLabel = computed(() => {
+  if (miaClaimed.value) return '已领取'
+  if (yiyangDead.value) {
+    return miaMissingBadge.value ? '徽章无处可寻' : '翻开名册最后一页'
+  }
+  return '领取领袖徽章'
+})
+const miaActionDisabled = computed(
+  () => miaClaimed.value || (yiyangDead.value && miaMissingBadge.value),
+)
 const canAssassinate = computed(() => questStatus('king-6') === 'active')
 const leaderIntro = computed(() => QUEST_OWNERS.yiyang.intro)
 const nutritionistDead = computed(() => isNpcDead('nutritionist'))
@@ -395,7 +454,7 @@ useShortcutLayer({
       <StatusHud />
     </template>
 
-    <MapMenuList v-if="view === 'menu'" :items="MENU" @select="go" />
+    <MapMenuList v-if="view === 'menu'" :items="menu" @select="go" />
 
     <section v-else-if="view === 'fight'" class="pane">
       <header class="pane__head">
@@ -433,7 +492,7 @@ useShortcutLayer({
         <button type="button" class="link" @click="backToMenu">← 返回选项</button>
       </header>
       <p class="pane__desc">
-        物资箱里堆着附近农场送来的水果，旁边压着一格药品。五档救济按曙光身份开放，共用每天一次，管事会盯着你的手。
+        物资箱里堆着附近农场送来的水果，旁边压着一格药品。六档救济按曙光身份开放，共用每天一次，管事会盯着你的手。水果从现有水果池里等权随机抽取。
       </p>
       <p class="cure__note">
         {{
@@ -464,11 +523,13 @@ useShortcutLayer({
             @click="run(() => claimDawnRelief(tier.id))"
           >
             {{
-              dawnRank < tier.rank
-                ? `需${tier.identity}`
-                : reliefLeft > 0
-                  ? `${reliefLeft} 天后`
-                  : '领取'
+              tier.rank === 5
+                ? '暂不可获取'
+                : dawnRank < tier.rank
+                  ? `需${tier.identity}`
+                  : reliefLeft > 0
+                    ? `${reliefLeft} 天后`
+                    : '领取'
             }}
           </button>
         </article>
@@ -477,11 +538,11 @@ useShortcutLayer({
 
     <section v-else-if="view === 'salary'" class="pane">
       <header class="pane__head">
-        <h3 class="pane__title">每日工资</h3>
+        <h3 class="pane__title">领取工资</h3>
         <button type="button" class="link" @click="backToMenu">← 返回选项</button>
       </header>
       <p class="pane__desc">
-        管事按身份发工资，五档共用每天一次；没有身份也能领一份最薄的。身份越高，信封越厚。
+        管事按身份发工资，六档共用每天一次；身份越高，信封越厚。
       </p>
       <div class="chips">
         <span v-for="item in DAWN_SALARY" :key="item.rank">
@@ -537,7 +598,30 @@ useShortcutLayer({
         <div class="identity__info">
           <h4>{{ game.dawnIdentity ?? '尚无曙光身份' }}</h4>
           <p>历史最高身份：{{ game.maxDawnIdentity ?? '无' }}</p>
+          <p>跨周目累计击杀：{{ promotionState.kills }}</p>
         </div>
+      </div>
+
+      <div class="chips">
+        <span>加入即得见习徽章</span>
+        <span>队员 · 累计击杀 20</span>
+        <span>队长 · 累计击杀 50</span>
+        <span>指挥 · 累计击杀 100</span>
+        <span>总督 · 羿阳任务线授予</span>
+        <span>
+          领袖 ·
+          {{
+            game.dawnIdentity === '领袖'
+              ? '已由米娅授予'
+              : warNewOrder && game.flags.queenKilled
+                ? '米娅已不在'
+                : warNewOrder && yiyangDead
+                  ? '羿阳已不在 · 无处可寻'
+                  : warNewOrder
+                    ? '新秩序后由米娅授予'
+                    : '剧情未达成'
+          }}
+        </span>
       </div>
 
       <div class="rows">
@@ -555,11 +639,17 @@ useShortcutLayer({
           <div>
             <h4 class="row__name">加入曙光</h4>
             <p class="row__desc">
-              需要累计击杀 {{ DAWN_JOIN_KILLS }} 只行尸。当前 {{ game.zombieKills }} /
-              {{ DAWN_JOIN_KILLS }}{{ joinLeft > 0 ? ` · 还差 ${joinLeft} 只` : ' · 已达到要求' }}
+              {{ game.dawnIdentity ? '你已经在名册上，无需再次加入。' : '加入后直接领取曙光见习徽章，没有击杀门槛。' }}
             </p>
           </div>
-          <button type="button" class="btn" @click="run(joinDawn)">加入</button>
+          <button
+            type="button"
+            class="btn"
+            :disabled="Boolean(game.dawnIdentity)"
+            @click="run(joinDawn)"
+          >
+            {{ game.dawnIdentity ? '已加入' : '加入' }}
+          </button>
         </article>
 
         <article class="row">
@@ -570,10 +660,24 @@ useShortcutLayer({
           <button
             type="button"
             class="btn"
-            :disabled="!promotion"
+            :disabled="!promotionReady"
             @click="run(promoteDawnIdentity)"
           >
-            申请晋升
+            {{
+              promotionState.state === 'leader-locked'
+                ? '暂不可获取'
+                : promotionState.state === 'leader-story'
+                  ? '去找米娅'
+                  : promotionState.state === 'leader-mia-dead'
+                    ? '无人交付'
+                    : promotionState.state === 'leader-no-badge'
+                      ? '本局无法获取'
+                      : promotionState.state === 'quest-only'
+                    ? '需羿阳授予'
+                    : promotionState.state === 'max'
+                      ? '已至最高'
+                      : '申请晋升'
+            }}
           </button>
         </article>
       </div>
@@ -586,10 +690,57 @@ useShortcutLayer({
           :class="{
             'is-current': level.name === game.dawnIdentity,
             'is-owned': level.rank < dawnInfo(game.dawnIdentity)?.rank,
+            'is-locked': level.obtain === 'locked',
           }"
         >
           {{ level.name }}
+          <em v-if="level.obtain === 'locked'" class="ladder__lock">未开放</em>
+          <em v-else-if="level.obtain === 'story'" class="ladder__lock">
+            {{ leaderStoryText }}
+          </em>
         </span>
+      </div>
+    </section>
+
+    <section v-else-if="view === 'mia'" class="pane">
+      <header class="pane__head">
+        <h3 class="pane__title">羿阳的妹妹</h3>
+        <button type="button" class="link" @click="backToMenu">← 返回选项</button>
+      </header>
+
+      <p class="pane__desc">{{ miaText }}</p>
+
+      <div class="rows">
+        <article class="row">
+          <div>
+            <h4 class="row__name">曙光领袖徽章</h4>
+            <p class="row__desc">
+              {{
+                yiyangDead
+                  ? '名册的最后一页。羿阳已经不在了，这一页不会再有徽章。'
+                  : '名册的最后一页。领取后身份升至「领袖」，不可重复领取。'
+              }}
+            </p>
+            <p v-if="miaClaimed" class="row__hint">
+              已领取：{{ game.dawnIdentity }}
+            </p>
+            <p v-else-if="yiyangDead" class="row__hint">
+              {{
+                miaMissingBadge
+                  ? '名册最后一页已经翻过：这一局不会发放领袖徽章。'
+                  : '羿阳已经不在了：这一页没有徽章可以交付。'
+              }}
+            </p>
+          </div>
+          <button
+            type="button"
+            class="btn"
+            :disabled="miaActionDisabled"
+            @click="run(claimMiaLeader)"
+          >
+            {{ miaActionLabel }}
+          </button>
+        </article>
       </div>
     </section>
 
@@ -1379,6 +1530,21 @@ useShortcutLayer({
   color: var(--bone);
   border-color: rgba(193, 74, 50, 0.6);
   background: rgba(193, 74, 50, 0.1);
+}
+
+.ladder__step.is-locked {
+  color: var(--text-mute);
+  border-style: dashed;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.ladder__lock {
+  margin-left: 5px;
+  font-style: normal;
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.04em;
+  color: var(--rust-soft);
 }
 
 .goods {

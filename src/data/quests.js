@@ -97,7 +97,7 @@ export const KING_QUESTS = [
     owner: 'king',
     no: '03',
     name: '所向披靡',
-    desc: '国王要你替他清出一片干净的地。接取之后，去杀五十只行尸。',
+    desc: '国王要你替他清出一片干净的地。接取之后，去杀三十只行尸。',
     hint: '击杀只在曙光阵地结算；都城徽章会阻止你进入曙光，出发前需要先摘下徽章。',
     require: { kills: 30 },
     reward: { identity: '伯爵', coins: 40 },
@@ -107,14 +107,16 @@ export const KING_QUESTS = [
     owner: 'king',
     no: '04',
     name: '手枪收藏',
-    desc: '国王喜欢收藏手枪。M1911、USP、CZ75、Glock，各一把，摆满他的丝绒盒。',
+    desc: '国王喜欢收藏手枪，Glock、PM、USP、CZ75、Luger-08、M1911各一把，摆满他的丝绒盒。',
     hint: '装备中的手枪不计入提交，四把枪都需要放在背包里。',
     require: {
       items: [
-        { id: 'm1911', qty: 1 },
+        { id: 'glock', qty: 1 },
+        { id: 'pm', qty: 1 },
         { id: 'usp', qty: 1 },
         { id: 'cz75', qty: 1 },
-        { id: 'glock', qty: 1 },
+        { id: 'luger-08', qty: 1 },
+        { id: 'm1911', qty: 1 },
       ],
     },
     reward: { identity: '侯爵', items: [{ id: 'spring-knife-monochrome', qty: 1 }] },
@@ -264,10 +266,10 @@ export const YIYANG_QUESTS = [
     no: '05',
     name: '最后的试炼',
     desc: '羿阳要你独自守住一次夜巡。三十只行尸，够不够资格站在他身边。',
-    hint: '接取需要曙光「指挥」身份；先在管事处累计击杀 200 只行尸完成晋升。',
+    hint: '接取需要曙光「指挥」身份；先在管事处累计击杀 100 只行尸完成晋升。',
     require: { kills: 30, dawnIdentity: '指挥' },
     reward: {
-      dawnIdentity: '副首',
+      dawnIdentity: '总督',
       dawnCoins: 12,
       flag: { queenLetter: true },
       note: '羿阳把一封封了蜡的信交给你：如果你哪天能进王宫，把它交给我妹妹。',
@@ -581,12 +583,12 @@ export const SCHIKA_QUESTS = [
     owner: 'schika',
     no: '01',
     name: '开胃酒',
-    desc: '席卡要为今晚的晚宴试酒。白兰地、金酒、威士忌各两瓶，先摆到他的桌上。',
+    desc: '席卡要为今晚的晚宴试酒。白兰地、金酒、威士忌各五瓶，先摆到他的桌上。',
     require: {
       items: [
-        { id: 'brandy', qty: 2 },
-        { id: 'gin', qty: 2 },
-        { id: 'whiskey', qty: 2 },
+        { id: 'brandy', qty: 5 },
+        { id: 'gin', qty: 5 },
+        { id: 'whiskey', qty: 5 },
       ],
     },
     reward: { coins: 30, reputation: 2 },
@@ -606,11 +608,11 @@ export const SCHIKA_QUESTS = [
     owner: 'schika',
     no: '03',
     name: '毒酒',
-    desc: '宴席上有人捂着喉咙倒了下去。席卡不想惊动公爵，只要你找三支万能灵药，再拿两瓶伏特加压住味道。',
+    desc: '宴席上有人捂着喉咙倒了下去。席卡不想惊动公爵，只要你找五支万能灵药，再拿两瓶伏特加压住味道。',
     hint: '万能灵药不在飞行船出售，需要从废墟带上来。',
     require: {
       items: [
-        { id: 'panacea', qty: 3 },
+        { id: 'panacea', qty: 5 },
         { id: 'vodka', qty: 2 },
       ],
     },
@@ -630,8 +632,8 @@ export const NUBI_QUESTS = [
     owner: 'nubi',
     no: '01',
     name: '引擎口粮',
-    desc: '努比不关心你从哪儿弄来的油，只关心桶数够不够。先交十桶，引擎才有下一次点火。',
-    require: { items: [{ id: 'gasoline', qty: 10 }] },
+    desc: '努比不关心你从哪儿弄来的油，只关心桶数够不够。先交二十桶，引擎才有下一次点火。',
+    require: { items: [{ id: 'gasoline', qty: 20 }] },
     reward: { coins: 40, reputation: 2 },
   },
   {
@@ -649,8 +651,8 @@ export const NUBI_QUESTS = [
     owner: 'nubi',
     no: '03',
     name: '迫降航线',
-    desc: '努比要留一条迫降航线。二十桶汽油，少一桶都飞不到备降点。',
-    require: { items: [{ id: 'gasoline', qty: 20 }] },
+    desc: '努比要留一条迫降航线。五十桶汽油，少一桶都飞不到备降点。',
+    require: { items: [{ id: 'gasoline', qty: 50 }] },
     reward: {
       items: [{ id: 'mp5', qty: 1 }],
       coins: 80,
@@ -670,8 +672,8 @@ export const MORAN_QUESTS = [
     desc: '漠然不喝劣酒。威士忌与白兰地各八瓶，摆到觐见厅的桌上，他才愿意先听你说完一句话。',
     require: {
       items: [
-        { id: 'whiskey', qty: 8 },
-        { id: 'brandy', qty: 8 },
+        { id: 'whiskey', qty: 10 },
+        { id: 'brandy', qty: 10 },
       ],
     },
     reward: { coins: 50, reputation: 3 },
@@ -861,7 +863,7 @@ export const FINALES = {
   权力游戏: {
     title: '权力游戏',
     text:
-      '王座上的位置换了一个名字。国王把储君徽章别在你胸前，手很稳。\n\n都城的钟敲了三下。你听见有人在远处喊你的新头衔，也听见更远处传来的、被风吹散的一声枪响。\n\n权力像一场没有尽头的游戏。现在，轮到你上桌了。',
+      '王座上的位置换了一个名字。国王把都城储君徽章别在你胸前，手很稳。\n\n都城的钟敲了三下。你听见有人在远处喊你的新头衔，也听见更远处传来的、被风吹散的一声枪响。\n\n权力像一场没有尽头的游戏。现在，轮到你上桌了。',
   },
   爱恨情仇: {
     title: '爱恨情仇',
@@ -905,6 +907,19 @@ export const FINALES = {
     title: '飞行船主宰',
     text:
       '席卡先倒下去，然后是努比。高台下的贵族们没有一个人离席，他们只是把手里的酒杯慢慢放下。\n\n漠然站起身，又坐了回去。他终于开口，声音很轻：「这艘船，是你的了。」\n\n舷窗外的灰云被风吹开一道口子。整座废墟都在脚下，灯火却第一次为你亮着。\n\n——从此以后，末日飞行船上只有一个声音。',
+  },
+  新秩序: {
+    title: '新秩序',
+    text:
+      '王座之间没有血。你走出殿门时，米娅站在走廊尽头，凤袍已经脱下来搭在臂弯里。\n\n飞行船停在王宫上空。都城的钟没有响，街上也没有人欢呼——他们只是抬头看着那面换了颜色的旗。\n\n羿阳在曙光哨塔下等你。他把领袖徽章放在桌上，摊了摊手：「米娅以后就交给你了。」\n\n——旧的王座塌了。新的秩序，从今天开始。',
+    queenDeadText:
+      '王座之间没有血。你走出殿门时，走廊尽头是空的——米娅早就不在了，只剩下那件凤袍还挂在她的房间里。\n\n飞行船停在王宫上空。都城的钟没有响，街上也没有人欢呼——他们只是抬头看着那面换了颜色的旗。\n\n羿阳在曙光哨塔下等你。他看了一眼名册的最后一页，把领袖徽章收回口袋：「米娅不在了，这一页以后再说。」\n\n——旧的王座塌了。新的秩序，从今天开始。',
+  },
+  无关行尸的战争: {
+    title: '无关行尸的战争',
+    terminal: true,
+    text:
+      '皇后倒下的那一刻，王座之间安静得能听见血滴落地的声音。\n\n你走出王宫，街上已经没有活人。都城的钟楼在燃烧，火光下只有行尸在啃食它们不认识的东西。\n\n你得到了王座，也得到了整座死城。没有臣民，没有敌人，没有明天。\n\n——这场战争从头到尾都与行尸无关。你赢下的，只是一片灰。',
   },
   作弊者: {
     title: '作弊者',

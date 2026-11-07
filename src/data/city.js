@@ -11,14 +11,14 @@ import {
 } from './markets'
 
 export const IDENTITY_LEVELS = [
-  { name: '平民', rank: 0, itemId: 'badge-common', image: '/image/身份徽章/平民徽章.webp' },
-  { name: '骑士', rank: 1, itemId: 'badge-knight', image: '/image/身份徽章/骑士徽章.webp' },
-  { name: '男爵', rank: 2, itemId: 'badge-baron', image: '/image/身份徽章/男爵徽章.webp' },
-  { name: '子爵', rank: 3, itemId: 'badge-viscount', image: '/image/身份徽章/子爵徽章.webp' },
-  { name: '伯爵', rank: 4, itemId: 'badge-earl', image: '/image/身份徽章/伯爵徽章.webp' },
-  { name: '侯爵', rank: 5, itemId: 'badge-marquis', image: '/image/身份徽章/侯爵徽章.webp' },
-  { name: '公爵', rank: 6, itemId: 'badge-duke', image: '/image/身份徽章/公爵徽章.webp' },
-  { name: '储君', rank: 7, itemId: 'badge-heir', image: '/image/身份徽章/储君徽章.webp' },
+  { name: '平民', rank: 0, itemId: 'badge-common', image: '/image/身份徽章/都城平民徽章.webp' },
+  { name: '骑士', rank: 1, itemId: 'badge-knight', image: '/image/身份徽章/都城骑士徽章.webp' },
+  { name: '男爵', rank: 2, itemId: 'badge-baron', image: '/image/身份徽章/都城男爵徽章.webp' },
+  { name: '子爵', rank: 3, itemId: 'badge-viscount', image: '/image/身份徽章/都城子爵徽章.webp' },
+  { name: '伯爵', rank: 4, itemId: 'badge-earl', image: '/image/身份徽章/都城伯爵徽章.webp' },
+  { name: '侯爵', rank: 5, itemId: 'badge-marquis', image: '/image/身份徽章/都城侯爵徽章.webp' },
+  { name: '公爵', rank: 6, itemId: 'badge-duke', image: '/image/身份徽章/都城公爵徽章.webp' },
+  { name: '储君', rank: 7, itemId: 'badge-heir', image: '/image/身份徽章/都城储君徽章.webp' },
 ]
 
 export function identityInfo(name) {

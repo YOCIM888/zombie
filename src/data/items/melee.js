@@ -121,9 +121,7 @@ const MELEE_LIST = [
     '剑脊像一段脊椎，沉得必须双手握。'),
   melee('katana-raikiri', '武士刀-雷切', '传说', { attack: 98, crit: 0.42, critDamage: 2.98, combo: 0.42, durability: 210 },
     '出鞘时有细微电弧，刀身亮得刺眼。'),
-  melee('trident', '三叉戟-海歌', '限定', { attack: 99, crit: 0.42, critDamage: 2.48, combo: 0.28, durability: 230 },
-    '三叉上缠着贝壳和藤条，靠近能听见水声。在水下对海洋生物额外造成 50% 伤害。', { limited: true }),
-  melee('sickle-devil', '镰刀-恶魔', '神话', { attack: 100, crit: 0.42, critDamage: 2.12, combo: 0.41, durability: 250 },
+  melee('sickle-devil', '镰刀-恶魔', '传说', { attack: 100, crit: 0.42, critDamage: 2.12, combo: 0.41, durability: 250 },
     '镰刀身上的黑气是邪恶和收割的证明。'),
 
   /* ===== 神话 ===== */
@@ -144,17 +142,19 @@ const MELEE_LIST = [
   melee('royal-scepter', '皇家权杖', '限定', { attack: 40, crit: 0.39, critDamage: 2.88, combo: 0.66, durability: 600 },
     '杖头嵌着一颗暗红宝石，宫廷匠人把它磨得比礼仪更锋利。', {
       limited: true,
-      image: '/image/末日都城限定/皇家权杖.webp',
+      image: '/image/近战武器/皇家权杖.webp',
     }),
   melee('might-axe', '威能战斧', '限定', { attack: 80, crit: 0.01, critDamage: 3.88, combo: 0.5, durability: 800 },
     '斧刃宽得像一面小盾，挥动时带起沉闷的风声。', {
       limited: true,
-      image: '/image/公会限定武器/威能战斧.webp',
+      image: '/image/近战武器/威能战斧.webp',
     }),
+  melee('trident', '三叉戟-海歌', '限定', { attack: 99, crit: 0.42, critDamage: 2.48, combo: 0.28, durability: 230 },
+    '三叉上缠着贝壳和藤条，靠近能听见水声。在水下对海洋生物额外造成 50% 伤害。', { limited: true }),
   melee('frost-greatsword', '寒霜大剑-冰晶', '限定', { attack: 108, crit: 0.35, critDamage: 3.12, combo: 0.4, durability: 288 },
     '剑身是从一整块冰晶里凿出来的，握久了掌心会留下霜痕。', {
       limited: true,
-      image: '/image/曙光阵地限定/寒霜大剑-冰晶.webp',
+      image: '/image/近战武器/寒霜大剑-冰晶.webp',
     }),
   melee('kraken-blade', '沧龙之刃', '限定', { attack: 130, crit: 0.36, critDamage: 2.28, combo: 0.4, durability: 400 },
     '整条剑身像从沧龙脊背上剥下来的黑鳞，边缘却薄得能切开风。', {

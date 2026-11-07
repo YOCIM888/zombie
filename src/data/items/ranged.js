@@ -148,31 +148,31 @@ const RANGED_LIST = [
     attack: 88, crit: 0.65, critDamage: 4, dodge: 0.15,
   }, '枪身缠着暗红的布条，扳机一扣，火力像一群扑下来的乌鸦。', {
     limited: true,
-    image: '/image/曙光阵地限定/爆能手枪-血鸦.webp',
+    image: '/image/远程武器/爆能手枪-血鸦.webp',
   }),
   ranged('royal-lance', '皇家长枪', '限定', {
     attack: 102, crit: 0.66, critDamage: 1.92, dodge: 0.16,
   }, '枪管细长，鎏金纹路从枪托一路延伸到枪口。', {
     limited: true,
-    image: '/image/末日都城限定/皇家长枪.webp',
+    image: '/image/远程武器/皇家长枪.webp',
   }),
   ranged('meteor-shotgun', '机械霰弹-陨星', '限定', {
     attack: 100, crit: 0.25, critDamage: 2.25, dodge: 0.6,
   }, '霰弹仓里塞满了回收的钢珠，开火时整条走廊都在回响。', {
     limited: true,
-    image: '/image/曙光阵地限定/机械霰弹-陨星.webp',
+    image: '/image/远程武器/机械霰弹-陨星.webp',
   }),
   ranged('daylight-sniper', '流光狙击-白昼', '限定', {
     attack: 128, crit: 0.75, critDamage: 2.28, dodge: 0.05,
   }, '瞄具里映着一线过曝的白光，扣下扳机时连影子都来不及躲。', {
     limited: true,
-    image: '/image/曙光阵地限定/流光狙击-白昼.webp',
+    image: '/image/远程武器/流光狙击-白昼.webp',
   }),
   ranged('starfall-bow', '天星之弓', '限定', {
     attack: 130, crit: 0.4, critDamage: 3.05, dodge: 0.4,
   }, '弓臂上嵌着一线银光，拉满时像有一粒星子停在弦上。', {
     limited: true,
-    image: '/image/公会限定武器/天星之弓.webp',
+    image: '/image/远程武器/天星之弓.webp',
   }),
 ]
 

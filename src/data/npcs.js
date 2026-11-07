@@ -46,20 +46,20 @@ export const NPCS = {
     description: '她蹲在田埂边，指尖沾着泥，手边只有一把用来除草的小铲。',
     deathLine: '苗苗倒在田埂上，手里的泥还没干。',
   }),
-  yiyang: npc('dawn-leader', '首领·羿阳', 360, 25, {
+  yiyang: npc('dawn-leader', '首领·羿阳', 450, 30, {
     mapId: 'dawn-post',
     deathFlag: 'dawnLeaderKilled',
     description: '他站在哨塔顶层，背对着你，手按在刀柄上。',
     deathLine: '羿阳倒下了。哨塔顶层安静得只能听见自己的心跳。',
   }),
-  queen: npc('queen', '皇后·米娅', 240, 20, {
+  queen: npc('queen', '皇后·米娅', 420, 44, {
     mapId: 'ruined-city',
-    dodge: 0.12,
+    dodge: 0.16,
     deathFlag: 'queenKilled',
     description: '王宫最深处的女人，袖口里藏着一封哥哥写来的信。',
     deathLine: '米娅把那封信按在胸口，直到最后也没有松开。',
   }),
-  king: npc('king', '国王·艾伦', 320, 30, {
+  king: npc('king', '国王·艾伦', 500, 30, {
     mapId: 'ruined-city',
     dodge: 0.1,
     deathFlag: 'kingKilled',
@@ -145,7 +145,7 @@ export const NPCS = {
     description: '三倍于常人的体型，四肢被金属框架固定，身上的管线还亮着暗红色的光。',
     deathLine: '傀儡跪下去的时候，金属框架一节节散开。',
   }),
-  gameDev: npc('game-developer', '游戏开发者', 99999, 1, {
+  gameDev: npc('game-developer', '游戏开发者', 99999, 5, {
     mapId: 'suburb-market',
     description:
       '他给自己挂了一条测试用的血条，又把十字剑放在桌子对面。「放心，我只用一点力。」',

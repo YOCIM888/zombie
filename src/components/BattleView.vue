@@ -338,6 +338,8 @@ const finishLabel = computed(() => {
   if (battle.kind === 'deep-sea') return '返回海面'
   if (battle.kind === 'mutiny') return battle.mutinyNext ? '迎战下一位' : '返回甲板'
   if (battle.kind === 'airship-coup') return battle.coupNext ? '迎战下一位' : '返回高台'
+  if (battle.kind === 'war-raid') return battle.warNext ? '继续进攻' : '返回甲板'
+  if (battle.kind === 'war-queen') return '返回甲板'
   if (battle.kind === 'airship-commission') return '返回委托板'
   if (battle.kind === 'airship-cargo') return '返回机务舱'
   if (battle.kind === 'spar') return '返回城主办公室'
@@ -345,7 +347,12 @@ const finishLabel = computed(() => {
   return '返回阵地'
 })
 
-const fleeLocked = computed(() => battle.kind === 'mutiny')
+const fleeLocked = computed(
+  () =>
+    battle.kind === 'mutiny' ||
+    battle.kind === 'war-raid' ||
+    battle.kind === 'war-queen',
+)
 
 function effectText(def) {
   return Object.entries(def.effects)

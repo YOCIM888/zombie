@@ -29,6 +29,7 @@ import {
   createInitialBackpack,
   dawnItemId,
   dawnRank,
+  normalizeDawnIdentityName,
   fieldMapById,
   getItem,
   identityItemId,
@@ -265,7 +266,7 @@ const ACHIEVEMENT_CHECKS = {
   hunter: () => game.zombieKills >= 10,
   butcher: () => game.zombieKills >= 50,
   'dawn-sworn': () => Boolean(game.dawnIdentity),
-  'dawn-officer': () => dawnRank(game.dawnIdentity) >= 1,
+  'dawn-officer': () => dawnRank(game.maxDawnIdentity) >= dawnRank('队长'),
   savings: () => game.coins >= 50,
   'dawn-savings': () => game.dawnCoins >= 100,
   mermaid: () => (Number(game.flags.mermaidStage) || 0) >= MERMAID.stages.length,
@@ -287,8 +288,8 @@ const ACHIEVEMENT_CHECKS = {
   legendary: () => ownsHighTierWeapon(),
   'city-knight': () => identityRank(game.maxIdentity) >= 1,
   'city-heir': () => identityRank(game.maxIdentity) >= 7,
-  'dawn-command': () => dawnRank(game.maxDawnIdentity) >= 2,
-  'dawn-deputy': () => dawnRank(game.maxDawnIdentity) >= 3,
+  'dawn-command': () => dawnRank(game.maxDawnIdentity) >= dawnRank('指挥'),
+  'dawn-deputy': () => dawnRank(game.maxDawnIdentity) >= dawnRank('总督'),
   'coin-tycoon': () => game.coins >= 200,
   'dawn-wealth': () => game.dawnCoins >= 300,
   'ma-san': () => Boolean(game.flags.maSanKilled),
@@ -444,8 +445,14 @@ function applySlot(slot) {
   game.coins = Math.max(0, roundToCents(Number(slot.coins) || 0))
   game.dawnCoins = Math.max(0, roundToCents(Number(slot.dawnCoins) || 0))
   game.maxIdentity = slot.maxIdentity ?? slot.identity ?? null
-  game.maxDawnIdentity = slot.maxDawnIdentity ?? slot.dawnIdentity ?? null
+  // 旧存档身份名先迁移到新徽章体系（如旧「副首」并入总督），再按背包徽章重算
+  const savedDawn = normalizeDawnIdentityName(slot.dawnIdentity)
+  const savedMaxDawn = normalizeDawnIdentityName(slot.maxDawnIdentity) ?? savedDawn
+  game.dawnIdentity = savedDawn
+  game.maxDawnIdentity = savedMaxDawn
   game.zombieKills = Number(slot.zombieKills) || 0
+  // 旧存档没有全局击杀统计：用当前存档累计值做下限，避免已有击杀被清零
+  if (game.zombieKills > globalStats.totalKills) globalStats.totalKills = game.zombieKills
   game.loan = cloneLoan(slot.loan)
   game.day = slot.day || 1
   game.phase = Number.isFinite(slot.phase) ? slot.phase % PHASES.length : 0
@@ -490,11 +497,21 @@ function applySlot(slot) {
 
   migrateLegacyItemIds()
 
-  // 旧存档只有身份字段、没有徽章物品：读档时补一枚对应的徽章
-  const hasBadge = game.inventory.some((entry) => entry && getItem(entry.id)?.category === 'identity')
-  if (!hasBadge) {
-    if (slot.identity) addItem(game.inventory, identityItemId(slot.identity), 1)
-    if (slot.dawnIdentity) addItem(game.inventory, dawnItemId(slot.dawnIdentity), 1)
+  // 旧存档只有身份字段、没有徽章物品：按阵营分别补一枚对应的徽章
+  const hasCityBadge = game.inventory.some((entry) => {
+    const def = entry ? getItem(entry.id) : null
+    return def?.category === 'identity' && def.faction !== 'dawn'
+  })
+  const hasDawnBadge = game.inventory.some((entry) => {
+    const def = entry ? getItem(entry.id) : null
+    return def?.category === 'identity' && def.faction === 'dawn'
+  })
+  if (!hasCityBadge && slot.identity) {
+    addItem(game.inventory, identityItemId(slot.identity), 1)
+  }
+  if (!hasDawnBadge) {
+    const dawnBadgeName = savedDawn ?? savedMaxDawn
+    if (dawnBadgeName) addItem(game.inventory, dawnItemId(dawnBadgeName), 1)
   }
   syncIdentities()
   syncHpCap()
@@ -788,6 +805,12 @@ export function drownPlayer() {
   die('氧气耗尽。你向海面挣扎，四肢却越来越沉，最后连光都看不见了。', '溺水')
 }
 
+/** 丧尸击杀计数：存档内计数用于任务进度；全局计数用于曙光晋升（跨周目） */
+export function recordZombieKill() {
+  game.zombieKills += 1
+  globalStats.totalKills = Math.max(0, Number(globalStats.totalKills) || 0) + 1
+}
+
 /** 身份以背包里的身份牌为准：两个阵营各取等级最高的一枚 */
 export function syncIdentities() {
   let bestCity = null
@@ -811,23 +834,31 @@ export function syncIdentities() {
   }
 }
 
-/** 授予身份：清掉背包里同阵营的旧身份牌，放入新的徽章 */
+/** 授予身份：清掉背包里同阵营的旧身份牌，放入新的徽章；放不下时恢复旧徽章，避免身份丢失 */
 function grantFactionIdentity(faction, name) {
   const itemId = faction === 'dawn' ? dawnItemId(name) : identityItemId(name)
   if (!itemId) return false
 
+  const cleared = []
   for (let index = 0; index < game.inventory.length; index += 1) {
     const entry = game.inventory[index]
     if (!entry) continue
     const def = getItem(entry.id)
     if (def?.category !== 'identity') continue
     const badgeFaction = def.faction === 'dawn' ? 'dawn' : 'city'
-    if (badgeFaction === faction) game.inventory[index] = null
+    if (badgeFaction === faction) {
+      cleared.push({ index, entry })
+      game.inventory[index] = null
+    }
   }
 
   const leftover = addItem(game.inventory, itemId, 1)
+  if (leftover > 0) {
+    for (const { index, entry } of cleared) game.inventory[index] = entry
+    syncIdentities()
+    return false
+  }
   syncIdentities()
-  if (leftover > 0) return false
   return true
 }
 

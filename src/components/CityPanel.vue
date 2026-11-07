@@ -298,6 +298,12 @@ function deliverLetter() {
 }
 
 function tryPalace() {
+  if (game.flags.warPrepNewOrder) {
+    const line = '王宫已经被你烧成了灰，这里什么也没有了'
+    feed.value = line
+    notify(line)
+    return
+  }
   if (!canEnterPalace()) {
     const line = '守卫拦住你：至少需要「骑士」身份才能进入都城王宫。'
     feed.value = line
@@ -887,7 +893,7 @@ useShortcutLayer({
           持有：末日币 {{ formatMoney(game.coins) }} · 曙光币 {{ formatMoney(game.dawnCoins) }}
           <br v-if="rateInfo.cityFallback || rateInfo.dawnFallback" />
           <span v-if="rateInfo.cityFallback || rateInfo.dawnFallback">
-            未加入的阵营按最低身份（平民 / 无身份）保底计算。
+            未加入的阵营按最低身份（平民 / 见习）保底计算。
           </span>
         </p>
 
@@ -977,7 +983,7 @@ useShortcutLayer({
         <article class="row">
           <div>
             <h4 class="row__name">投靠都城</h4>
-            <p class="row__desc">向都城衙门登记名册，换取一枚平民徽章。</p>
+            <p class="row__desc">向都城衙门登记名册，换取一枚都城平民徽章。</p>
           </div>
           <button type="button" class="btn" @click="run(joinCity)">投靠</button>
         </article>

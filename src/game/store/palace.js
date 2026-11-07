@@ -21,7 +21,10 @@ import { recordGuildTheft } from './utopia.js'
 /* ===== 都城王宫（进入不消耗回合） ===== */
 
 export function palaceReady() {
-  return !game.dead && game.location === 'ruined-city'
+  if (game.dead) return false
+  // 新秩序结局后王宫已被烧毁，逻辑层同步封锁
+  if (game.flags.warPrepNewOrder) return false
+  return game.location === 'ruined-city'
 }
 
 function knightReady() {

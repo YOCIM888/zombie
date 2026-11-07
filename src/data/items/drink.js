@@ -51,7 +51,7 @@ const DRINK_LIST = [
     '琥珀色的酒液里浮着一层细金粉，杯沿还留着一小片干柠檬。', {
       tier: '限定',
       limited: true,
-      image: '/image/末日都城限定/皇家特调.webp',
+      image: '/image/饮品/皇家特调.webp',
     }),
 ]
 

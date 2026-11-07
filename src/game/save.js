@@ -117,6 +117,8 @@ export const globalStats = reactive({
   totalPlaytime: Number(storedGlobal.totalPlaytime) || 0,
   achievements: Array.isArray(storedGlobal.achievements) ? storedGlobal.achievements : [],
   deathEndings: Array.isArray(storedGlobal.deathEndings) ? storedGlobal.deathEndings : [],
+  /** 跨周目累计击杀：曙光身份晋升使用该口径，与「死神来了」同属全局统计 */
+  totalKills: Math.max(0, Number(storedGlobal.totalKills) || 0),
 })
 
 export const settings = reactive({
@@ -163,6 +165,7 @@ function persistGlobal() {
     totalPlaytime: globalStats.totalPlaytime,
     achievements: globalStats.achievements,
     deathEndings: globalStats.deathEndings,
+    totalKills: globalStats.totalKills,
   })
 }
 
@@ -268,6 +271,7 @@ export function buildSaveBundle() {
       totalPlaytime: globalStats.totalPlaytime,
       achievements: clone(globalStats.achievements),
       deathEndings: clone(globalStats.deathEndings),
+      totalKills: globalStats.totalKills,
     },
     settings: {
       volume: settings.volume,
@@ -346,6 +350,7 @@ export function parseSaveBundle(text) {
         totalPlaytime: Math.max(0, Number(global.totalPlaytime) || 0),
         achievements: Array.isArray(global.achievements) ? clone(global.achievements) : [],
         deathEndings: Array.isArray(global.deathEndings) ? clone(global.deathEndings) : [],
+        totalKills: Math.max(0, Number(global.totalKills) || 0),
       },
       settings: {
         volume: Number.isFinite(savedSettings.volume) ? savedSettings.volume : 0.7,
@@ -377,6 +382,7 @@ export function importSaveBundle(bundle) {
     totalPlaytime: globalStats.totalPlaytime,
     achievements: clone(globalStats.achievements),
     deathEndings: clone(globalStats.deathEndings),
+    totalKills: globalStats.totalKills,
     settings: {
       volume: settings.volume,
       sfxVolume: settings.sfxVolume,
@@ -392,6 +398,7 @@ export function importSaveBundle(bundle) {
   globalStats.totalPlaytime = bundle.global.totalPlaytime
   globalStats.achievements = clone(bundle.global.achievements)
   globalStats.deathEndings = clone(bundle.global.deathEndings)
+  globalStats.totalKills = Math.max(0, Number(bundle.global.totalKills) || 0)
   Object.assign(settings, bundle.settings)
 
   const results = [persistSlots(), persistGlobal(), persistSettings()]
@@ -401,6 +408,7 @@ export function importSaveBundle(bundle) {
     globalStats.totalPlaytime = previous.totalPlaytime
     globalStats.achievements = previous.achievements
     globalStats.deathEndings = previous.deathEndings
+    globalStats.totalKills = previous.totalKills
     Object.assign(settings, previous.settings)
     persistSlots()
     persistGlobal()

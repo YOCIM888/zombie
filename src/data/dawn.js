@@ -10,12 +10,50 @@ import {
 } from './markets'
 import { NPCS } from './npcs'
 
-/** 曙光身份：队员 < 队长 < 指挥 < 副首 */
+/** 曙光身份：见习 < 队员 < 队长 < 指挥 < 总督 < 领袖 */
 export const DAWN_IDENTITY_LEVELS = [
-  { name: '队员', rank: 0, itemId: 'badge-dawn-member', image: '/image/身份徽章/曙光队员徽章.webp' },
-  { name: '队长', rank: 1, itemId: 'badge-dawn-captain', image: '/image/身份徽章/曙光队长徽章.webp' },
-  { name: '指挥', rank: 2, itemId: 'badge-dawn-command', image: '/image/身份徽章/曙光指挥徽章.webp' },
-  { name: '副首', rank: 3, itemId: 'badge-dawn-deputy', image: '/image/身份徽章/曙光副首徽章.webp' },
+  {
+    name: '见习',
+    rank: 0,
+    itemId: 'badge-dawn-initiate',
+    image: '/image/身份徽章/曙光见习徽章.webp',
+    obtain: 'join',
+  },
+  {
+    name: '队员',
+    rank: 1,
+    itemId: 'badge-dawn-member',
+    image: '/image/身份徽章/曙光队员徽章.webp',
+    obtain: 'kills',
+  },
+  {
+    name: '队长',
+    rank: 2,
+    itemId: 'badge-dawn-captain',
+    image: '/image/身份徽章/曙光队长徽章.webp',
+    obtain: 'kills',
+  },
+  {
+    name: '指挥',
+    rank: 3,
+    itemId: 'badge-dawn-command',
+    image: '/image/身份徽章/曙光指挥徽章.webp',
+    obtain: 'kills',
+  },
+  {
+    name: '总督',
+    rank: 4,
+    itemId: 'badge-dawn-deputy',
+    image: '/image/身份徽章/曙光总督徽章.webp',
+    obtain: 'quest',
+  },
+  {
+    name: '领袖',
+    rank: 5,
+    itemId: 'badge-dawn-leader',
+    image: '/image/身份徽章/曙光领袖徽章.webp',
+    obtain: 'story',
+  },
 ]
 
 export function dawnInfo(name) {
@@ -31,8 +69,21 @@ export function dawnItemId(name) {
   return dawnInfo(name)?.itemId ?? null
 }
 
-/** 加入曙光需要的击杀数 */
-export const DAWN_JOIN_KILLS = 5
+/**
+ * 旧存档身份名迁移：只处理历史别名，新体系内的六档名称原样返回。
+ * 目前旧版本出现过「副首」指代总督，统一并入总督，避免读档时身份丢失。
+ */
+const LEGACY_DAWN_IDENTITY_ALIASES = {
+  副首: '总督',
+  副首领: '总督',
+}
+
+export function normalizeDawnIdentityName(name) {
+  if (!name) return null
+  if (dawnInfo(name)) return name
+  const mapped = LEGACY_DAWN_IDENTITY_ALIASES[name]
+  return mapped && dawnInfo(mapped) ? mapped : null
+}
 
 /** 远程商品：价格由武器属性自动计算 */
 function dawnGun(id, name, note) {
@@ -156,68 +207,82 @@ export function dawnRecyclePrices(day) {
   )
 }
 
-/** 管事处的晋升：累计击杀达标后授予下一级身份 */
+/**
+ * 管事处的晋升：按全局累计击杀授予下一级身份。
+ * 总督必须由羿阳任务线授予，领袖暂未开放，都不在这条链上。
+ */
 export const DAWN_PROMOTIONS = [
+  { from: '见习', to: '队员', kills: 20 },
   { from: '队员', to: '队长', kills: 50 },
-  { from: '队长', to: '指挥', kills: 200 },
+  { from: '队长', to: '指挥', kills: 100 },
 ]
 
-/** 领取救济：五档共用每天一次，按曙光身份等级开放 */
+/** 领取救助：六档共用每天一次，按曙光身份等级开放 */
 export const DAWN_RELIEF_TIERS = [
   {
-    id: 'plain',
-    name: '普通救助',
-    identity: '无身份',
-    rank: -1,
-    fruitCount: 2,
-    items: [],
-    desc: '无身份也能领一份，两个水果，没人会多问一句。',
-  },
-  {
-    id: 'basic',
-    name: '基础救助',
-    identity: '队员',
+    id: 'initiate',
+    name: '见习救助',
+    identity: '见习',
     rank: 0,
-    fruitCount: 2,
-    items: [{ itemId: 'bandage', qty: 1 }],
-    desc: '物资箱里挑出来的最基础的一份，够撑过今天。',
+    fruitCount: 1,
+    items: [],
+    desc: '刚在名册上留下名字的人，先领一个水果。管事说，撑过今天再说。',
   },
   {
-    id: 'advanced',
-    name: '进阶救助',
-    identity: '队长',
+    id: 'member',
+    name: '队员救助',
+    identity: '队员',
     rank: 1,
-    fruitCount: 3,
-    items: [{ itemId: 'painkiller', qty: 1 }],
-    desc: '多一个水果，加一片止痛药，管事的笔停了一下才签。',
+    fruitCount: 2,
+    items: [{ itemId: 'tourniquet', qty: 1 }],
+    desc: '两个水果，一条止血带。巡夜的人用得上。',
   },
   {
-    id: 'high',
-    name: '高级救助',
-    identity: '指挥',
+    id: 'captain',
+    name: '队长救助',
+    identity: '队长',
     rank: 2,
-    fruitCount: 4,
-    items: [{ itemId: 'painkiller', qty: 2 }],
-    desc: '箱子底下的存货被翻了出来，止痛药给了两片。',
+    fruitCount: 3,
+    items: [{ itemId: 'bandage', qty: 1 }],
+    desc: '三个水果，一卷绷带，管事的笔停了一下才签。',
   },
   {
-    id: 'special',
-    name: '特级救助',
-    identity: '副首',
+    id: 'command',
+    name: '指挥救助',
+    identity: '指挥',
     rank: 3,
+    fruitCount: 4,
+    items: [{ itemId: 'suture-kit', qty: 1 }],
+    desc: '箱子底下的存货被翻了出来，多给了一个缝合包。',
+  },
+  {
+    id: 'deputy',
+    name: '总督救助',
+    identity: '总督',
+    rank: 4,
     fruitCount: 5,
-    items: [{ itemId: 'anti-infection-shot', qty: 1 }],
-    desc: '只有快撑不住的人才能拿到这一份，里面有一支抗感染针。',
+    items: [{ itemId: 'medical-kit', qty: 1 }],
+    desc: '只有快撑不住的人才能拿到这一份，里面有一只医疗箱。',
+  },
+  {
+    id: 'leader',
+    name: '领袖救助',
+    identity: '领袖',
+    rank: 5,
+    fruitCount: 6,
+    items: [{ itemId: 'military-first-aid-kit', qty: 1 }],
+    desc: '物资箱最底层的那一格。现在还没有人够格打开它。',
   },
 ]
 
-/** 每日工资：按当前曙光身份发放，五档共用每天一次 */
+/** 领取工资：按当前曙光身份发放，六档共用每天一次 */
 export const DAWN_SALARY = [
-  { identity: '无身份', rank: -1, coins: 1 },
-  { identity: '队员', rank: 0, coins: 5 },
-  { identity: '队长', rank: 1, coins: 8 },
-  { identity: '指挥', rank: 2, coins: 10 },
-  { identity: '副首', rank: 3, coins: 15 },
+  { identity: '见习', rank: 0, coins: 2 },
+  { identity: '队员', rank: 1, coins: 5 },
+  { identity: '队长', rank: 2, coins: 8 },
+  { identity: '指挥', rank: 3, coins: 10 },
+  { identity: '总督', rank: 4, coins: 15 },
+  { identity: '领袖', rank: 5, coins: 20 },
 ]
 
 /** 首领·羿阳：人类，不吃感染 */
@@ -269,8 +334,8 @@ export function pickDawnFruit() {
   return pool[Math.floor(Math.random() * pool.length)].id
 }
 
-/** 酒精饮品不进入配餐池 */
-const ALCOHOL_DRINKS = [
+/** 酒精饮品：配餐池排除，战争准备的「酒 / 非酒」也共用这份名单 */
+export const ALCOHOL_DRINKS = [
   'corona',
   'white-beer',
   'brandy',
@@ -279,6 +344,7 @@ const ALCOHOL_DRINKS = [
   'rum',
   'tequila',
   'whiskey',
+  'royal-mix',
 ]
 
 /** 苏涵的配餐：全部食物 + 非酒精饮品，排除限定与特殊物品 */

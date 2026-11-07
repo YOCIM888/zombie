@@ -115,8 +115,8 @@ export function laborCity(tierId = 'common') {
 export function joinCity() {
   if (game.dead) return ''
   if (game.identity) return `你已经是「${game.identity}」，不必再投靠。`
-  if (!grantIdentity('平民')) return '背包已满，收不下平民徽章。'
-  return '你向都城衙门投了名册，领到一枚「平民徽章」。'
+  if (!grantIdentity('平民')) return '背包已满，收不下都城平民徽章。'
+  return '你向都城衙门投了名册，领到一枚「都城平民徽章」。'
 }
 
 export function restoreIdentity() {
@@ -137,7 +137,7 @@ export function becomeKnight() {
   game.coins -= KNIGHT_COST
   if (!grantIdentity('骑士')) {
     game.coins += KNIGHT_COST
-    return '背包已满，骑士徽章无处安放。'
+    return '背包已满，都城骑士徽章无处安放。'
   }
   return `缴纳 ${KNIGHT_COST} 末日币，你成为了「骑士」。`
 }
@@ -227,10 +227,10 @@ export function waiveLoanInterest() {
   return `行长免去了 ${waived} 币利息：现在只还本金 ${game.loan.principal} 币，到期日顺延至第 ${game.loan.dueDay} 天。`
 }
 
-/** 兑换汇率：按两地历史最高身份的日收入购买力计算；从未加入的阵营按最低身份保底（平民 / 无身份） */
+/** 兑换汇率：按两地历史最高身份的日收入购买力计算；从未加入的阵营按最低身份保底（平民 / 见习） */
 export function exchangeRateInfo() {
   const cityIdentity = game.maxIdentity ?? game.identity ?? '平民'
-  const dawnIdentity = game.maxDawnIdentity ?? game.dawnIdentity ?? '无身份'
+  const dawnIdentity = game.maxDawnIdentity ?? game.dawnIdentity ?? '见习'
   const labor = LABOR_TIERS.find((tier) => tier.identity === cityIdentity)?.coins ?? 0
   const cityIncome = labor + (PALACE_SALARY[cityIdentity] ?? 0)
   const dawnIncome =

@@ -13,6 +13,7 @@ import {
   stockTradeFee,
   TALENTS,
   QUEST_OWNERS,
+  WAR_PREP,
   commissionForDay,
   countItem,
   identityRank,
@@ -46,15 +47,26 @@ import {
   questStatus,
   sellAirshipStock,
   submitAirshipGasoline,
+  submitWarPrepTask,
   syncStockMarket,
+  warPrepDone,
+  warPrepRaidReady,
+  warPrepUnlocked,
+  warTaskCount,
+  warTaskExcludedCount,
 } from '../game/store'
 import {
   battle,
   continueAirshipCoup,
+  continueWarRaid,
   resetBattle,
+  resolveNewOrder,
+  settleWarQueenGone,
   startAirshipCargoBattle,
   startAirshipCommissionBattle,
   startAirshipCoupBattle,
+  startWarQueenBattle,
+  startWarRaidBattle,
 } from '../game/battle'
 import { hasStackedModal, useShortcutLayer } from '../game/keyboard'
 import BattleView from './BattleView.vue'
@@ -109,6 +121,62 @@ const coupOpponents = computed(() =>
     else if (index === coupStep.value && coupStep.value > 0) state = '下一位'
     return { id, name: npcById(id)?.name ?? id, state }
   }),
+)
+
+/* ===== 战争准备 ===== */
+
+const warUnlocked = computed(() => warPrepUnlocked())
+const warDone = computed(() => warPrepDone())
+const warFinished = computed(() =>
+  Boolean(game.flags.warPrepNewOrder || game.flags.warPrepTerminal),
+)
+const warResultText = computed(() => {
+  if (game.flags.warPrepTerminal) return '结局已达成：无关行尸的战争。'
+  if (game.flags.warPrepNewOrder) return '结局已达成：新秩序。羿阳的妹妹在曙光等你。'
+  return ''
+})
+const warTasks = computed(() =>
+  WAR_PREP.tasks.map((task, index) => {
+    const done = warDone.value
+    const state = index < done ? 'done' : index === done ? 'current' : 'locked'
+    let current = 0
+    if (task.type === 'weapons') {
+      current = {
+        knightSword: countItem(game.inventory, task.items[0].id),
+        huntingBow: countItem(game.inventory, task.items[1].id),
+      }
+    } else if (task.type !== 'raid') {
+      current = warTaskCount(task)
+    }
+    return {
+      ...task,
+      no: String(index + 1).padStart(2, '0'),
+      current,
+      excluded: task.type === 'weapons' || task.type === 'raid' ? 0 : warTaskExcludedCount(task),
+      state,
+    }
+  }),
+)
+const warCurrent = computed(() => WAR_PREP.tasks[warDone.value] ?? null)
+const warChoiceOpen = computed(
+  () =>
+    Boolean(game.flags.warPrepChoicePending) &&
+    !game.flags.queenKilled &&
+    !battle.active &&
+    !battle.finished,
+)
+const menuItems = computed(() =>
+  AIRSHIP.menu.map((item) =>
+    item.id === 'war'
+      ? {
+          ...item,
+          disabled: !warUnlocked.value,
+          note: warUnlocked.value
+            ? item.note
+            : '未解锁：需要在本局完成政变，成为飞行船主宰',
+        }
+      : item,
+  ),
 )
 
 function practiceInfo(kind) {
@@ -247,7 +315,13 @@ const stockPortfolioValue = computed(() =>
 const activeBattle = computed(
   () =>
     (battle.active || battle.finished) &&
-    ['airship-coup', 'airship-commission', 'airship-cargo'].includes(battle.kind),
+    [
+      'airship-coup',
+      'airship-commission',
+      'airship-cargo',
+      'war-raid',
+      'war-queen',
+    ].includes(battle.kind),
 )
 
 const activeNoble = computed(() => (nobleIds.includes(view.value) ? view.value : ''))
@@ -273,7 +347,13 @@ const cargoEnemy = computed(() => zombieById('armored'))
 onMounted(() => {
   if (
     battle.finished &&
-    !['airship-coup', 'airship-commission', 'airship-cargo'].includes(battle.kind)
+    ![
+      'airship-coup',
+      'airship-commission',
+      'airship-cargo',
+      'war-raid',
+      'war-queen',
+    ].includes(battle.kind)
   ) {
     resetBattle()
   }
@@ -290,6 +370,12 @@ function run(action) {
 }
 
 function menuTag(item) {
+  if (item.id === 'war') {
+    if (!warUnlocked.value) return '锁定'
+    if (game.flags.warPrepNewOrder) return '新秩序'
+    if (game.flags.warPrepTerminal) return '结局'
+    return `${warDone.value} / ${WAR_PREP.tasks.length}`
+  }
   if (item.disabled) return '占位'
   if (coupDone.value && nobleIds.includes(item.id)) return '已臣服'
   return '可用'
@@ -310,6 +396,22 @@ function openMenuItem(item) {
   } else if (item.id === 'commission' || item.id === 'oil' || item.id === 'investment') {
     if (item.id === 'investment') syncStockMarket()
     view.value = item.id
+  } else if (item.id === 'war') {
+    // 选择悬空时皇后已死：直接落到「新秩序」，避免卡死
+    const queenGone = settleWarQueenGone()
+    if (queenGone) {
+      feed.value = queenGone
+      view.value = 'war'
+      return
+    }
+    // 马斐线提前杀死国王：入口即拦截，不进入任务列表
+    if (game.flags.kingKilled && !game.flags.warPrepKingDefeated && !warFinished.value) {
+      const line = '你似乎没有需要开战的目标'
+      feed.value = line
+      notify(line)
+      return
+    }
+    view.value = 'war'
   } else if (nobleIds.includes(item.id)) {
     view.value = item.id
   }
@@ -373,7 +475,49 @@ function resumeCoup() {
   view.value = 'platform'
 }
 
+function warTaskStateText(state) {
+  if (state === 'done') return '已完成'
+  if (state === 'current') return '进行中'
+  return '未开始'
+}
+
+function submitWar() {
+  feed.value = submitWarPrepTask()
+}
+
+function beginRaid() {
+  feed.value = startWarRaidBattle()
+}
+
+function chooseKillQueen() {
+  feed.value = startWarQueenBattle()
+}
+
+function chooseSpareQueen() {
+  feed.value = resolveNewOrder()
+}
+
 function battleDone() {
+  if (battle.kind === 'war-raid') {
+    const summary = battle.summary
+    if (battle.warNext && continueWarRaid()) {
+      feed.value = summary || '下一名禁卫已经站上台阶。'
+      return
+    }
+    resetBattle()
+    view.value = 'war'
+    feed.value = summary || '王座之间安静下来了。'
+    return
+  }
+
+  if (battle.kind === 'war-queen') {
+    const summary = battle.summary
+    resetBattle()
+    view.value = 'war'
+    feed.value = summary || '王座之间安静下来了。'
+    return
+  }
+
   if (battle.kind === 'airship-cargo') {
     const summary = battle.summary
     resetBattle()
@@ -456,12 +600,20 @@ useShortcutLayer({
               ? '高台政变'
               : battle.kind === 'airship-cargo'
                 ? '货舱异响'
-                : '居民委托'
+                : battle.kind === 'war-raid'
+                  ? '袭击王宫'
+                  : battle.kind === 'war-queen'
+                    ? '王座之间'
+                    : '居民委托'
           }}
         </h3>
         <span v-if="battle.kind === 'airship-coup'" class="tag">
           第 {{ battle.coupStage + 1 }} / {{ AIRSHIP.coup.enemyIds.length }} 场
         </span>
+        <span v-if="battle.kind === 'war-raid'" class="tag">
+          第 {{ battle.warStage + 1 }} / {{ WAR_PREP.raid.guardCount + 1 }} 场
+        </span>
+        <span v-if="battle.kind === 'war-queen'" class="tag">皇后 · 终局</span>
       </header>
       <BattleView @done="battleDone" />
     </section>
@@ -475,7 +627,7 @@ useShortcutLayer({
 
       <div v-if="view === 'menu'" class="extras">
         <button
-          v-for="item in AIRSHIP.menu"
+          v-for="item in menuItems"
           :key="item.id"
           type="button"
           class="extra menu-item"
@@ -750,6 +902,94 @@ useShortcutLayer({
                       : '打靶 · 1 回合'
             }}
           </button>
+        </article>
+      </div>
+
+      <div v-else-if="view === 'war'" class="extras">
+        <article class="extra extra--wide">
+          <header class="extra__head">
+            <h4 class="extra__title">{{ WAR_PREP.name }}</h4>
+            <span class="extra__tag">
+              {{
+                !warUnlocked
+                  ? '未解锁'
+                  : warFinished
+                    ? '已达成'
+                    : `进度 ${warDone} / ${WAR_PREP.tasks.length}`
+              }}
+            </span>
+          </header>
+          <p class="extra__desc">{{ WAR_PREP.intro }}</p>
+
+          <div v-if="!warUnlocked" class="chips">
+            <span>{{ WAR_PREP.unlockLine }}</span>
+          </div>
+
+          <template v-else>
+            <ul class="war-list">
+              <li
+                v-for="task in warTasks"
+                :key="task.id"
+                class="war-item"
+                :class="`war-item--${task.state}`"
+              >
+                <div class="war-item__head">
+                  <span class="war-item__name">{{ task.no }} · {{ task.name }}</span>
+                  <span class="tag">{{ warTaskStateText(task.state) }}</span>
+                </div>
+                <p class="war-item__req">{{ task.requirement }}</p>
+                <p
+                  v-if="task.state === 'current' && task.type !== 'raid'"
+                  class="war-item__count"
+                >
+                  <template v-if="task.type === 'weapons'">
+                    骑士剑 {{ task.current.knightSword }} / 30 · 猎弓
+                    {{ task.current.huntingBow }} / 30
+                  </template>
+                  <template v-else>
+                    {{ task.current }} / {{ task.count }} {{ task.unit }}
+                  </template>
+                </p>
+                <p
+                  v-if="
+                    task.state === 'current' &&
+                    (task.type === 'category' || task.type === 'drink')
+                  "
+                  class="war-item__note"
+                >
+                  限定与特殊物品不计入提交<template v-if="task.excluded > 0">
+                    （背包中 {{ task.excluded }} {{ task.unit }} 未计入）</template
+                  >。
+                </p>
+                <p v-if="task.state === 'done'" class="war-item__done">
+                  {{ task.doneLine }}
+                </p>
+              </li>
+            </ul>
+
+            <div v-if="!warFinished && warCurrent" class="bar">
+              <button
+                v-if="warCurrent.type !== 'raid'"
+                type="button"
+                class="btn btn--primary"
+                :disabled="battle.active"
+                @click="submitWar"
+              >
+                提交 · {{ warCurrent.name }}
+              </button>
+              <button
+                v-else
+                type="button"
+                class="btn btn--primary"
+                :disabled="!warPrepRaidReady() || battle.active"
+                @click="beginRaid"
+              >
+                袭击王宫 · 无退路
+              </button>
+            </div>
+
+            <p v-if="warFinished" class="war-result">{{ warResultText }}</p>
+          </template>
         </article>
       </div>
 
@@ -1110,6 +1350,28 @@ useShortcutLayer({
 
     <Teleport to="body">
       <InventoryPanel v-if="bagOpen" :initial-view="bagView" @close="bagOpen = false" />
+    </Teleport>
+
+    <Teleport to="body">
+      <div v-if="warChoiceOpen" class="war-choice-mask">
+        <section class="war-choice" role="dialog" aria-modal="true" aria-label="王座之间">
+          <span class="eyebrow">王座之间</span>
+          <h3 class="war-choice__title">皇后还在殿里</h3>
+          <p class="war-choice__text">{{ WAR_PREP.raid.kingDefeatedLine }}</p>
+          <p class="war-choice__text">{{ WAR_PREP.raid.choicePrompt }}</p>
+          <p class="war-choice__note">
+            杀死皇后会进入最后一场战斗；不杀则直接达成结局「{{ WAR_PREP.raid.newOrder }}」。
+          </p>
+          <div class="war-choice__actions">
+            <button type="button" class="btn" @click="chooseSpareQueen">
+              不杀 · {{ WAR_PREP.raid.newOrder }}
+            </button>
+            <button type="button" class="btn btn--primary" @click="chooseKillQueen">
+              杀死皇后
+            </button>
+          </div>
+        </section>
+      </div>
     </Teleport>
 
     <template #footer>
@@ -1690,5 +1952,121 @@ useShortcutLayer({
   .extras {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.war-list {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+}
+
+.war-item {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.war-item--current {
+  border-color: var(--rust-soft);
+}
+
+.war-item--locked {
+  opacity: 0.55;
+}
+
+.war-item__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.war-item__name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-family: var(--font-title);
+  font-size: 12px;
+}
+
+.war-item__req,
+.war-item__count,
+.war-item__note,
+.war-item__done,
+.war-result {
+  margin: 6px 0 0;
+  font-size: 10.5px;
+  line-height: 1.7;
+  color: var(--text-mute);
+  overflow-wrap: anywhere;
+}
+
+.war-item__count {
+  color: var(--rust-soft);
+  font-family: var(--font-mono);
+}
+
+.war-item__note {
+  color: var(--text-dim);
+}
+
+.war-result {
+  margin-top: 14px;
+  color: var(--bone);
+}
+
+.war-choice-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(6, 7, 8, 0.8);
+  backdrop-filter: blur(4px);
+}
+
+.war-choice {
+  width: min(540px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  padding: 22px 20px;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  background: var(--panel-solid);
+}
+
+.war-choice__title {
+  margin: 8px 0 10px;
+  color: var(--text);
+  font-family: var(--font-title);
+  font-size: 18px;
+}
+
+.war-choice__text,
+.war-choice__note {
+  margin: 0 0 8px;
+  font-size: 11px;
+  line-height: 1.75;
+  color: var(--text-mute);
+}
+
+.war-choice__note {
+  color: var(--rust-soft);
+}
+
+.war-choice__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
 }
 </style>

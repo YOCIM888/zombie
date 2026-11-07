@@ -77,7 +77,7 @@ const FOOD_LIST = [
     '奶油上压着王宫的家徽，甜得几乎不像末日里的东西。', {
       tier: '限定',
       limited: true,
-      image: '/image/末日都城限定/皇家甜点.webp',
+      image: '/image/食物/皇家甜点.webp',
     }),
 ]
 

@@ -14,6 +14,7 @@ function medicine(id, name, effects, description, extra = {}) {
 }
 
 const MEDICINE_LIST = [
+  //回血药品
   medicine('band-aid', '创可贴', { hp: 10 },
     '一小片医用胶布，盖住擦伤就够了，别指望它对付咬痕。'),
   medicine('tourniquet', '止血带', { hp: 20 },
@@ -28,14 +29,17 @@ const MEDICINE_LIST = [
     }),
   medicine('military-first-aid-kit', '军用急救包', { hp: 100 },
     '帆布包压着军徽，里面是压缩敷料、止血粉和一整卷绷带。'),
+  //理智药品
   medicine('painkiller', '止痛药', { sanity: 30 },
     '白色药片，吞下去之后，疼的地方会变得很远。'),
   medicine('sedative', '镇静剂', { sanity: 60 },
     '透明安瓿里的药液很凉，推下去之后，耳朵里的声音会慢慢退远。'),
+  //抗感染药品
   medicine('antibiotic', '抗生素', { infection: -30 },
     '一板过期的胶囊，对付伤口里的东西比对付感冒更有用。'),
   medicine('anti-infection-shot', '抗感染针', { infection: -50 },
     '一支浑浊的药剂，推下去之后喉咙里全是苦味。'),
+  //体力药品
   medicine('adrenaline', '肾上腺素', { hp: 30, stamina: 30, sanity: -10 },
     '扎进大腿，心跳立刻撞到耳朵里，手也不再抖了。'),
   medicine('stamina-shot', '体能针', { stamina: 80, sanity: -30 },

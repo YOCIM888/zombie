@@ -15,6 +15,7 @@ import {
   removeItem,
 } from '../../data'
 import { game, die, grantIdentity, grantDawnIdentity } from './core.js'
+import { globalStats } from '../save'
 import { dawnReady } from './dawn.js'
 import { palaceReady } from './palace.js'
 
@@ -298,22 +299,97 @@ export function deliverQueenLetter() {
   return '皇后米娅接过信，看到信封上的字迹时，手停在了半空。\n\n「这是……哥哥的字。」她的声音很轻，「三年了，他才肯让人送信来。」\n\n她把信折好，按在胸口，没有哭。\n\n「既然是他信得过的人，那你也算我信得过的人。」她抬起头，「替我办几件事。」'
 }
 
-/** 管事处的晋升：按累计击杀授予队长 / 指挥 */
+/**
+ * 管事处晋升状态：击杀口径与晋升链的唯一来源。
+ * 击杀数使用 globalStats.totalKills（跨周目累计，与「死神来了」同口径）。
+ */
+export function dawnPromotionState() {
+  const kills = Math.max(0, Number(globalStats.totalKills) || 0)
+  if (!game.dawnIdentity) return { state: 'not-joined', kills }
+  const promotion = DAWN_PROMOTIONS.find((item) => item.from === game.dawnIdentity)
+  if (promotion) {
+    return {
+      state: kills >= promotion.kills ? 'ready' : 'locked',
+      promotion,
+      kills,
+      left: Math.max(0, promotion.kills - kills),
+    }
+  }
+  const rank = dawnRank(game.dawnIdentity)
+  if (rank === dawnRank('指挥')) return { state: 'quest-only', kills }
+  if (rank === dawnRank('总督')) {
+    if (game.flags.warPrepNewOrder) {
+      // 米娅已在马斐线死亡：名册最后一页无人交付
+      if (game.flags.queenKilled) return { state: 'leader-mia-dead', kills }
+      // 羿阳已死、米娅还在：这一局徽章无处可寻
+      if (game.flags.dawnLeaderKilled) return { state: 'leader-no-badge', kills }
+      if (game.dawnIdentity !== '领袖') return { state: 'leader-story', kills }
+    }
+    return { state: 'leader-locked', kills }
+  }
+  return { state: 'max', kills }
+}
+
+/** 管事处的晋升：按全局累计击杀授予队员 / 队长 / 指挥 */
 export function promoteDawnIdentity() {
   if (!dawnReady()) return ''
-  if (!game.dawnIdentity) return '你还没有加入曙光，先去联系管事登记名册。'
+  const info = dawnPromotionState()
 
-  const promotion = DAWN_PROMOTIONS.find((item) => item.from === game.dawnIdentity)
-  if (!promotion) {
-    return game.dawnIdentity === '指挥'
-      ? '管事关上名册：副首只能由首领羿阳亲自授予。'
-      : '你已经是曙光「副首」，没有更高的位置。'
+  if (info.state === 'not-joined') return '你还没有加入曙光，先去联系管事登记名册。'
+  if (info.state === 'quest-only') {
+    return '管事关上名册：总督只能由首领羿阳亲自授予。'
+  }
+  if (info.state === 'leader-locked') {
+    return '管事翻到名册最后一页又合上了：领袖徽章暂不可获取，还没有该给的人。'
+  }
+  if (info.state === 'leader-story') {
+    return '管事把名册最后一页留给你：领袖徽章在曙光「羿阳的妹妹」那里，由米娅亲手交付。'
+  }
+  if (info.state === 'leader-mia-dead') {
+    return '管事翻到名册最后一页又合上了：米娅已经不在了，这一页没有人能签字。'
+  }
+  if (info.state === 'leader-no-badge') {
+    return '管事翻到名册最后一页，又合上了：羿阳已经不在了，这一局没有人能把领袖徽章交出来。'
+  }
+  if (info.state === 'max') return '你已经是曙光「领袖」，没有更高的位置。'
+  if (info.state === 'locked') {
+    return `管事翻了翻名册：晋升${info.promotion.to}需要累计击杀 ${info.promotion.kills} 只行尸（当前 ${info.kills}）。`
   }
 
-  if (game.zombieKills < promotion.kills) {
-    return `管事翻了翻名册：晋升${promotion.to}需要累计击杀 ${promotion.kills} 只行尸（当前 ${game.zombieKills}）。`
-  }
+  if (!grantDawnIdentity(info.promotion.to)) return '背包已满，晋升徽章无处安放。'
+  return `管事在名册上划掉旧名字：你晋升为曙光「${info.promotion.to}」。`
+}
 
-  if (!grantDawnIdentity(promotion.to)) return '背包已满，晋升徽章无处安放。'
-  return `管事在名册上划掉旧名字：你晋升为曙光「${promotion.to}」。`
+/** 新秩序后由米娅交付的领袖徽章文案 */
+export const MIA_LEADER_TEXT =
+  '米娅已经脱掉了那身华丽的凤袍，此刻哥哥已经是她唯一的亲人，羿阳摊了摊手，将领袖徽章交给你，或许米娅需要时间来消化丈夫已经在战乱中过世的事实。'
+
+/** 羿阳已被马斐线杀死：米娅仍在，但徽章无人交付 */
+export const MIA_LEADER_TEXT_YIYANG_DEAD =
+  '米娅已经脱掉了那身华丽的凤袍，此刻哥哥已经是她唯一的亲人。可哨塔顶层已经空了，羿阳不在了，那枚领袖徽章也随着他一起留在了过去。米娅只是站在名册旁，久久地看着最后一页，没有再开口。'
+
+/** 曙光「羿阳的妹妹」：新秩序后领取第 5 档领袖徽章，不可重复领取 */
+export function claimMiaLeader() {
+  if (!game.flags.warPrepNewOrder) return ''
+  if (!dawnReady()) return ''
+  // 皇后（米娅）已被马斐线杀死，无人交付徽章
+  if (game.flags.queenKilled) return ''
+  if (game.dawnIdentity === '领袖') {
+    game.flags.miaLeaderClaimed = true
+    return '你已经是曙光「领袖」，徽章就在你身上。'
+  }
+  if (game.flags.miaLeaderClaimed) {
+    return '领袖徽章已经交到你手里了。名册最后一页，不会再写第二个名字。'
+  }
+  // 羿阳已死：徽章已无处可寻，翻过一次名册后不再重复提示
+  if (game.flags.dawnLeaderKilled) {
+    if (game.flags.miaLeaderMissingBadge) {
+      return '名册的最后一页已经翻过了：羿阳不在，领袖徽章无处可寻。'
+    }
+    game.flags.miaLeaderMissingBadge = true
+    return `${MIA_LEADER_TEXT_YIYANG_DEAD}\n\n你合上名册。羿阳不在，属于领袖的那枚徽章这一局无处可寻。`
+  }
+  if (!grantDawnIdentity('领袖')) return '背包已满，领袖徽章无处安放。'
+  game.flags.miaLeaderClaimed = true
+  return `${MIA_LEADER_TEXT}\n\n你接过领袖徽章。曙光名册的最后一页，终于有了名字。`
 }

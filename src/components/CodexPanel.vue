@@ -16,7 +16,7 @@ import {
   zombiePool,
 } from '../data'
 import { STAT_DEFS } from '../game/config'
-import { allImageAssets, buildCodexCategories } from '../game/assets'
+import { allImageAssets, buildCodexCategories, sortCodexCategoryItems } from '../game/assets'
 import { unlockAchievement } from '../game/save'
 import ModalShell from './ModalShell.vue'
 
@@ -60,13 +60,14 @@ const PORTRAIT_DESCRIPTIONS = new Map([
   ...SEA_CREATURES.map((creature) => [creature.name, creature.description]),
 ])
 
-const categories = buildCodexCategories(allImageAssets).map((category) => ({
-  ...category,
-  items: category.items.map((item) => ({
+/** 分类完成后统一排布：筛选/分类/计数都在排序之前完成，排序只返回展示副本 */
+const categories = buildCodexCategories(allImageAssets).map((category) => {
+  const items = category.items.map((item) => ({
     ...item,
     def: ITEM_BY_NAME.get(item.name) ?? null,
-  })),
-}))
+  }))
+  return { ...category, items: sortCodexCategoryItems(category.name, items) }
+})
 const activeToolId = ref('codex')
 const activeTool = computed(() => TOOLS.find((tool) => tool.id === activeToolId.value) ?? TOOLS[0])
 const activeIndex = ref(0)

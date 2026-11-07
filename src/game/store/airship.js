@@ -3,6 +3,8 @@ import {
   HELICOPTER,
   AIRSHIP,
   AIRSHIP_SHOP_GOODS,
+  ALCOHOL_DRINKS,
+  WAR_PREP,
   TALENTS,
   TALENT_ACTIVE_LIMIT,
   commissionForDay,
@@ -361,4 +363,145 @@ export function buyAirshipGasoline(quantity) {
   addItem(game.inventory, HELICOPTER.gasolineId, qty)
   game.coins = roundToCents(game.coins - total)
   return `购买汽油 ${qty} 桶，花费 ${formatMoney(total)} 末日币（单价 ${formatMoney(price)}）。`
+}
+
+/* ===== 战争准备 ===== */
+
+export function warPrepUnlocked() {
+  return Boolean(game.flags.airshipCoupDone)
+}
+
+export function warPrepDone() {
+  return Math.max(0, Math.min(WAR_PREP.tasks.length, Number(game.flags.warPrepDone) || 0))
+}
+
+/** 限定 / 特殊物品不能作为备战物资提交 */
+function isWarSubmittable(def) {
+  return !def.limited && !def.special
+}
+
+/**
+ * 按分类统计背包数量，堆叠按 qty 累加。
+ * mode：normal 只算可提交物品；restricted 只算被排除的限定/特殊物品。
+ */
+function countCategoryItems(category, accepts = () => true, mode = 'normal') {
+  let total = 0
+  for (const entry of game.inventory) {
+    if (!entry) continue
+    const def = getItem(entry.id)
+    if (!def || def.category !== category) continue
+    if (!accepts(def)) continue
+    const restricted = !isWarSubmittable(def)
+    if (mode === 'normal' && restricted) continue
+    if (mode === 'restricted' && !restricted) continue
+    total += Number(entry.qty) || 1
+  }
+  return total
+}
+
+function warTaskAccepts(task) {
+  if (task.type !== 'drink') return () => true
+  return (def) => ALCOHOL_DRINKS.includes(def.id) === Boolean(task.alcohol)
+}
+
+/** 当前任务的「已有数量」：酒 / 非酒共用 ALCOHOL_DRINKS 判定 */
+export function warTaskCount(task) {
+  if (!task) return 0
+  if (task.type === 'category') return countCategoryItems(task.category)
+  if (task.type === 'drink') return countCategoryItems('drink', warTaskAccepts(task))
+  return 0
+}
+
+/** 背包中同类但被过滤掉的限定 / 特殊物品数量，用于界面与提示说明 */
+export function warTaskExcludedCount(task) {
+  if (!task) return 0
+  if (task.type === 'category') return countCategoryItems(task.category, undefined, 'restricted')
+  if (task.type === 'drink') {
+    return countCategoryItems('drink', warTaskAccepts(task), 'restricted')
+  }
+  return 0
+}
+
+function removeCategoryItems(task, quantity) {
+  const category = task.type === 'drink' ? 'drink' : task.category
+  let remaining = quantity
+  for (let index = 0; index < game.inventory.length && remaining > 0; index += 1) {
+    const entry = game.inventory[index]
+    if (!entry) continue
+    const def = getItem(entry.id)
+    if (!def || def.category !== category) continue
+    if (!isWarSubmittable(def)) continue
+    if (
+      task.type === 'drink' &&
+      ALCOHOL_DRINKS.includes(def.id) !== Boolean(task.alcohol)
+    ) {
+      continue
+    }
+    const have = Number(entry.qty) || 1
+    const take = Math.min(have, remaining)
+    remaining -= take
+    if (take >= have) {
+      game.inventory[index] = null
+    } else {
+      entry.qty = have - take
+    }
+  }
+}
+
+/** 提交当前任务：严格按顺序，只扣实际需要的数量 */
+export function submitWarPrepTask() {
+  if (game.dead) return ''
+  if (game.location !== AIRSHIP.mapId) return '战争准备只能在末日飞行船上进行。'
+  if (!warPrepUnlocked()) return WAR_PREP.unlockLine
+
+  const done = warPrepDone()
+  const task = WAR_PREP.tasks[done]
+  if (!task) return WAR_PREP.completeLine
+  if (task.type === 'raid') return WAR_PREP.readyLine
+
+  if (task.type === 'weapons') {
+    const items = task.items.map((item) => ({
+      ...item,
+      have: countItem(game.inventory, item.id),
+    }))
+    if (items.some((item) => item.have < item.count)) {
+      const detail = items
+        .map(
+          (item) =>
+            `${item.name} ×${item.count}（当前 ×${item.have}，还差 ×${item.count - item.have}）`,
+        )
+        .join('、')
+      return `任务「${task.name}」需要 ${detail}。`
+    }
+    for (const item of items) removeItem(game.inventory, item.id, item.count)
+  } else {
+    const have = warTaskCount(task)
+    if (have < task.count) {
+      const excluded = warTaskExcludedCount(task)
+      const base = `任务「${task.name}」需要 ${task.count} ${task.unit}（当前 ${have} ${task.unit}，还差 ${task.count - have} ${task.unit}）。`
+      if (excluded <= 0) return base
+      const reason =
+        have === 0
+          ? `背包里符合该类的物品都是限定或特殊物品，不计入提交。`
+          : `另有 ${excluded} ${task.unit}限定/特殊物品不计入提交。`
+      return `${base}${reason}`
+    }
+    removeCategoryItems(task, task.count)
+  }
+
+  game.flags.warPrepDone = done + 1
+  const next = WAR_PREP.tasks[done + 1]
+  return `${task.doneLine}\n\n${next ? `下一项：${next.name}——${next.requirement}。` : WAR_PREP.readyLine}`
+}
+
+/** 前五项都完成、且尚未打完王宫时才能发动袭击 */
+export function warPrepRaidReady() {
+  return (
+    warPrepUnlocked() &&
+    warPrepDone() >= 5 &&
+    !game.flags.kingKilled &&
+    !game.flags.warPrepKingDefeated &&
+    !game.flags.warPrepNewOrder &&
+    !game.flags.warPrepTerminal
+  )
 }

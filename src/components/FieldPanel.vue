@@ -1321,11 +1321,11 @@ useShortcutLayer({
               <span class="extra__tag">{{ knightGiftTaken ? '已领取' : '一次性' }}</span>
             </header>
             <div class="chips">
-              <span>骑士徽章 ×1</span>
+              <span>都城骑士徽章 ×1</span>
               <span>白兰地 ×10</span>
             </div>
             <p v-if="knightGiftTaken" class="extra__desc">
-              骑士徽章已经在你身上了。
+              都城骑士徽章已经在你身上了。
             </p>
             <button
               v-else
