@@ -1353,8 +1353,8 @@ function closePanel() {
               <span class="extra__tag">背包 {{ bagSize }} / {{ DEV_SHOP.expandLimit }} 格</span>
             </header>
             <p class="extra__desc">
-              每次加 {{ DEV_SHOP.expandSteps }} 格，按当前容量分段收费：20-50 格 5+5，50-100 格 8+8，
-              100-150 格 10+10，150-200 格 15+15（末日币 + 曙光币）。
+              每次加 {{ DEV_SHOP.expandSteps }} 格，按当前容量分段收费：20-50 格 5+5，50-100 格 10+10，
+              100-150 格 15+15，150-200 格 20+20（末日币 + 曙光币）。
             </p>
             <button
               type="button"

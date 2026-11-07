@@ -5,7 +5,7 @@ import { AIRSHIP_MAP } from '../data/airship'
 
 export const BACKGROUND_IMAGE = '/image/背景图/背景.webp'
 
-export const SAVE_SLOT_COUNT = 3
+export const SAVE_SLOT_COUNT = 10
 
 export const DEFAULT_CHARACTER_NAME = '无名幸存者'
 

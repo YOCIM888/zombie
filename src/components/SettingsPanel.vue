@@ -1,7 +1,17 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { MUSIC_TRACKS } from '../game/assets'
-import { settings, persistSettings } from '../game/save'
+import {
+  buildSaveBundle,
+  formatStorageSize,
+  importSaveBundle,
+  parseSaveBundle,
+  refreshStorageUsage,
+  saveBundleFileName,
+  settings,
+  persistSettings,
+} from '../game/save'
+import { notify } from '../game/store'
 import { updateMusicSettings, startMusic } from '../game/music'
 import { previewWeaponSfx } from '../game/sfx'
 import ModalShell from './ModalShell.vue'
@@ -11,6 +21,81 @@ const sfxVolumePercent = computed(() => Math.round(settings.sfxVolume * 100))
 const currentTrack = computed(
   () => MUSIC_TRACKS.find((track) => track.id === settings.track) ?? MUSIC_TRACKS[0],
 )
+
+/* ---------------- 存档导出 / 导入 ---------------- */
+const fileInput = ref(null)
+const exportInfo = ref('')
+const pendingImport = ref(null)
+const pendingFile = ref(null)
+
+function exportSaves() {
+  const fileName = saveBundleFileName()
+  const text = JSON.stringify(buildSaveBundle(), null, 2)
+  try {
+    const blob = new Blob([text], { type: 'application/json;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = fileName
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+    exportInfo.value = `${fileName} · ${formatStorageSize(blob.size)}`
+    notify('存档文件已导出，可以复制到其他设备备份', 3000)
+  } catch {
+    notify('导出失败：浏览器没有允许下载文件。', 3600)
+  }
+}
+
+function chooseImportFile() {
+  fileInput.value?.click()
+}
+
+function onFileChange(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  if (file.size > 8 * 1024 * 1024) {
+    notify('文件超过 8 MB，不像是本游戏的存档文件。', 3600)
+    return
+  }
+  const reader = new FileReader()
+  reader.onload = () => {
+    const parsed = parseSaveBundle(String(reader.result || ''))
+    if (!parsed.ok) {
+      notify(parsed.message, 4400)
+      return
+    }
+    pendingFile.value = { name: file.name, size: file.size }
+    pendingImport.value = parsed
+  }
+  reader.onerror = () => notify('读取文件失败，请重试。', 3600)
+  reader.readAsText(file, 'utf-8')
+}
+
+function cancelImport() {
+  pendingImport.value = null
+  pendingFile.value = null
+}
+
+function confirmImport() {
+  const parsed = pendingImport.value
+  const file = pendingFile.value
+  pendingImport.value = null
+  pendingFile.value = null
+  if (!parsed) return
+  const result = importSaveBundle(parsed.bundle)
+  if (!result.ok) {
+    notify(result.message, 4600)
+    return
+  }
+  // 导入的设置立即生效，避免音乐/提示沿用旧值
+  updateMusicSettings()
+  if (!settings.muted) startMusic()
+  refreshStorageUsage()
+  notify(`${result.message}${file ? `（来源 ${file.name}）` : ''}`, 3400)
+}
 
 function chooseTrack(id) {
   if (settings.track === id) return
@@ -158,7 +243,59 @@ function resetSfxVolume() {
           <button type="button" class="btn" @click="resetSfxVolume">恢复默认</button>
         </div>
       </div>
+      <div class="row row--stack">
+        <div class="row__info">
+          <h3>存档导出 / 导入</h3>
+          <p>
+            导出包含 10 个存档槽位、全局统计（总时长 / 成就 / 死亡结局）与设置，文件为 .json，文件名带日期时间。
+            导入会先弹出覆盖确认，取消时不会写入任何数据。
+          </p>
+        </div>
+        <div class="io">
+          <div class="io__actions">
+            <button type="button" class="btn" @click="exportSaves">导出存档文件</button>
+            <button type="button" class="btn" @click="chooseImportFile">导入存档文件</button>
+            <input
+              ref="fileInput"
+              class="io__file"
+              type="file"
+              accept=".json,application/json"
+              @change="onFileChange"
+            />
+          </div>
+          <p v-if="exportInfo" class="io__info">上次导出：{{ exportInfo }}</p>
+        </div>
+      </div>
     </section>
+
+    <Teleport to="body">
+      <ModalShell
+        v-if="pendingImport"
+        title="导入并覆盖本地存档？"
+        :sub="pendingFile ? `${pendingFile.name} · ${formatStorageSize(pendingFile.size)}` : '存档文件'"
+        @close="cancelImport"
+      >
+        <p class="io-warn">
+          导入会覆盖本机现有的 10 个存档槽位、全局统计与设置，覆盖后无法撤销。
+          本次文件包含 {{ pendingImport.bundle.slots.filter(Boolean).length }} 个已占用槽位。
+        </p>
+        <p v-if="pendingImport.older" class="io-warn io-warn--soft">
+          文件版本较旧（v{{ pendingImport.version }}），会按当前结构读取，缺少的字段使用默认值。
+        </p>
+        <p class="io-warn io-warn--soft">
+          取消不会写入任何数据，本地存档保持原样。
+        </p>
+        <template #footer>
+          <span>确认后立即覆盖并刷新界面</span>
+          <div class="io__actions">
+            <button type="button" class="btn" @click="cancelImport">取消</button>
+            <button type="button" class="btn btn--primary" @click="confirmImport">
+              确认覆盖
+            </button>
+          </div>
+        </template>
+      </ModalShell>
+    </Teleport>
 
     <template #footer>
       <span>设置将会持久化生效</span>
@@ -322,5 +459,50 @@ input[type="range"]::-moz-range-thumb {
 .mode {
   font-family: var(--font-mono);
   letter-spacing: 0.22em;
+}
+
+.io {
+  width: 100%;
+}
+
+.io__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.io__file {
+  display: none;
+}
+
+.io__info {
+  margin: 10px 0 0;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1.6;
+  letter-spacing: 0.03em;
+  color: var(--text-mute);
+  word-break: break-all;
+}
+
+.io-warn {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.8;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+
+.io-warn--soft {
+  margin-top: 10px;
+  color: var(--text-mute);
+}
+
+@media (max-width: 620px) {
+  .io__actions .btn {
+    flex: 1 1 auto;
+    padding: 0 12px;
+  }
 }
 </style>

@@ -45,6 +45,7 @@ import {
   flushGlobalStats,
   getSlot,
   globalStats,
+  previewSlotWrite,
   unlockAchievement,
   writeSlot,
 } from '../save'
@@ -590,7 +591,8 @@ export async function enterGame(slotIndex, { isNew = false, name = '' } = {}) {
   checkAchievements()
 
   if (isNew) {
-    writeSlot(slotIndex, makeSavePayload())
+    const result = writeSlot(slotIndex, makeSavePayload())
+    if (!result.ok) notify(result.message, 4200)
     window.setTimeout(() => {
       if (unlockAchievement('awake')) notify('成就解锁 · 第零天')
     }, 1400)
@@ -608,10 +610,22 @@ export function renameCharacter(value) {
 }
 
 export function saveToSlot(index) {
-  if (index === null || index === undefined) return
-  writeSlot(index, makeSavePayload())
+  if (index === null || index === undefined) return { ok: false }
+  const payload = makeSavePayload()
+  // 写入前先估算占用：超限时给出明确提示，不触碰已有存档
+  const preview = previewSlotWrite(index, payload)
+  if (!preview.ok) {
+    notify(preview.message, 4200)
+    return { ok: false, message: preview.message }
+  }
+  const result = writeSlot(index, payload)
+  if (!result.ok) {
+    notify(result.message, 4200)
+    return result
+  }
   flushGlobalStats()
   notify(`进度已保存至存档 ${String(index + 1).padStart(2, '0')}`)
+  return { ok: true }
 }
 
 export function loadFromSlot(index) {
