@@ -221,7 +221,11 @@ onBeforeUnmount(() => {
             line.startsWith('状态条') ||
             line.startsWith('已传送') ||
             line.startsWith('所有天赋'),
-          'dev__line--warn': line.startsWith('未知') || line.startsWith('用法') || line.startsWith('没有'),
+          'dev__line--warn':
+            line.startsWith('未知') ||
+            line.startsWith('用法') ||
+            line.startsWith('没有') ||
+            line.startsWith('你还没有'),
         }"
       >
         {{ line }}

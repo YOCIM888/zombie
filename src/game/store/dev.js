@@ -11,7 +11,17 @@ import {
   npcById,
 } from '../../data'
 import { MAPS } from '../config'
-import { game, devState, checkAchievements, checkLoanDue, grantIdentity, processTradeSales, ensureStockMarketDay } from './core.js'
+import {
+  game,
+  devState,
+  activeGuild,
+  checkAchievements,
+  checkLoanDue,
+  grantIdentity,
+  processTradeSales,
+  ensureStockMarketDay,
+} from './core.js'
+import { addGuildContribution, guildContribution } from './utopia.js'
 
 /* ===== 郊区卖场 · 游戏开发者 ===== */
 
@@ -123,6 +133,8 @@ const DEV_HELP = [
   '/backpack — 背包容量提升至 200 格',
   '/coin_a 数量 — 获得末日币',
   '/coin_b 数量 — 获得曙光币',
+  '/fame 数量 — 获得声望（累加到当前声望）',
+  '/devote 数量 — 获得当前公会的贡献值',
   '/gem — 获得除开发者宝石外的所有宝石',
   '/re NPC名字 — 复活指定 NPC（可能影响任务，慎用）',
 ].join('\n')
@@ -155,6 +167,18 @@ function devFindNpc(query) {
     ) ??
     null
   )
+}
+
+/** 控制台数量上限：避免一次写入超大数值，导致显示或存档异常 */
+const DEV_MAX_AMOUNT = 1_000_000
+
+/** 严格解析正整数：只接受纯数字，范围 1–DEV_MAX_AMOUNT */
+function devParseAmount(raw) {
+  const text = String(raw ?? '').trim()
+  if (!/^\d+$/.test(text)) return null
+  const value = Number.parseInt(text, 10)
+  if (!Number.isSafeInteger(value) || value < 1 || value > DEV_MAX_AMOUNT) return null
+  return value
 }
 
 /** 执行开发者指令，返回要显示在控制台里的文本 */
@@ -276,6 +300,28 @@ export function runDevCommand(input) {
     }
     game.dawnCoins += value
     return `获得曙光币 ×${value}，当前 ${game.dawnCoins}。`
+  }
+
+  if (command === '/fame') {
+    const value = devParseAmount(args[0])
+    if (value === null) {
+      return `用法：/fame 数量（1–${DEV_MAX_AMOUNT} 的正整数）`
+    }
+    game.reputation += value
+    return `获得声望 +${value}，当前 ${game.reputation}。`
+  }
+
+  if (command === '/devote') {
+    const value = devParseAmount(args[0])
+    if (value === null) {
+      return `用法：/devote 数量（1–${DEV_MAX_AMOUNT} 的正整数）`
+    }
+    const guild = activeGuild()
+    if (!guild) {
+      return '你还没有加入任何公会，先佩戴公会徽章后再获得贡献。'
+    }
+    addGuildContribution(guild.id, value)
+    return `获得「${guild.name}」公会贡献 +${value}，当前 ${guildContribution(guild.id)}。`
   }
 
   if (command === '/talent') {

@@ -588,7 +588,8 @@ export function guildContribution(guildId) {
   return Math.max(0, Number(game.flags.guildContribution?.[guildId]) || 0)
 }
 
-function addGuildContribution(guildId, amount) {
+/** 增加某公会的贡献值；开发者指令也复用这一入口 */
+export function addGuildContribution(guildId, amount) {
   const map = { ...(game.flags.guildContribution ?? {}) }
   map[guildId] = (Number(map[guildId]) || 0) + amount
   game.flags.guildContribution = map

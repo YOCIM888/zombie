@@ -499,22 +499,9 @@ function applySlot(slot) {
 
   migrateLegacyItemIds()
 
-  // 旧存档只有身份字段、没有徽章物品：按阵营分别补一枚对应的徽章
-  const hasCityBadge = game.inventory.some((entry) => {
-    const def = entry ? getItem(entry.id) : null
-    return def?.category === 'identity' && def.faction !== 'dawn'
-  })
-  const hasDawnBadge = game.inventory.some((entry) => {
-    const def = entry ? getItem(entry.id) : null
-    return def?.category === 'identity' && def.faction === 'dawn'
-  })
-  if (!hasCityBadge && slot.identity) {
-    addItem(game.inventory, identityItemId(slot.identity), 1)
-  }
-  if (!hasDawnBadge) {
-    const dawnBadgeName = savedDawn ?? savedMaxDawn
-    if (dawnBadgeName) addItem(game.inventory, dawnItemId(dawnBadgeName), 1)
-  }
+  // 读档只做数据修正：身份等级已在上面从身份字段还原（含旧别名迁移）。
+  // 徽章必须来自晋升、领取或补办等实际动作，这里绝不能凭历史身份补物品，
+  // 否则玩家主动丢弃的徽章会在每次读档后重新出现。
   syncIdentities()
   syncHpCap()
   checkStatDeaths()
