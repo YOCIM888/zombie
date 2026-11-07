@@ -3,6 +3,7 @@ import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, r
 import { BACKGROUND_IMAGE, DEFAULT_CHARACTER_NAME, STAT_DEFS } from '../game/config'
 import { AIRSHIP, FINALES, fieldMapById, formatMoney } from '../data'
 import {
+  checkAchievements,
   currentPhase,
   currentPlaytime,
   dismissTradeNotice,
@@ -318,6 +319,15 @@ watch(
   (mapId) => {
     if (mapId && !game.dead) openRegion()
   },
+)
+
+// 结局写入后立刻结算成就，避免玩家在结局浮层出现后直接关闭或读档，漏掉按 finale 判定的成就
+watch(
+  () => game.finale,
+  (finale) => {
+    if (finale) checkAchievements()
+  },
+  { flush: 'sync' },
 )
 
 // 打开地图 / 地图选择后，把键盘焦点落到第一个可选项；键盘导航关闭时不显示导航焦点

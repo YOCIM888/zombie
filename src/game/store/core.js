@@ -318,6 +318,8 @@ const ACHIEVEMENT_CHECKS = {
   'mutiny-fame': () => game.finale === '油轮沉没',
   'family-and-love': () => game.finale === '爱恨情仇',
   'straw-hat': () => game.finale === '远洋航行',
+  'war-new-order': () => Boolean(game.flags.warPrepNewOrder),
+  'war-without-zombies': () => Boolean(game.flags.warPrepTerminal),
 }
 
 let achievementGuard = false
