@@ -57,6 +57,7 @@ import {
   startAirshipCoupBattle,
 } from '../game/battle'
 import BattleView from './BattleView.vue'
+import InventoryPanel from './InventoryPanel.vue'
 import ModalShell from './ModalShell.vue'
 import NpcIntro from './NpcIntro.vue'
 import QuestLinePanel from './QuestLinePanel.vue'
@@ -65,6 +66,8 @@ import StatusHud from './StatusHud.vue'
 const emit = defineEmits(['close'])
 const view = ref('menu')
 const feed = ref('')
+/** 末日飞行船内直接打开背包：只叠加面板，不卸载地图，关闭后回到原界面 */
+const bagOpen = ref(false)
 const sellQty = ref(1)
 const buyQty = ref(1)
 const stockId = ref(AIRSHIP_STOCKS[0].id)
@@ -1076,9 +1079,31 @@ function closePanel() {
       </div>
     </section>
 
+    <Teleport to="body">
+      <InventoryPanel v-if="bagOpen" @close="bagOpen = false" />
+    </Teleport>
+
     <template #footer>
       <span>{{ feed || '甲板上的贵族只认身份、声望与末日币。' }}</span>
-      <span class="mode">AIRSHIP</span>
+      <div class="foot-btns">
+        <button
+          v-if="view !== 'menu' && !battle.active"
+          type="button"
+          class="btn"
+          @click="backToMenu"
+        >
+          返回选项
+        </button>
+        <button
+          type="button"
+          class="btn"
+          :disabled="battle.active || battle.finished"
+          @click="bagOpen = true"
+        >
+          背包
+        </button>
+        <button type="button" class="btn" @click="closePanel">离开飞行船</button>
+      </div>
     </template>
   </ModalShell>
 </template>
@@ -1602,9 +1627,28 @@ function closePanel() {
   border: 1px dashed var(--line-strong);
 }
 
-.mode {
-  font-family: var(--font-mono);
-  letter-spacing: 0.22em;
+.foot-btns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.foot-btns .btn {
+  height: 30px;
+  padding: 0 12px;
+  font-size: 10.5px;
+}
+
+@media (max-width: 620px) {
+  :deep(.modal-foot) {
+    flex-wrap: wrap;
+  }
+
+  .foot-btns {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
 }
 
 @media (max-width: 760px) {

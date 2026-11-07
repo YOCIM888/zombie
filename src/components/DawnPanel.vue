@@ -67,6 +67,7 @@ import {
 import { battle, resetBattle, startDawnCombat, startLeaderCombat } from '../game/battle'
 import AssassinationCard from './AssassinationCard.vue'
 import BattleView from './BattleView.vue'
+import InventoryPanel from './InventoryPanel.vue'
 import MapMenuList from './MapMenuList.vue'
 import ModalShell from './ModalShell.vue'
 import NpcIntro from './NpcIntro.vue'
@@ -89,6 +90,8 @@ const MENU = [
 const map = MAPS.find((item) => item.id === 'dawn-post')
 const emit = defineEmits(['close'])
 const view = ref('menu')
+/** 曙光阵地内直接打开背包：只叠加面板，不卸载地图，关闭后回到原界面 */
+const bagOpen = ref(false)
 const selected = ref(null)
 const feed = ref('哨塔的探照灯扫过来，有人朝你抬了抬下巴，算是放行。')
 const pendingRecycle = ref(null)
@@ -1086,6 +1089,10 @@ function closePanel() {
       </ModalShell>
     </Teleport>
 
+    <Teleport to="body">
+      <InventoryPanel v-if="bagOpen" @close="bagOpen = false" />
+    </Teleport>
+
     <template #footer>
       <span class="feed">{{ feed }}</span>
       <div class="foot-btns">
@@ -1096,6 +1103,14 @@ function closePanel() {
           @click="backToMenu"
         >
           返回选项
+        </button>
+        <button
+          type="button"
+          class="btn"
+          :disabled="battle.active || battle.finished"
+          @click="bagOpen = true"
+        >
+          背包
         </button>
         <button type="button" class="btn" @click="closePanel">离开曙光</button>
       </div>
@@ -1501,6 +1516,7 @@ function closePanel() {
 
 .foot-btns {
   display: flex;
+  align-items: center;
   gap: 8px;
   flex: none;
 }
@@ -1514,6 +1530,15 @@ function closePanel() {
 @media (max-width: 620px) {
   .row {
     flex-wrap: wrap;
+  }
+
+  :deep(.modal-foot) {
+    flex-wrap: wrap;
+  }
+
+  .foot-btns {
+    flex-wrap: wrap;
+    justify-content: flex-end;
   }
 }
 </style>

@@ -73,6 +73,7 @@ import {
 import { battle, resetBattle, startBankerCombat } from '../game/battle'
 import AssassinationCard from './AssassinationCard.vue'
 import BattleView from './BattleView.vue'
+import InventoryPanel from './InventoryPanel.vue'
 import MapMenuList from './MapMenuList.vue'
 import ModalShell from './ModalShell.vue'
 import NpcIntro from './NpcIntro.vue'
@@ -108,6 +109,8 @@ const PALACE_MENU = [
 const map = MAPS.find((item) => item.id === 'ruined-city')
 const view = ref('menu')
 const feed = ref('城门在身后合拢，铁链拖过地面。你站在都城的阴影里。')
+/** 都城地图内直接打开背包：面板叠加而不卸载地图，关闭后保留当前选项与滚动位置 */
+const bagOpen = ref(false)
 const loanAmount = ref(1)
 const palaceView = ref('menu')
 const tradeCoins = ref(1)
@@ -1080,9 +1083,21 @@ function closePanel() {
         <button v-if="view !== 'menu'" type="button" class="btn" @click="footerBack">
           返回选项
         </button>
+        <button
+          type="button"
+          class="btn"
+          :disabled="battle.active || battle.finished"
+          @click="bagOpen = true"
+        >
+          背包
+        </button>
         <button type="button" class="btn" @click="closePanel">离开都城</button>
       </div>
     </template>
+
+    <Teleport to="body">
+      <InventoryPanel v-if="bagOpen" @close="bagOpen = false" />
+    </Teleport>
   </ModalShell>
 </template>
 
@@ -1672,6 +1687,7 @@ function closePanel() {
 
 .foot-btns {
   display: flex;
+  align-items: center;
   gap: 8px;
   flex: none;
 }
@@ -1685,6 +1701,15 @@ function closePanel() {
 @media (max-width: 620px) {
   .row {
     flex-wrap: wrap;
+  }
+
+  :deep(.modal-foot) {
+    flex-wrap: wrap;
+  }
+
+  .foot-btns {
+    flex-wrap: wrap;
+    justify-content: flex-end;
   }
 }
 </style>

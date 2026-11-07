@@ -61,6 +61,7 @@ import {
   utopiaTrainingLimit,
 } from '../game/store'
 import MapMenuList from './MapMenuList.vue'
+import InventoryPanel from './InventoryPanel.vue'
 import ModalShell from './ModalShell.vue'
 import BattleView from './BattleView.vue'
 import StatusHud from './StatusHud.vue'
@@ -69,6 +70,8 @@ const emit = defineEmits(['close'])
 
 const view = ref('menu')
 const feed = ref('')
+/** 乌托邦城内直接打开背包：只叠加面板，不卸载地图，关闭后回到原界面 */
+const bagOpen = ref(false)
 const placeholder = ref(null)
 const trainingKind = ref('')
 const hallGuildId = ref('')
@@ -1302,9 +1305,31 @@ function back() {
       <p class="utopia-placeholder">{{ placeholder?.note }}</p>
     </template>
 
+    <Teleport to="body">
+      <InventoryPanel v-if="bagOpen" @close="bagOpen = false" />
+    </Teleport>
+
     <template #footer>
       <span>{{ feed || '乌托邦城里没有免费的午餐，但每一份施舍都有人记账。' }}</span>
-      <span class="mode">UTOPIA</span>
+      <div class="foot-btns">
+        <button
+          v-if="view !== 'menu' && !battle.active"
+          type="button"
+          class="btn"
+          @click="back"
+        >
+          返回选项
+        </button>
+        <button
+          type="button"
+          class="btn"
+          :disabled="battle.active || battle.finished"
+          @click="bagOpen = true"
+        >
+          背包
+        </button>
+        <button type="button" class="btn" @click="closeUtopia">离开乌托邦</button>
+      </div>
     </template>
   </ModalShell>
 </template>
@@ -2108,9 +2133,28 @@ function back() {
   font-size: 10px;
 }
 
-.mode {
-  font-family: var(--font-mono);
-  letter-spacing: 0.22em;
+.foot-btns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.foot-btns .btn {
+  height: 30px;
+  padding: 0 12px;
+  font-size: 10.5px;
+}
+
+@media (max-width: 620px) {
+  :deep(.modal-foot) {
+    flex-wrap: wrap;
+  }
+
+  .foot-btns {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
 }
 
 @media (max-width: 680px) {

@@ -107,6 +107,7 @@ import {
 } from '../game/battle'
 import AssassinationCard from './AssassinationCard.vue'
 import BattleView from './BattleView.vue'
+import InventoryPanel from './InventoryPanel.vue'
 import MapMenuList from './MapMenuList.vue'
 import ModalShell from './ModalShell.vue'
 import NpcIntro from './NpcIntro.vue'
@@ -116,6 +117,8 @@ import StatusHud from './StatusHud.vue'
 const emit = defineEmits(['close', 'travel'])
 const feed = ref('')
 const view = ref('menu')
+/** 野外营地内直接打开背包：只叠加面板，不卸载地图，关闭后回到原界面 */
+const bagOpen = ref(false)
 const zombiesOpen = ref(false)
 
 const map = computed(() => fieldMapById(game.location))
@@ -1788,9 +1791,21 @@ function closePanel() {
         <button v-if="view === 'menu'" type="button" class="btn btn--primary" @click="explore">
           探索 · 1 回合
         </button>
+        <button
+          type="button"
+          class="btn"
+          :disabled="battle.active || battle.finished"
+          @click="bagOpen = true"
+        >
+          背包
+        </button>
         <button type="button" class="btn" @click="closePanel">返回安全屋</button>
       </div>
     </section>
+
+    <Teleport to="body">
+      <InventoryPanel v-if="bagOpen" @close="bagOpen = false" />
+    </Teleport>
 
     <template #footer>
       <span>{{ feed || '探索会消耗 1 回合（正常衰减）；遭遇丧尸时进入手动回合制战斗。' }}</span>
