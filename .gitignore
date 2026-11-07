@@ -36,6 +36,3 @@ Thumbs.db
 .trae-html-share-packages/
 .screenshots/
 check-*.mjs
-
-# 开发文档（本地分析报告，不入库）
-.dev_docs/
