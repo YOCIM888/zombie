@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import ModalShell from './ModalShell.vue'
 import { MUSIC_TRACKS } from '../game/assets'
 import { settings, persistSettings } from '../game/save'
 import { updateMusicSettings, startMusic } from '../game/music'
@@ -39,6 +40,16 @@ function resetVolume() {
 
 function toggleSurvivalHints() {
   settings.survivalHints = !settings.survivalHints
+  persistSettings()
+}
+
+function toggleKeyboardNav() {
+  settings.keyboardNav = !settings.keyboardNav
+  persistSettings()
+}
+
+function toggleShortcuts() {
+  settings.shortcuts = !settings.shortcuts
   persistSettings()
 }
 
@@ -97,6 +108,38 @@ function resetSfxVolume() {
         >
           <span />
           {{ settings.survivalHints ? '已开启' : '已关闭' }}
+        </button>
+      </div>
+
+      <div class="row">
+        <div class="row__info">
+          <h3>键盘导航</h3>
+          <p>ASDW 移动选中项，ENTER 确认，并显示高亮框；关闭后导航与高亮全部失效</p>
+        </div>
+        <button
+          type="button"
+          class="switch"
+          :class="{ 'switch--on': settings.keyboardNav }"
+          @click="toggleKeyboardNav"
+        >
+          <span />
+          {{ settings.keyboardNav ? '已开启' : '已关闭' }}
+        </button>
+      </div>
+
+      <div class="row">
+        <div class="row__info">
+          <h3>快捷操作</h3>
+          <p>TAB / N / M / P / L / T / F / G / Z / Q / E / R / ESC；关闭后快捷键失效，不影响导航</p>
+        </div>
+        <button
+          type="button"
+          class="switch"
+          :class="{ 'switch--on': settings.shortcuts }"
+          @click="toggleShortcuts"
+        >
+          <span />
+          {{ settings.shortcuts ? '已开启' : '已关闭' }}
         </button>
       </div>
 

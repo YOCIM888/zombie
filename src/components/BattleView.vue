@@ -31,6 +31,7 @@ import {
   useBattleItem,
   worldBossAttackBonus,
 } from '../game/battle'
+import { useShortcutLayer } from '../game/keyboard'
 
 const emit = defineEmits(['done'])
 const bagOpen = ref(false)
@@ -360,6 +361,45 @@ function useItemInBattle(index) {
 function finish() {
   emit('done')
 }
+
+/**
+ * 桌面快捷键：Q 远程 / E 近战 / R 逃跑，只在战斗进行中且战斗背包未遮挡时触发现有按钮逻辑；
+ * 背包打开时 TAB 关闭背包，ESC 先关背包、再吞掉（战斗中不退出地图），战斗结束后等同「返回」按钮。
+ */
+useShortcutLayer({
+  toggleBag() {
+    if (!battle.active) return false
+    bagOpen.value = !bagOpen.value
+    return true
+  },
+  melee() {
+    if (!battle.active) return false
+    if (!bagOpen.value) meleeAttack()
+    return true
+  },
+  ranged() {
+    if (!battle.active) return false
+    if (!bagOpen.value && !rangedLocked.value) rangedAttack()
+    return true
+  },
+  flee() {
+    if (!battle.active) return false
+    if (!bagOpen.value && !fleeLocked.value) fleeBattle()
+    return true
+  },
+  escape() {
+    if (bagOpen.value) {
+      bagOpen.value = false
+      return true
+    }
+    if (battle.active) return true
+    if (battle.finished) {
+      finish()
+      return true
+    }
+    return false
+  },
+})
 </script>
 
 <template>

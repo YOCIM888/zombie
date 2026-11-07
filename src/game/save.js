@@ -1,5 +1,6 @@
 import { reactive } from 'vue'
 import { SAVE_SLOT_COUNT } from './config'
+import { isDesktopKeyboard } from './keyboard'
 
 const SLOT_KEY = 'xingshi.slots.v1'
 const GLOBAL_KEY = 'xingshi.global.v1'
@@ -124,6 +125,13 @@ export const settings = reactive({
   muted: Boolean(storedSettings.muted),
   track: typeof storedSettings.track === 'string' ? storedSettings.track : 'background',
   survivalHints: storedSettings.survivalHints !== false,
+  /** 设备只决定默认值：键盘导航默认关；快捷操作桌面开、触屏关 */
+  keyboardNav:
+    typeof storedSettings.keyboardNav === 'boolean' ? storedSettings.keyboardNav : false,
+  shortcuts:
+    typeof storedSettings.shortcuts === 'boolean'
+      ? storedSettings.shortcuts
+      : isDesktopKeyboard(),
 })
 
 function quotaMessage(usage) {
@@ -165,6 +173,8 @@ export function persistSettings() {
     muted: settings.muted,
     track: settings.track,
     survivalHints: settings.survivalHints,
+    keyboardNav: settings.keyboardNav,
+    shortcuts: settings.shortcuts,
   })
 }
 
@@ -265,6 +275,8 @@ export function buildSaveBundle() {
       muted: settings.muted,
       track: settings.track,
       survivalHints: settings.survivalHints,
+      keyboardNav: settings.keyboardNav,
+      shortcuts: settings.shortcuts,
     },
   }
 }
@@ -342,6 +354,13 @@ export function parseSaveBundle(text) {
         track:
           typeof savedSettings.track === 'string' ? savedSettings.track : 'background',
         survivalHints: savedSettings.survivalHints !== false,
+        // 旧存档没有这两个字段时，按当前默认值补齐：导航关；快捷操作桌面开、触屏关
+        keyboardNav:
+          typeof savedSettings.keyboardNav === 'boolean' ? savedSettings.keyboardNav : false,
+        shortcuts:
+          typeof savedSettings.shortcuts === 'boolean'
+            ? savedSettings.shortcuts
+            : isDesktopKeyboard(),
       },
     },
     exportedAt: typeof data.exportedAt === 'string' ? data.exportedAt : '',
@@ -364,6 +383,8 @@ export function importSaveBundle(bundle) {
       muted: settings.muted,
       track: settings.track,
       survivalHints: settings.survivalHints,
+      keyboardNav: settings.keyboardNav,
+      shortcuts: settings.shortcuts,
     },
   }
 

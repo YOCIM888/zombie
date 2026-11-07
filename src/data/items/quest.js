@@ -23,7 +23,7 @@ const QUEST_LIST = [
     '一枚发黑的果核，表皮已经烂穿，裂口里却顶出一点白。',
     { image: '/image/任务道具/腐烂种子.webp' },
   ),
-  questItem('car-key', '车钥匙', '钥匙圈上挂着半截褪色的商场停车牌，齿口还很新。', {
+  questItem('car-key', '车钥匙', '奔驰车钥匙，虽然有些褪色，但是齿口还很新。', {
     image: '/image/任务道具/车钥匙.webp',
   }),
   questItem('gasoline', '汽油', '铁皮桶里晃荡着半桶刺鼻的液体。', {

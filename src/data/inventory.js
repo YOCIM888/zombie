@@ -52,11 +52,11 @@ export function addItem(inventory, itemId, qty = 1) {
   return remaining
 }
 
-/** 初始背包：开发者宝石 ×1、矿泉水 ×5、压缩饼干 ×5 */
+/** 初始背包：开发者宝石 ×1、矿泉水 ×6、压缩饼干 ×6 */
 export const INITIAL_ITEMS = [
-  { id: 'mineral-water', qty: 5 },
-  { id: 'compressed-biscuit', qty: 5 },
   { id: 'developer-gem', qty: 1 },
+  { id: 'compressed-biscuit', qty: 6 },
+  { id: 'mineral-water', qty: 6 },
 ]
 
 export function createInitialBackpack() {
@@ -67,12 +67,17 @@ export function createInitialBackpack() {
   return inventory
 }
 
-/** 整理时的类别顺序：与背包页签顺序不同，武器优先 */
-export const INVENTORY_SORT_CATEGORIES = [
-  'ranged',
-  'melee',
-  'medicine',
+/**
+ * 整理分组（从左到右共 12 组）：
+ * 开发者宝石 → 其他宝石 → 近战 → 远程 → 药品 → 食物 → 饮品 → 身份 → 公会 → 纪念 → 任务 → 其他
+ * developer-gem 是伪分组：仍属于 gem，但固定排在最前
+ */
+export const INVENTORY_SORT_GROUPS = [
+  'developer-gem',
   'gem',
+  'melee',
+  'ranged',
+  'medicine',
   'food',
   'drink',
   'identity',
@@ -83,69 +88,68 @@ export const INVENTORY_SORT_CATEGORIES = [
 
 export const ITEM_TIER_ORDER = ['普通', '稀有', '精良', '史诗', '传说', '神话', '限定']
 
+/** 总数值：物品所有 effects 数值的代数和（负值效果直接抵扣），无 effects 视为 0 */
+export function itemEffectTotal(def) {
+  const effects = def?.effects
+  if (!effects) return 0
+  let total = 0
+  for (const value of Object.values(effects)) {
+    const num = Number(value)
+    if (Number.isFinite(num)) total += num
+  }
+  return total
+}
+
+/** 分组序号：未知类别（包括查不到的物品）统一落到「其他」 */
+function groupRank(entry, def) {
+  if (entry?.id === 'developer-gem') return 0
+  const index = INVENTORY_SORT_GROUPS.indexOf(def?.category)
+  return index === -1 ? INVENTORY_SORT_GROUPS.length : index
+}
+
 /**
- * 原地整理背包：
- * 1. 合并可堆叠物品，按 maxStack 拆堆；
- * 2. 按类别顺序排序；
- * 3. 同类别按品质降序，再按名称升序；
- * 4. 全部前移，空位补 null，数组长度不变。
+ * 原地整理背包（纯排序，不合并、不拆分、不改变任何堆叠数量）：
+ * 1. 按 12 组顺序排列；
+ * 2. 近战/远程按品质降序；
+ * 3. 药品/食物/饮品按总数值降序；
+ * 4. 并列时按名称 → id → 原顺序，保证多次整理结果完全一致；
+ * 5. 全部前移，空位补 null，数组长度不变。
  * @returns 整理后的已用格数
  */
 export function organizeInventory(inventory) {
-  const merged = []
-  const stackHeads = new Map()
+  const entries = inventory
+    .filter(Boolean)
+    .map((entry, order) => ({ entry, order, def: getItem(entry.id) }))
 
-  for (const entry of inventory) {
-    if (!entry) continue
-    const def = getItem(entry.id)
-    if (!def?.stackable) {
-      merged.push({ ...entry })
-      continue
+  entries.sort((a, b) => {
+    const byGroup = groupRank(a.entry, a.def) - groupRank(b.entry, b.def)
+    if (byGroup !== 0) return byGroup
+
+    const category = a.def?.category
+    if (category === 'melee' || category === 'ranged') {
+      const tierA = ITEM_TIER_ORDER.indexOf(a.def?.tier ?? '')
+      const tierB = ITEM_TIER_ORDER.indexOf(b.def?.tier ?? '')
+      const byTier = tierB - tierA
+      if (byTier !== 0) return byTier
+    } else if (category === 'medicine' || category === 'food' || category === 'drink') {
+      const byTotal = itemEffectTotal(b.def) - itemEffectTotal(a.def)
+      if (byTotal !== 0) return byTotal
     }
 
-    const stackMax = Math.min(def.maxStack ?? STACK_LIMIT, STACK_LIMIT)
-    let remaining = entry.qty ?? 1
-    const head = stackHeads.get(entry.id)
+    const nameA = a.def?.name ?? a.entry.id
+    const nameB = b.def?.name ?? b.entry.id
+    const byName = nameA.localeCompare(nameB, 'zh-Hans-CN')
+    if (byName !== 0) return byName
 
-    if (head) {
-      const space = stackMax - head.qty
-      if (space > 0) {
-        const moved = Math.min(space, remaining)
-        head.qty += moved
-        remaining -= moved
-      }
-    }
+    const byId = a.entry.id.localeCompare(b.entry.id)
+    if (byId !== 0) return byId
 
-    while (remaining > 0) {
-      const stack = { id: entry.id, qty: Math.min(stackMax, remaining) }
-      remaining -= stack.qty
-      merged.push(stack)
-      if (!stackHeads.has(entry.id)) stackHeads.set(entry.id, stack)
-    }
-  }
-
-  const categoryRank = (def) => {
-    const index = INVENTORY_SORT_CATEGORIES.indexOf(def?.category)
-    return index === -1 ? INVENTORY_SORT_CATEGORIES.length : index
-  }
-  const tierRank = (def) => ITEM_TIER_ORDER.indexOf(def?.tier ?? '')
-
-  merged.sort((a, b) => {
-    const defA = getItem(a.id)
-    const defB = getItem(b.id)
-    const byCategory = categoryRank(defA) - categoryRank(defB)
-    if (byCategory !== 0) return byCategory
-
-    const byTier = tierRank(defB) - tierRank(defA)
-    if (byTier !== 0) return byTier
-
-    const nameA = defA?.name ?? a.id
-    const nameB = defB?.name ?? b.id
-    return nameA.localeCompare(nameB, 'zh-Hans-CN')
+    // 同一物品的多个堆按原有相对顺序排列，连续整理不会来回跳动
+    return a.order - b.order
   })
 
   inventory.fill(null)
-  merged.forEach((entry, index) => {
+  entries.forEach(({ entry }, index) => {
     if (index < inventory.length) inventory[index] = entry
   })
 

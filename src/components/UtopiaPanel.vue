@@ -27,6 +27,7 @@ import {
 } from '../data'
 import { formatCritDamage, formatPercent } from '../game/format'
 import { battle, resetBattle, startMayorSpar, startWorldBossBattle } from '../game/battle'
+import { hasStackedModal, useShortcutLayer } from '../game/keyboard'
 import {
   activeGuild,
   activeGuildId,
@@ -72,6 +73,8 @@ const view = ref('menu')
 const feed = ref('')
 /** 乌托邦城内直接打开背包：只叠加面板，不卸载地图，关闭后回到原界面 */
 const bagOpen = ref(false)
+/** TAB 打开背包页，T 直达天赋页 */
+const bagView = ref('bag')
 const placeholder = ref(null)
 const trainingKind = ref('')
 const hallGuildId = ref('')
@@ -585,6 +588,31 @@ function back() {
   view.value = 'menu'
   placeholder.value = null
 }
+
+/** 桌面快捷键：TAB 背包、T 天赋页、ESC 逐级返回（子选项 → 乌托邦菜单 → 离开地图） */
+useShortcutLayer({
+  toggleBag() {
+    if (battle.active || battle.finished) return false
+    bagView.value = 'bag'
+    bagOpen.value = !bagOpen.value
+    return true
+  },
+  openTalent() {
+    if (battle.active || battle.finished) return true
+    bagView.value = 'talent'
+    bagOpen.value = true
+    return true
+  },
+  escape() {
+    if (battle.active) return true
+    if (hasStackedModal()) return false
+    if (view.value !== 'menu') {
+      back()
+      return true
+    }
+    return false
+  },
+})
 </script>
 
 <template>
@@ -592,6 +620,7 @@ function back() {
     title="乌托邦城"
     :sub="`相对安全 · 第 ${game.day} 天 · ${currentPhase}`"
     wide
+    nav
     :bg="mapBackground(game.location)"
     @close="closeUtopia"
   >
@@ -1306,7 +1335,7 @@ function back() {
     </template>
 
     <Teleport to="body">
-      <InventoryPanel v-if="bagOpen" @close="bagOpen = false" />
+      <InventoryPanel v-if="bagOpen" :initial-view="bagView" @close="bagOpen = false" />
     </Teleport>
 
     <template #footer>

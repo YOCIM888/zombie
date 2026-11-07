@@ -65,6 +65,7 @@ import {
   weaponRecyclables,
 } from '../game/store'
 import { battle, resetBattle, startDawnCombat, startLeaderCombat } from '../game/battle'
+import { hasStackedModal, useShortcutLayer } from '../game/keyboard'
 import AssassinationCard from './AssassinationCard.vue'
 import BattleView from './BattleView.vue'
 import InventoryPanel from './InventoryPanel.vue'
@@ -92,6 +93,8 @@ const emit = defineEmits(['close'])
 const view = ref('menu')
 /** 曙光阵地内直接打开背包：只叠加面板，不卸载地图，关闭后回到原界面 */
 const bagOpen = ref(false)
+/** TAB 打开背包页，T 直达天赋页 */
+const bagView = ref('bag')
 const selected = ref(null)
 const feed = ref('哨塔的探照灯扫过来，有人朝你抬了抬下巴，算是放行。')
 const pendingRecycle = ref(null)
@@ -352,6 +355,31 @@ function closePanel() {
   if (battle.finished) resetBattle()
   emit('close')
 }
+
+/** 桌面快捷键：TAB 背包、T 天赋页、ESC 逐级返回（子选项 → 曙光菜单 → 离开地图） */
+useShortcutLayer({
+  toggleBag() {
+    if (battle.active || battle.finished) return false
+    bagView.value = 'bag'
+    bagOpen.value = !bagOpen.value
+    return true
+  },
+  openTalent() {
+    if (battle.active || battle.finished) return true
+    bagView.value = 'talent'
+    bagOpen.value = true
+    return true
+  },
+  escape() {
+    if (battle.active) return true
+    if (hasStackedModal()) return false
+    if (view.value !== 'menu') {
+      backToMenu()
+      return true
+    }
+    return false
+  },
+})
 </script>
 
 <template>
@@ -359,6 +387,7 @@ function closePanel() {
     title="曙光阵地"
     :sub="`${map.difficulty} · 第 ${game.day} 天 · ${currentPhase}`"
     wide
+    nav
     :bg="mapBackground(game.location)"
     @close="closePanel"
   >
@@ -1090,7 +1119,7 @@ function closePanel() {
     </Teleport>
 
     <Teleport to="body">
-      <InventoryPanel v-if="bagOpen" @close="bagOpen = false" />
+      <InventoryPanel v-if="bagOpen" :initial-view="bagView" @close="bagOpen = false" />
     </Teleport>
 
     <template #footer>

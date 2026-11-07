@@ -13,7 +13,7 @@ export const WORLD_BOSSES = [
       maxStacks: 10,
       text: '你每闪避成功一次，它的伤害便上涨 5 点，至多叠加 10 层。',
     },
-    description: '鳞片下透出暗紫色的光，每一次呼吸都让市政厅的灯忽明忽暗。',
+    description: '暗紫鳞光随吐息明灭，你每一次闪身，都像往它胸口的怒火里添了一勺油。',
   },
   {
     id: 'fire-dragon',
@@ -31,7 +31,7 @@ export const WORLD_BOSSES = [
       ],
       text: '血量低于 55000 / 40000 / 30000 时，攻击分别 +10 / +25 / +40。',
     },
-    description: '它的伤口里流着不会熄灭的火，空气被烤得发甜。',
+    description: '伤口淌着不灭的火，血线每降一截，被烤甜的空气就更烫一分。',
   },
   {
     id: 'siren',
@@ -46,7 +46,7 @@ export const WORLD_BOSSES = [
       critPenalty: 1,
       text: '造成伤害时有 50% 概率让你窒息：下一次攻击暴击率 -100%。',
     },
-    description: '半个身子还留在水里，歌声让玻璃窗上结出一层盐。',
+    description: '她半身浸在礁影里，歌声让玻璃结出盐霜，也让下一次出手在窒息中失去准星。',
   },
   {
     id: 'fairy',
@@ -61,7 +61,7 @@ export const WORLD_BOSSES = [
       infection: 10,
       text: '每次对你造成伤害时，理智 -10、感染 +10。',
     },
-    description: '她很美，只是因为某种原因变堕落，试图打败她吧。',
+    description: '残破蝶翼抖落腐孢，她的葬歌钻进伤口，把理智和洁净一点点抽走。',
   },
 ]
 

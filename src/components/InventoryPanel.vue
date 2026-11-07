@@ -31,8 +31,15 @@ import {
   useItem,
 } from '../game/store'
 import { battle } from '../game/battle'
+import { useShortcutLayer } from '../game/keyboard'
 import ModalShell from './ModalShell.vue'
 import LoadoutPanel from './LoadoutPanel.vue'
+
+const props = defineProps({
+  /** T 键直达天赋页时传 talent，其余入口仍从背包页开始 */
+  initialView: { type: String, default: 'bag' },
+})
+const emit = defineEmits(['close'])
 
 const VIEWS = [
   { id: 'bag', name: '背包' },
@@ -41,7 +48,7 @@ const VIEWS = [
   { id: 'gems', name: '宝石' },
 ]
 
-const activeView = ref('bag')
+const activeView = ref(props.initialView === 'talent' ? 'talent' : 'bag')
 const activeCategory = ref('all')
 const selectedIndex = ref(null)
 const pendingDiscard = ref(null)
@@ -142,14 +149,17 @@ const gemItems = computed(() =>
     })),
 )
 
-const slots = computed(() =>
-  game.inventory.map((entry, index) => {
+const slots = computed(() => {
+  const all = game.inventory.map((entry, index) => {
     const def = entry ? getItem(entry.id) : null
-    const matched =
-      activeCategory.value === 'all' || !entry || def?.category === activeCategory.value
-    return { index, entry, def, hidden: !matched }
-  }),
-)
+    return { index, entry, def, hidden: false }
+  })
+  // 分类视图：只显示该分类的物品，并从第一格开始顶格对齐（index 仍指向真实背包格）
+  if (activeCategory.value === 'all') return all
+  return all.filter(
+    (slot) => slot.entry && slot.def?.category === activeCategory.value,
+  )
+})
 
 const selectedEntry = computed(() =>
   selectedIndex.value === null ? null : game.inventory[selectedIndex.value],
@@ -278,6 +288,32 @@ function weaponLine(weapon) {
   if (weapon.dodge != null) lines.push(`闪避 ${formatPercent(weapon.dodge)}`)
   return lines
 }
+
+/** 桌面快捷键：TAB 关闭背包，T 切到天赋页，Z 整理背包，ESC 先回到背包页再关闭 */
+useShortcutLayer({
+  toggleBag() {
+    emit('close')
+    return true
+  },
+  openTalent() {
+    activeView.value = 'talent'
+    return true
+  },
+  organize() {
+    // 只在「背包」页签生效：天赋/面板/宝石页按 Z 不整理，需先切回背包
+    if (activeView.value !== 'bag') return false
+    handleOrganize()
+    return true
+  },
+  escape() {
+    if (activeView.value !== 'bag') {
+      activeView.value = 'bag'
+      return true
+    }
+    emit('close')
+    return true
+  },
+})
 </script>
 
 <template>

@@ -138,7 +138,7 @@ const MELEE_LIST = [
   melee('scarlet-greatsword', '猩红巨剑', '神话', { attack: 128, crit: 0.38, critDamage: 2.65, combo: 0.28, durability: 320 },
     '整块剑身泛红，血干了也和它分不清。'),
   melee('sickle-diamond', '镰刀-晶花', '神话', { attack: 144, crit: 0.44, critDamage: 1.44, combo: 0.44, durability: 444 },
-    '全水晶刀身，没人知道它是艺术品还是武器。'),
+    '全水晶镰刀，没人知道它是艺术品还是武器。'),
 
   /* ===== 限定 ===== */
   melee('royal-scepter', '皇家权杖', '限定', { attack: 40, crit: 0.39, critDamage: 2.88, combo: 0.66, durability: 600 },

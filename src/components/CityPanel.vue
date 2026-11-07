@@ -71,6 +71,7 @@ import {
   gardenActivity,
 } from '../game/store'
 import { battle, resetBattle, startBankerCombat } from '../game/battle'
+import { hasStackedModal, useShortcutLayer } from '../game/keyboard'
 import AssassinationCard from './AssassinationCard.vue'
 import BattleView from './BattleView.vue'
 import InventoryPanel from './InventoryPanel.vue'
@@ -111,6 +112,8 @@ const view = ref('menu')
 const feed = ref('城门在身后合拢，铁链拖过地面。你站在都城的阴影里。')
 /** 都城地图内直接打开背包：面板叠加而不卸载地图，关闭后保留当前选项与滚动位置 */
 const bagOpen = ref(false)
+/** TAB 打开背包页，T 直达天赋页 */
+const bagView = ref('bag')
 const loanAmount = ref(1)
 const palaceView = ref('menu')
 const tradeCoins = ref(1)
@@ -344,6 +347,31 @@ function closePanel() {
   if (battle.finished) resetBattle()
   emit('close')
 }
+
+/** 桌面快捷键：TAB 背包、T 天赋页、ESC 逐级返回（子选项 → 都城菜单 → 离开地图） */
+useShortcutLayer({
+  toggleBag() {
+    if (battle.active || battle.finished) return false
+    bagView.value = 'bag'
+    bagOpen.value = !bagOpen.value
+    return true
+  },
+  openTalent() {
+    if (battle.active || battle.finished) return true
+    bagView.value = 'talent'
+    bagOpen.value = true
+    return true
+  },
+  escape() {
+    if (battle.active) return true
+    if (hasStackedModal()) return false
+    if (view.value !== 'menu') {
+      footerBack()
+      return true
+    }
+    return false
+  },
+})
 </script>
 
 <template>
@@ -351,6 +379,7 @@ function closePanel() {
     title="末日都城"
     :sub="`${map.difficulty} · 第 ${game.day} 天 · ${currentPhase}`"
     wide
+    nav
     :bg="mapBackground(game.location)"
     @close="closePanel"
   >
@@ -1096,7 +1125,7 @@ function closePanel() {
     </template>
 
     <Teleport to="body">
-      <InventoryPanel v-if="bagOpen" @close="bagOpen = false" />
+      <InventoryPanel v-if="bagOpen" :initial-view="bagView" @close="bagOpen = false" />
     </Teleport>
   </ModalShell>
 </template>

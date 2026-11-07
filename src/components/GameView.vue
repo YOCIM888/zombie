@@ -1,5 +1,5 @@
 <script setup>
-import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { BACKGROUND_IMAGE, DEFAULT_CHARACTER_NAME, STAT_DEFS } from '../game/config'
 import { AIRSHIP, FINALES, fieldMapById, formatMoney } from '../data'
 import {
@@ -16,8 +16,13 @@ import {
   tickPlaytime,
   tradeNotice,
 } from '../game/store'
-import { flushGlobalStats } from '../game/save'
+import { flushGlobalStats, settings } from '../game/save'
 import { battle } from '../game/battle'
+import {
+  dispatchShortcut,
+  isTypingTarget,
+} from '../game/keyboard'
+import { clearNavFocus, ensureNavFocus, handleNavKey, isNavKey } from '../game/nav'
 import { formatDuration } from '../game/format'
 import ModalShell from './ModalShell.vue'
 import ExplorePanel from './ExplorePanel.vue'
@@ -43,6 +48,8 @@ const showLeave = ref(false)
 const showRename = ref(false)
 const showDevConsole = ref(false)
 const renameDraft = ref('')
+/** T 键打开背包时直达天赋页；TAB 打开时回到常规背包 */
+const inventoryStartView = ref('bag')
 
 /** 隐藏入口：头像连续点击 8 次；相邻两次超过 700ms 视为重新开始 */
 const DEV_TAP_TARGET = 8
@@ -68,12 +75,6 @@ function onAvatarPointerDown(event) {
 const devPressedKeys = new Set()
 let devComboFired = false
 
-function isTypingTarget(target) {
-  if (!(target instanceof HTMLElement)) return false
-  if (target.isContentEditable) return true
-  return ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
-}
-
 function onDevKeyDown(event) {
   if (isTypingTarget(event.target)) return
   devPressedKeys.add(event.code)
@@ -97,6 +98,155 @@ function onDevKeyUp(event) {
     devComboFired = false
   }
 }
+
+/** ===== 桌面快捷键 ===== */
+const MAP_PANELS = new Set(['city', 'dawn', 'field', 'airship', 'utopia'])
+/** 只有安全屋（没有打开任何面板）才响应的按键 */
+const SAFEHOUSE_PANELS = {
+  KeyN: 'notebook',
+  KeyM: 'explore',
+  KeyP: 'sleep',
+  KeyL: 'save',
+  KeyF: 'companion',
+  KeyG: 'builds',
+}
+const SHORTCUT_ACTIONS = {
+  Tab: 'toggleBag',
+  KeyT: 'openTalent',
+  KeyZ: 'organize',
+  KeyQ: 'ranged',
+  KeyE: 'melee',
+  KeyR: 'flee',
+  Escape: 'escape',
+}
+
+/** 「返回主菜单」里的快捷键教程：逐项标注实际生效场景 */
+const SHORTCUT_GUIDE = [
+  { keys: 'TAB', what: '背包', scene: '安全屋 / 地图内 / 战斗中（可开关战斗背包）' },
+  { keys: 'N', what: '备忘录', scene: '仅安全屋且无面板打开时' },
+  { keys: 'M', what: '外出探索', scene: '仅安全屋且无面板打开时' },
+  { keys: 'P', what: '睡觉', scene: '仅安全屋且无面板打开时' },
+  { keys: 'L', what: '查看存档', scene: '仅安全屋且无面板打开时' },
+  { keys: 'T', what: '天赋页', scene: '安全屋 / 地图内（直接打开天赋页，战斗中除外）' },
+  { keys: 'F', what: '伙伴收获', scene: '仅安全屋且无面板打开时' },
+  { keys: 'G', what: '流派构筑', scene: '仅安全屋且无面板打开时' },
+  { keys: 'Z', what: '整理背包', scene: '仅背包打开时' },
+  { keys: 'Q', what: '远程攻击', scene: '仅战斗进行中，需可用远程武器且背包关闭' },
+  { keys: 'E', what: '近战攻击', scene: '仅战斗进行中且背包关闭' },
+  { keys: 'R', what: '逃跑', scene: '仅战斗进行中，需允许逃跑且背包关闭' },
+  { keys: 'ESC', what: '返回 / 关闭', scene: '任意界面逐级关闭；安全屋无面板时打开返回主菜单' },
+]
+
+const NAV_GUIDE = [
+  { keys: 'ASDW', what: '移动选中项', scene: '地图选择 / 地图内部菜单（桌面）' },
+  { keys: 'ENTER', what: '确认当前选中', scene: '地图选择 / 地图内部菜单（桌面）' },
+]
+
+/** 关闭压在地图/存档面板上方的确认弹窗（保留面板本身） */
+function closeStackedModal() {
+  const masks = document.querySelectorAll('.modal-mask')
+  if (masks.length <= 1) return false
+  const close = masks[masks.length - 1].querySelector('.icon-close')
+  if (!close) return false
+  close.click()
+  return true
+}
+
+function onShortcutKeyDown(event) {
+  if (event.repeat) return
+  // 不接管浏览器 / 系统组合键，Shift+Tab 仍保留反向焦点导航，Shift+C+Enter 留给开发者组合键
+  if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return
+  const action = SHORTCUT_ACTIONS[event.code]
+  const isEscape = event.code === 'Escape'
+  const isNav = isNavKey(event.code)
+  if (!action && !SAFEHOUSE_PANELS[event.code] && !isNav) return
+  // 输入框聚焦时除 ESC 外一律不响应：保证打字 / 回车提交不被导航拦截
+  if (isTypingTarget(event.target) && !isEscape) return
+
+  // 纯键盘导航：只受「键盘导航」开关控制，与快捷操作互不影响
+  if (isNav) {
+    if (!settings.keyboardNav) return
+    // 战斗中交给 Q/E/R，避免 ENTER 误触攻击
+    if (battle.active) {
+      event.preventDefault()
+      return
+    }
+    if (handleNavKey(event.code)) event.preventDefault()
+    return
+  }
+
+  // 其余按键只受「快捷操作」开关控制
+  if (!settings.shortcuts) return
+
+  if (isEscape) {
+    if (showDevConsole.value) {
+      showDevConsole.value = false
+      event.preventDefault()
+      return
+    }
+    if (showRename.value) {
+      showRename.value = false
+      event.preventDefault()
+      return
+    }
+    if (showLeave.value) {
+      showLeave.value = false
+      event.preventDefault()
+      return
+    }
+    if (tradeNotice.sales.length && !battle.active && !game.dead) {
+      dismissTradeNotice()
+      event.preventDefault()
+      return
+    }
+  }
+
+  // 由最上层面板处理（战斗背包 / 战斗操作 / 背包 / 地图子页面）
+  if (action && dispatchShortcut(action)) {
+    event.preventDefault()
+    return
+  }
+
+  if (isEscape) {
+    if (closeStackedModal()) {
+      event.preventDefault()
+      return
+    }
+    if (panel.value) {
+      if (MAP_PANELS.has(panel.value)) closeCity()
+      else panel.value = ''
+      event.preventDefault()
+      return
+    }
+    // 最底层：安全屋且没有任何面板，ESC 等同于点击「返回主菜单」按钮
+    if (game.location === null && !game.dead && !game.finale) {
+      showLeave.value = true
+      event.preventDefault()
+    }
+    return
+  }
+
+  // TAB / T / N / M / P / L 的安全屋兜底：只在没有任何面板、没有确认弹窗时生效
+  if (panel.value !== '' || game.dead || game.finale) return
+  if (closeStackedModal()) return
+  if (event.code === 'Tab') {
+    inventoryStartView.value = 'bag'
+    panel.value = 'inventory'
+    event.preventDefault()
+    return
+  }
+  if (event.code === 'KeyT') {
+    inventoryStartView.value = 'talent'
+    panel.value = 'inventory'
+    event.preventDefault()
+    return
+  }
+  const safehousePanel = SAFEHOUSE_PANELS[event.code]
+  if (safehousePanel) {
+    panel.value = safehousePanel
+    event.preventDefault()
+  }
+}
 const bgStyle = computed(() => ({
   backgroundImage: `url("${encodeURI(BACKGROUND_IMAGE)}")`,
 }))
@@ -112,12 +262,14 @@ onMounted(() => {
   timer = window.setInterval(tickPlaytime, 1000)
   window.addEventListener('keydown', onDevKeyDown)
   window.addEventListener('keyup', onDevKeyUp)
+  window.addEventListener('keydown', onShortcutKeyDown)
 })
 
 onBeforeUnmount(() => {
   window.clearInterval(timer)
   window.removeEventListener('keydown', onDevKeyDown)
   window.removeEventListener('keyup', onDevKeyUp)
+  window.removeEventListener('keydown', onShortcutKeyDown)
   flushGlobalStats()
 })
 
@@ -158,6 +310,30 @@ watch(
   () => game.location,
   (mapId) => {
     if (mapId && !game.dead) openRegion()
+  },
+)
+
+// 打开地图 / 地图选择后，把键盘焦点落到第一个可选项；键盘导航关闭时不显示导航焦点
+watch(panel, async (value) => {
+  if (!value || !settings.keyboardNav) {
+    clearNavFocus()
+    return
+  }
+  await nextTick()
+  ensureNavFocus()
+})
+
+// 设置里切换「键盘导航」：关闭立刻清除高亮，打开则给当前面板补上首项焦点
+watch(
+  () => settings.keyboardNav,
+  async (enabled) => {
+    if (!enabled) {
+      clearNavFocus()
+      return
+    }
+    if (!panel.value) return
+    await nextTick()
+    ensureNavFocus()
   },
 )
 
@@ -377,7 +553,11 @@ function percentOf(key) {
     <CompanionPanel v-else-if="panel === 'companion'" @close="panel = ''" />
     <NotebookPanel v-else-if="panel === 'notebook'" @close="panel = ''" />
     <SleepPanel v-else-if="panel === 'sleep'" @close="panel = ''" />
-    <InventoryPanel v-else-if="panel === 'inventory'" @close="panel = ''" />
+    <InventoryPanel
+      v-else-if="panel === 'inventory'"
+      :initial-view="inventoryStartView"
+      @close="panel = ''"
+    />
     <SavePanel v-else-if="panel === 'save'" @close="panel = ''" />
     <BuildCodexPanel v-else-if="panel === 'builds'" @close="panel = ''" />
 
@@ -450,6 +630,54 @@ function percentOf(key) {
       <p class="leave__text">
         你正在游玩存档 {{ slotLabel }}。可以选择保存后离开，或者直接返回——下一次进入时将回到主菜单。
       </p>
+
+      <section class="tutorial">
+        <div class="tutorial__head">
+          <h3>快捷键教程</h3>
+          <p>输入框聚焦时不会拦截按键；键盘导航只作用于最上层可导航面板</p>
+        </div>
+
+        <div class="tutorial__group" :class="{ 'tutorial__group--off': !settings.shortcuts }">
+          <div class="tutorial__group-head">
+            <strong>快捷操作</strong>
+            <span
+              class="tutorial__state"
+              :class="{ 'tutorial__state--off': !settings.shortcuts }"
+            >
+              {{ settings.shortcuts ? '已开启' : '当前已关闭 · 以下按键不响应' }}
+            </span>
+          </div>
+          <ul class="tutorial__list">
+            <li v-for="item in SHORTCUT_GUIDE" :key="item.keys" class="tutorial__row">
+              <kbd>{{ item.keys }}</kbd>
+              <span class="tutorial__what">{{ item.what }}</span>
+              <span class="tutorial__scene">{{ item.scene }}</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="tutorial__group" :class="{ 'tutorial__group--off': !settings.keyboardNav }">
+          <div class="tutorial__group-head">
+            <strong>键盘导航</strong>
+            <span
+              class="tutorial__state"
+              :class="{ 'tutorial__state--off': !settings.keyboardNav }"
+            >
+              {{ settings.keyboardNav ? '已开启' : '当前已关闭 · 导航与高亮不响应' }}
+            </span>
+          </div>
+          <ul class="tutorial__list">
+            <li v-for="item in NAV_GUIDE" :key="item.keys" class="tutorial__row">
+              <kbd>{{ item.keys }}</kbd>
+              <span class="tutorial__what">{{ item.what }}</span>
+              <span class="tutorial__scene">{{ item.scene }}</span>
+            </li>
+          </ul>
+          <p class="tutorial__note">
+            地图选择与地图内部用 ASDW 移动、ENTER 确认；背包 / 存档等弹窗打开时暂停，不会控制底层地图。两项可在「设置」中分别开关。
+          </p>
+        </div>
+      </section>
       <template #footer>
         <div class="leave__actions">
           <span class="leave__hint">进度只在你点击保存时写入</span>
@@ -972,6 +1200,128 @@ function percentOf(key) {
   margin-left: auto;
 }
 
+/* 快捷键教程：放在可滚动内容区，底部按钮区保持固定可点 */
+
+.tutorial {
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  background: rgba(6, 7, 8, 0.88);
+}
+
+.tutorial__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.tutorial__head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: var(--text);
+}
+
+.tutorial__head p {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--text-mute);
+}
+
+.tutorial__group + .tutorial__group {
+  margin-top: 16px;
+}
+
+.tutorial__group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.tutorial__group-head strong {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  color: var(--bone);
+}
+
+.tutorial__state {
+  padding: 2px 8px;
+  border: 1px solid var(--line-strong);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.tutorial__state--off {
+  border-color: rgba(193, 74, 50, 0.55);
+  color: var(--rust-soft);
+}
+
+.tutorial__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tutorial__row {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 0.9fr) minmax(0, 1.4fr);
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.52);
+  transition: opacity 0.2s;
+}
+
+.tutorial__row kbd {
+  justify-self: start;
+  padding: 1px 6px;
+  border: 1px solid var(--line-strong);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  color: var(--bone);
+}
+
+.tutorial__what {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--text);
+}
+
+.tutorial__scene {
+  font-size: 10.5px;
+  line-height: 1.65;
+  letter-spacing: 0.04em;
+  color: var(--text-mute);
+}
+
+.tutorial__group--off .tutorial__row {
+  opacity: 0.42;
+}
+
+.tutorial__note {
+  margin: 10px 0 0;
+  font-size: 10.5px;
+  line-height: 1.75;
+  letter-spacing: 0.04em;
+  color: var(--text-mute);
+}
+
 /* 自由贸易结算 */
 
 .trade-notice {
@@ -1164,6 +1514,15 @@ function percentOf(key) {
   .hud__leave {
     font-size: 10px;
     padding: 0 9px;
+  }
+
+  .tutorial__row {
+    grid-template-columns: 64px minmax(0, 1fr);
+    gap: 6px 10px;
+  }
+
+  .tutorial__scene {
+    grid-column: 2;
   }
 }
 </style>

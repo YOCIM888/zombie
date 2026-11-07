@@ -9,6 +9,8 @@ defineProps({
   bgLight: { type: Boolean, default: false },
   /** 背景暗化档位：normal 常规、soft 更亮、deep 更深；留空沿用原口径 */
   bgTone: { type: String, default: '' },
+  /** 允许 ASDW / ENTER 键盘导航（仅地图类可操作面板开启） */
+  nav: { type: Boolean, default: false },
 })
 
 defineEmits(['close'])
@@ -42,7 +44,7 @@ defineEmits(['close'])
       <div v-if="$slots.hud" class="modal-hud">
         <slot name="hud" />
       </div>
-      <div class="modal-body">
+      <div class="modal-body" :data-nav-scope="nav ? '' : null">
         <slot />
       </div>
       <footer v-if="$slots.footer" class="modal-foot">

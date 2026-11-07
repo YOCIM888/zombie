@@ -49,12 +49,13 @@ function enter(map) {
 </script>
 
 <template>
-  <ModalShell title="外出探索" sub="选择一个区域，离开安全屋" @close="$emit('close')">
+  <ModalShell title="外出探索" sub="选择一个区域，离开安全屋" nav @close="$emit('close')">
     <div class="maps">
       <article
         v-for="map in visibleMaps"
         :key="map.id"
         class="map"
+        data-nav-item
         :class="{ 'map--locked': !mapAvailable(map) }"
       >
         <img
