@@ -119,12 +119,18 @@ export function joinCity() {
   return '你向都城衙门投了名册，领到一枚「都城平民徽章」。'
 }
 
+/** 补办历史最高的都城身份牌：当前持有更低档位时也允许补到最高档 */
 export function restoreIdentity() {
   if (game.dead) return ''
-  if (game.identity) return `身份牌还在你身上（${game.identity}），无需补办。`
-  if (!game.maxIdentity) return '没有可补办的身份记录。'
-  if (!grantIdentity(game.maxIdentity)) return '背包已满，补办的身份牌无处安放。'
-  return `已补办历史最高身份「${game.maxIdentity}」的身份牌。`
+  const max = game.maxIdentity
+  if (!max) return '没有可补办的身份记录。'
+  const currentRank = identityRank(game.identity)
+  const maxRank = identityRank(max)
+  if (currentRank >= 0 && currentRank >= maxRank) {
+    return `身份牌还在你身上（${game.identity}），无需补办。`
+  }
+  if (!grantIdentity(max)) return '背包已满，补办的身份牌无处安放。'
+  return `已补办历史最高身份「${max}」的身份牌。`
 }
 
 export function becomeKnight() {

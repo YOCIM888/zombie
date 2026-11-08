@@ -193,6 +193,10 @@ watch(
   { flush: 'sync' },
 )
 
+// 身份以背包里的身份牌为准：任何条目的增删都立即重算当前 / 最高身份。
+// 这样开发者指令、任务奖励等非晋升入口拿到徽章时，不会出现「有徽章但身份字段为空」。
+watch(() => game.inventory, syncIdentities, { deep: true, flush: 'sync' })
+
 /** 开发者控制台状态：只在当前页面会话内生效，不写入存档 */
 export const devState = reactive({
   oneHitKill: false,
@@ -503,6 +507,11 @@ function applySlot(slot) {
   // 徽章必须来自晋升、领取或补办等实际动作，这里绝不能凭历史身份补物品，
   // 否则玩家主动丢弃的徽章会在每次读档后重新出现。
   syncIdentities()
+  // 旧档可能只在 flags 里留下「米娅已交付领袖徽章」，最高身份却没写进去：
+  // 这里只补身份记录，不生成徽章；是否补办仍由玩家在曙光阵地主动操作。
+  if (game.flags.miaLeaderClaimed && dawnRank(game.maxDawnIdentity) < dawnRank('领袖')) {
+    game.maxDawnIdentity = '领袖'
+  }
   syncHpCap()
   checkStatDeaths()
   checkLoanDue()
@@ -809,7 +818,9 @@ export function syncIdentities() {
     const def = getItem(entry.id)
     if (def?.category !== 'identity') continue
     if (def.faction === 'dawn') {
-      if (dawnRank(def.identityLevel) > dawnRank(bestDawn)) bestDawn = def.identityLevel
+      // 曙光身份统一走别名归一，避免旧档 / 特殊徽章等级名未命中档位
+      const level = normalizeDawnIdentityName(def.identityLevel)
+      if (level && dawnRank(level) > dawnRank(bestDawn)) bestDawn = level
     } else if (identityRank(def.identityLevel) > identityRank(bestCity)) {
       bestCity = def.identityLevel
     }

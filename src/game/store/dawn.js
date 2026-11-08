@@ -104,13 +104,18 @@ export function buyDawnBond(goodId) {
   return `你用「${good.badgeName}」和 ${good.price} 曙光币换到了 ${good.name}。`
 }
 
-/** 补办历史最高的曙光徽章 */
+/** 补办历史最高的曙光徽章：当前持有更低档位时也允许补到最高档 */
 export function restoreDawnIdentity() {
   if (!dawnReady()) return ''
-  if (game.dawnIdentity) return `你的曙光身份牌还在（${game.dawnIdentity}），无需补办。`
-  if (!game.maxDawnIdentity) return '没有可补办的曙光身份记录。'
-  if (!grantDawnIdentity(game.maxDawnIdentity)) return '背包已满，补办的徽章无处安放。'
-  return `已补办历史最高曙光身份「${game.maxDawnIdentity}」的徽章。`
+  const max = game.maxDawnIdentity
+  if (!max) return '没有可补办的曙光身份记录。'
+  const currentRank = dawnInfo(game.dawnIdentity)?.rank ?? -1
+  const maxRank = dawnInfo(max)?.rank ?? -1
+  if (currentRank >= 0 && currentRank >= maxRank) {
+    return `你的曙光身份牌还在（${game.dawnIdentity}），无需补办。`
+  }
+  if (!grantDawnIdentity(max)) return '背包已满，补办的徽章无处安放。'
+  return `已补办历史最高曙光身份「${max}」的徽章。`
 }
 
 /** 加入曙光：直接登记名册，领取见习徽章 */
