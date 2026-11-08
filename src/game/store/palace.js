@@ -188,17 +188,34 @@ export function claimSalary() {
   return `以「${game.identity}」的身份领取俸禄：末日币 +${amount}。`
 }
 
+/** 会议出席按钮的不可用原因；空字符串表示可出席。UI 与工作玩偶共用这一处判定 */
+export function councilLockReason(council) {
+  if (!council) return '未知会议。'
+  if (identityRank(game.identity) < council.rank) {
+    return `「${council.name}」需要「${council.identity}」身份。`
+  }
+  if (cooldownLeft('council', PALACE_COOLDOWN.weekly) > 0) {
+    return '会议七天一次，还没到下一次。'
+  }
+  return ''
+}
+
+/** 当前身份与会期下可出席的最高档会议；一档都去不了时返回 null */
+export function bestAvailableCouncil() {
+  const open = PALACE_COUNCILS.filter((council) => !councilLockReason(council))
+  return [...open].sort((a, b) => b.rank - a.rank)[0] ?? null
+}
+
 /** 参加会议：1 回合，无衰减，七种会议共用七日冷却 */
 export function attendCouncil(councilId = 'knight') {
   if (!palaceReady()) return ''
 
   const council = PALACE_COUNCILS.find((item) => item.id === councilId)
   if (!council) return ''
-  if (identityRank(game.identity) < council.rank) {
-    return `「${council.name}」需要「${council.identity}」身份。`
-  }
-  if (!useCooldown('council', PALACE_COOLDOWN.weekly)) return '会议七天一次，还没到下一次。'
+  const locked = councilLockReason(council)
+  if (locked) return locked
 
+  useCooldown('council', PALACE_COOLDOWN.weekly)
   advanceTurns(council.turns, { decay: false })
   if (game.dead) return ''
 

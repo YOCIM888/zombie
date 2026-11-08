@@ -40,6 +40,10 @@ import StatusHud from './StatusHud.vue'
 import SurvivalAlerts from './SurvivalAlerts.vue'
 import UtopiaPanel from './UtopiaPanel.vue'
 import DevConsole from './DevConsole.vue'
+import WorkDollDialog from './WorkDollDialog.vue'
+import KillDollDialog from './KillDollDialog.vue'
+import { workDoll } from '../game/workDoll'
+import { killDoll } from '../game/killDoll'
 
 /** 构筑器按需加载：单独分包，只有点开时才会拉取计算模型 */
 const BuildCodexPanel = defineAsyncComponent(() => import('./BuildCodexPanel.vue'))
@@ -314,10 +318,20 @@ function openRegion() {
 }
 
 // 位置变化即打开对应区域：开发者传送等直接改 location 的入口也能自动弹出面板
+// 玩偶连续切换区域时不抢焦点，进度统一显示在它自己的弹窗里
 watch(
   () => game.location,
   (mapId) => {
-    if (mapId && !game.dead) openRegion()
+    if (mapId && !game.dead && !workDoll.running && !killDoll.running) openRegion()
+  },
+)
+
+// 玩偶结束（含中止）时补一次位置同步：运行中不抢面板，但跑完/中止后界面必须跟上人物所在位置
+watch(
+  () => workDoll.running || killDoll.running,
+  (running, wasRunning) => {
+    if (!wasRunning || running) return
+    if (game.location) openRegion()
   },
 )
 
@@ -579,6 +593,10 @@ function percentOf(key) {
     <BuildCodexPanel v-else-if="panel === 'builds'" @close="panel = ''" />
 
     <SurvivalAlerts />
+
+    <WorkDollDialog />
+
+    <KillDollDialog />
 
     <div v-if="game.dead && !game.finale" class="death">
       <div class="death__card">

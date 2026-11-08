@@ -31,6 +31,8 @@ import {
   useItem,
 } from '../game/store'
 import { battle } from '../game/battle'
+import { startKillDoll, killDoll } from '../game/killDoll'
+import { startWorkDoll, workDoll } from '../game/workDoll'
 import { useShortcutLayer } from '../game/keyboard'
 import ModalShell from './ModalShell.vue'
 import LoadoutPanel from './LoadoutPanel.vue'
@@ -247,6 +249,24 @@ function handleUse() {
   if (!selectedEntry.value) return
   if (devGemLocked.value) {
     notify('战斗中无法使用开发者宝石，请先结束这场战斗。', 3200)
+    return
+  }
+  // 工作玩偶只作为触发入口：不消耗道具，业务链全部交给 game/workDoll
+  if (selectedDef.value?.special === 'work-doll') {
+    if (workDoll.running) {
+      notify('工作玩偶正在工作，请等这一轮结束。', 3200)
+      return
+    }
+    startWorkDoll()
+    return
+  }
+  // 杀戮玩偶同样只做触发入口，逻辑独立在 game/killDoll
+  if (selectedDef.value?.special === 'kill-doll') {
+    if (killDoll.running) {
+      notify('杀戮玩偶正在行动，请等这一轮结束。', 3200)
+      return
+    }
+    startKillDoll()
     return
   }
   useItem(selectedIndex.value)

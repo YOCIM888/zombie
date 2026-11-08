@@ -322,7 +322,14 @@ const recyclables = computed(() =>
 const salvageList = computed(() => weaponRecyclables())
 const recyclePrices = computed(() => dawnRecyclePrices(game.day))
 
-onMounted(resetBattle)
+onMounted(() => {
+  // 玩偶中止后重新打开本面板时战斗可能仍在进行，不能把进行中的战斗清掉
+  if (battle.active) {
+    view.value = battle.kind === 'leader' ? 'leader' : 'fight'
+    return
+  }
+  resetBattle()
+})
 
 function go(item) {
   if (item.placeholder) {

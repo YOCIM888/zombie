@@ -48,6 +48,7 @@ import {
   canEnterPalace,
   claimSalary,
   cooldownLeft,
+  councilLockReason,
   currentPhase,
   deliverQueenLetter,
   exchangeCurrency,
@@ -629,7 +630,7 @@ useShortcutLayer({
             <button
               type="button"
               class="btn"
-              :disabled="currentRank < council.rank || weekly('council') > 0"
+              :disabled="councilLockReason(council) !== ''"
               @click="run(() => attendCouncil(council.id))"
             >
               {{

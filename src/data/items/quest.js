@@ -48,6 +48,24 @@ const QUEST_LIST = [
     '军用炸药重新压成的方块，外壳上刻着编号，引线短得几乎贴着掌心。',
     { image: '/image/任务道具/高能炸药.webp', stackable: true, maxStack: 99 },
   ),
+  questItem(
+    'work-doll',
+    '工作玩偶',
+    '一个缝得歪歪扭扭的布偶，肚子上的补丁像一张笑歪的嘴。把它摆在桌上，它就会替你把一整天的活按顺序做完。',
+    {
+      image: '/image/任务道具/工作玩偶.webp',
+      special: 'work-doll',
+    },
+  ),
+  questItem(
+    'kill-doll',
+    '杀戮玩偶',
+    '布偶的手里攥着一截磨钝的刀片，线头从指缝里露出来。把它放在桌上，它会替你清理掉挡路的东西，再顺手把该领的体面领完。',
+    {
+      image: '/image/任务道具/杀戮玩偶.webp',
+      special: 'kill-doll',
+    },
+  ),
 ]
 
 export const QUEST_ITEMS = Object.fromEntries(QUEST_LIST.map((item) => [item.id, item]))
